@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { IsoDate } from './common'
 import { LogEntry } from './logs'
+import { ScanJob, ScanProgress } from './scan'
 import { AppSettings } from './settings'
 
 /** Messages pushed from the server over the WebSocket at /api/v1/events. */
@@ -10,6 +11,9 @@ export const ServerEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('settings.changed'), settings: AppSettings }),
   z.object({ type: z.literal('log.appended'), entry: LogEntry }),
   z.object({ type: z.literal('library.changed') }),
+  z.object({ type: z.literal('scan.started'), job: ScanJob }),
+  z.object({ type: z.literal('scan.progress'), progress: ScanProgress }),
+  z.object({ type: z.literal('scan.finished'), job: ScanJob }),
 ])
 export type ServerEvent = z.infer<typeof ServerEvent>
 

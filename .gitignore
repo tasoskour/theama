@@ -12,3 +12,4 @@ release/
 tools/nssm/bin/
 test-results/
 playwright-report/
+tools/ffprobe/bin/

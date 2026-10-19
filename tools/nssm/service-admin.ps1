@@ -25,6 +25,8 @@ param(
   [Parameter(Mandatory)][string]$NssmExe,
   [string]$NodeExe,
   [string]$ServerEntry,
+  # Optional: where ffprobe.exe is; the service uses it to read duration, resolution and codecs.
+  [string]$FfprobeExe,
   [Parameter(Mandatory)][string]$DataDir,
   [Parameter(Mandatory)][string]$ResultFile,
   [int]$Port = 47890
@@ -81,7 +83,9 @@ function Install-TheamaService {
   Invoke-Nssm set $ServiceName DisplayName 'Theama Library Service'
   Invoke-Nssm set $ServiceName Description 'Indexes and serves the Theama media library. Safe to leave running when the Theama window is closed.'
   Invoke-Nssm set $ServiceName Start SERVICE_DELAYED_AUTO_START
-  Invoke-Nssm set $ServiceName AppEnvironmentExtra "THEAMA_HOST_MODE=service" "THEAMA_DATA_DIR=$DataDir" "THEAMA_PORT=$Port"
+  $envExtra = @("THEAMA_HOST_MODE=service", "THEAMA_DATA_DIR=$DataDir", "THEAMA_PORT=$Port")
+  if ($FfprobeExe -and (Test-Path -LiteralPath $FfprobeExe -PathType Leaf)) { $envExtra += "THEAMA_FFPROBE=$FfprobeExe" }
+  Invoke-Nssm set $ServiceName AppEnvironmentExtra @envExtra
 
   # Console output capture (crash traces end up here) with size-based rotation.
   Invoke-Nssm set $ServiceName AppStdout (Join-Path $logs 'service-stdout.log')

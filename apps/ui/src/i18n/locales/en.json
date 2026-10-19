@@ -74,8 +74,6 @@
     "empty": "No folders yet. Add the folders that hold your media.",
     "added": "Folder added",
     "removed": "Folder removed from Theama",
-    "scanNotice": "Folders are saved now. Scanning them and showing their contents arrives with the media-discovery release.",
-    "sectionNotice": "{count} folder added, but its contents can't be shown yet. | {count} folders added, but their contents can't be shown yet.",
     "dialog": {
       "title": "Add a media folder",
       "path": "Folder path",
@@ -118,6 +116,93 @@
       "source_exists": "That folder has already been added.",
       "unreachable": "The folder could not be reached. For network shares, use the network path rather than a mapped drive letter."
     }
+  },
+  "scan": {
+    "now": "Scan now",
+    "cancel": "Cancel scan",
+    "queued": "Waiting to scan…",
+    "walking": "Looking for videos… {count} found",
+    "probing": "Reading video details… {done} of {total}",
+    "finalizing": "Updating your library…",
+    "neverScanned": "Not scanned yet",
+    "last": "Last scan {time}",
+    "summary": "Found {found} · {new} new · {moved} renamed or moved · {missing} missing · {errors} unreadable",
+    "failed": "The last scan could not finish",
+    "cancelled": "The last scan was cancelled",
+    "details": "Details",
+    "noFiles": "No video files were found in this folder.",
+    "headline": "Scanning your folders…",
+    "headlineHint": "Videos appear here as soon as the scan finishes.",
+    "ffprobeMissing": "FFprobe was not found, so durations, resolutions and codecs are not shown. Run \"yarn ffprobe:fetch\" in the project folder and restart the service.",
+    "nothingOfKind": "Your folders are added, but none of their videos are filed under this section. A folder's type (Movies, Series or My Videos) decides where its videos appear; you can change it in Settings → Library."
+  },
+  "files": {
+    "hideUnavailable": "Hide unavailable",
+    "offline": "Offline",
+    "offlineHint": "Its folder or drive is not connected right now. The title stays in your library and returns when the drive does.",
+    "missing": "Missing",
+    "missingHint": "This file is no longer in its folder. Theama keeps it until you confirm its removal.",
+    "unreadable": "Unreadable",
+    "unreadableHint": "FFprobe could not read this file. It may be incomplete or corrupt."
+  },
+  "titles": {
+    "seasons": "{count} season | {count} seasons",
+    "episodes": "{count} episode | {count} episodes",
+    "count": "{count} title | {count} titles",
+    "seeAll": "See all",
+    "scrollLeft": "Scroll left",
+    "scrollRight": "Scroll right",
+    "filter": "Filter this list",
+    "sortBy": "Sort by",
+    "sort": {
+      "title": "Title (A–Z)",
+      "added": "Recently added",
+      "year": "Year (newest first)"
+    },
+    "noMatches": "Nothing matches.",
+    "partlyHint": "Some files of this title are not available right now."
+  },
+  "home": {
+    "recent": "Recently added"
+  },
+  "detail": {
+    "back": "Back",
+    "kind": {
+      "movie": "Movie",
+      "series": "Series",
+      "video": "Personal video"
+    },
+    "summary": "Summary",
+    "play": "Play",
+    "playSoon": "Playing in your preferred player arrives in the next update.",
+    "seasons": "Seasons",
+    "season": "Season {n}",
+    "specials": "Specials",
+    "unnumbered": "Unnumbered",
+    "versions": "{count} version | {count} versions",
+    "versionsTitle": "Files (versions)",
+    "file": "File",
+    "gone": "This title is no longer in your library",
+    "goneHint": "Its folder may have been removed from Theama.",
+    "openFolder": "Show in folder",
+    "copyPath": "Copy path",
+    "facts": {
+      "resolution": "Resolution",
+      "duration": "Duration",
+      "video": "Video",
+      "audio": "Audio",
+      "subtitles": "Embedded subtitles",
+      "container": "Container",
+      "size": "Size",
+      "modified": "Modified",
+      "path": "Path"
+    }
+  },
+  "search": {
+    "label": "Search your library",
+    "hint": "Titles, episode names and file names. Accents and capital letters don't matter.",
+    "recent": "Recent searches",
+    "clear": "Clear"
   },
   "recovery": {
     "title": "Theama cannot reach its background service",

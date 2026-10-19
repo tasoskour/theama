@@ -19,6 +19,7 @@ export function resolveAdminPaths(options: {
       nssmExe: join(r, 'nssm', 'nssm.exe'),
       nodeExe: join(r, 'node', 'node.exe'),
       serverEntry: join(r, 'server', 'server.cjs'),
+      ffprobeExe: join(r, 'ffprobe', 'ffprobe.exe'),
       scriptPath: join(r, 'nssm', 'service-admin.ps1'),
       dataDir: options.dataDir,
     }
@@ -27,6 +28,7 @@ export function resolveAdminPaths(options: {
     nssmExe: join(options.repoRoot, 'tools', 'nssm', 'bin', 'nssm.exe'),
     nodeExe: options.nodeExe,
     serverEntry: join(options.repoRoot, 'apps', 'server', 'dist', 'server.cjs'),
+    ffprobeExe: join(options.repoRoot, 'tools', 'ffprobe', 'bin', 'ffprobe.exe'),
     scriptPath: join(options.repoRoot, 'tools', 'nssm', 'service-admin.ps1'),
     dataDir: options.dataDir,
   }

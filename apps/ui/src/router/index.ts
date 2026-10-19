@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
+import { navState } from '@/utils/navState'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -12,6 +13,12 @@ const routes: RouteRecordRaw[] = [
   { path: '/movies', name: 'movies', component: () => import('@/views/MoviesView.vue'), meta: { titleKey: 'nav.movies' } },
   { path: '/series', name: 'series', component: () => import('@/views/SeriesView.vue'), meta: { titleKey: 'nav.series' } },
   { path: '/videos', name: 'videos', component: () => import('@/views/MyVideosView.vue'), meta: { titleKey: 'nav.videos' } },
+  {
+    path: '/title',
+    name: 'title',
+    component: () => import('@/views/TitleDetailView.vue'),
+    meta: { titleKey: 'nav.home' },
+  },
   { path: '/search', name: 'search', component: () => import('@/views/SearchView.vue'), meta: { titleKey: 'nav.search' } },
   {
     path: '/collections',
@@ -65,6 +72,8 @@ export const router = createRouter({
   history: createWebHashHistory(),
   routes,
   scrollBehavior(_to, _from, saved) {
+    // A saved position only exists for back/forward moves; browsing pages use this to restore their place.
+    navState.arrivedByHistory = saved !== null
     return saved ?? { top: 0 }
   },
 })

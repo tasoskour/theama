@@ -47,6 +47,62 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX idx_scan_job_source ON scan_job(source_id);
   `,
+  /* 2 — discovered media files */
+  `
+  ALTER TABLE scan_job ADD COLUMN summary TEXT;
+
+  CREATE TABLE media_file (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id     INTEGER NOT NULL REFERENCES library_source(id) ON DELETE CASCADE,
+    path          TEXT NOT NULL,
+    size          INTEGER NOT NULL,
+    mtime_ms      INTEGER NOT NULL,
+    volume_id     TEXT,
+    file_id       TEXT,
+    state         TEXT NOT NULL DEFAULT 'available' CHECK (state IN ('available','missing_unconfirmed')),
+    first_seen_at TEXT NOT NULL,
+    last_seen_at  TEXT NOT NULL,
+    missing_since TEXT,
+    kind          TEXT NOT NULL CHECK (kind IN ('movie','episode','video','extra')),
+    guessed_title TEXT NOT NULL,
+    guessed_year  INTEGER,
+    season        INTEGER,
+    episode       INTEGER,
+    episode_end   INTEGER,
+    episode_title TEXT,
+    probed_at     TEXT,
+    probe_error   TEXT,
+    duration_ms   INTEGER,
+    width         INTEGER,
+    height        INTEGER,
+    container     TEXT,
+    video_codec   TEXT,
+    audio_codecs  TEXT,
+    subtitle_count INTEGER
+  );
+  CREATE UNIQUE INDEX uq_media_file_source_path ON media_file(source_id, path COLLATE NOCASE);
+  CREATE INDEX idx_media_file_kind_title ON media_file(kind, guessed_title COLLATE NOCASE, id);
+  CREATE INDEX idx_media_file_identity ON media_file(source_id, volume_id, file_id);
+  CREATE INDEX idx_media_file_state ON media_file(source_id, state);
+  `,
+  /* 3 — title grouping and full-text search */
+  `
+  ALTER TABLE media_file ADD COLUMN title_key TEXT;
+  CREATE INDEX idx_media_file_title_key ON media_file(kind, title_key);
+
+  -- Contentless FTS5 index over what a person types: titles, episode titles and the words of the path.
+  -- The text stored in it is folded by the application (Greek accents and final sigma are not handled by
+  -- SQLite's own remove_diacritics), so it is written by MediaFileRepo, never by SQL triggers. Only
+  -- deletes are done in SQL because a folder removal cascades to its files.
+  CREATE VIRTUAL TABLE media_file_fts USING fts5(
+    guessed_title, episode_title, path_text,
+    content='', contentless_delete=1, tokenize='unicode61 remove_diacritics 2'
+  );
+
+  CREATE TRIGGER media_file_fts_delete AFTER DELETE ON media_file BEGIN
+    DELETE FROM media_file_fts WHERE rowid = old.id;
+  END;
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

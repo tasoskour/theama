@@ -20,6 +20,18 @@ No external player exposes resume position uniformly. VLC (HTTP/RC interface), m
 - **TMDB** is free for non-commercial use with attribution; the API key is the user's own, rate limits are respected, and attribution appears in About. If Theama is ever distributed commercially, TMDB's commercial terms apply.
 - Provider outages, shutdowns or term changes are contained by the adapter interface and the offline cache.
 
+## Scanning and FFprobe
+| Risk | Detail | Mitigation |
+|---|---|---|
+| FFmpeg licensing | FFmpeg builds are LGPL/GPL. | `ffprobe.exe` is a separate process we only execute (never linked or modified); the build is a pinned download, not committed; attribution and licence text must ship with the installer (Phase 7). |
+| Download integrity | The FFmpeg zip is ~110 MB. | `tools/ffprobe/fetch-ffprobe.mjs` pins version 9.0.2 and the SHA-256 published by the host, refuses on mismatch, and extracts only `ffprobe.exe`. |
+| Incomplete or corrupt files | Real folders contain unfinished downloads (two of 131 in the sample set start with zero bytes). | FFprobe errors are stored per file (*Unreadable*), the scan carries on, and the file is not retried until it changes. |
+| Title guessing is only a guess | Grouping is by normalised name, so two different shows with the same name (e.g. two series called *Doctor Who*) merge, and a movie with and without a year in its file name splits. | Display guesses until Phase 4 matches titles to a provider; grouping then uses provider ids. |
+| Search folding | SQLite FTS5 `remove_diacritics` ignores Greek accents. | Solved: text is folded by the application (accents, case, final sigma) before indexing and querying; covered by tests. |
+| Large libraries in the grid | Grids load 60 titles per page with `content-visibility`, which is fine for thousands but is not true virtualisation. | Measure at 5,000 titles (Phase 3 follow-up); move to a windowed grid if scrolling degrades. |
+| Watchers on network shares | `fs.watch` can miss events on SMB shares and after sleep. | Debounced watcher **plus** a 6-hour safety scan and a rescan whenever a folder returns online. |
+| A movie in a Series folder | The folder type chosen by the user wins, so it is listed as an unnumbered episode. | By design (explicit classification beats guessing); *Auto-detect* classifies by name. |
+
 ## Other risks
 | Risk | Mitigation |
 |---|---|

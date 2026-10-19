@@ -2,18 +2,25 @@
 
 SQLite (WAL, `foreign_keys=ON`, `busy_timeout=5000`) via better-sqlite3; Drizzle ORM for typed queries; forward-only SQL migrations (`PRAGMA user_version`) applied at startup inside a transaction. A database written by a *newer* build is refused rather than downgraded.
 
-## 1. What exists today (migration 1) — **Built**
+## 1. What exists today (migrations 1–2) — **Built**
 
 | Table | Purpose |
 |---|---|
 | `application_setting(key PK, value JSON-text, updated_at)` | Settings as key/value so adding a setting never needs a migration. Invalid stored values fall back to defaults per key. |
 | `service_event(id, time, kind, reason, pid, version)` | start / stop / crash / restart / migrate history. Index on `time`. |
 | `library_source(id, path UNIQUE, library_type, recursive, enabled, volume_id, availability, last_seen_online_at, created_at)` | Media folders. `volume_id` + `availability` exist now so offline drives are modelled before scanning is. |
-| `scan_job(id, source_id → library_source ON DELETE CASCADE, status, started_at, finished_at, diagnostics)` | Persisted scan runs and diagnostics. |
+| `scan_job(id, source_id → library_source ON DELETE CASCADE, status, started_at, finished_at, diagnostics, summary)` | Persisted scan runs; `summary` is JSON counters (found, new, changed, moved, missing, skipped, probed, errors), `diagnostics` a JSON list of notes. |
+| `media_file(id, source_id → library_source ON DELETE CASCADE, path, size, mtime_ms, volume_id, file_id, state, first_seen_at, last_seen_at, missing_since, kind, guessed_title/year, season, episode, episode_end, episode_title, probe columns…)` | One row per discovered video. `state` is stored as `available` or `missing_unconfirmed`; **`source_offline` is derived at query time** from the folder's availability, so unplugging a drive writes nothing. `file_id` is the NTFS file id (rename/move detection). Parse columns are guesses from the file name and are recomputed on every scan; probe columns come from FFprobe. Unique on `(source_id, path COLLATE NOCASE)`. `kind` is `movie`, `episode`, `video` or `extra`. |
 
 A test (`schema-drift.test.ts`) fails if the Drizzle declarations and the migrated tables disagree on names, nullability or primary keys.
 
-## 2. Target model (Phases 2–6) — **Designed**
+### Title grouping and search (migration 3) — **Built**
+- `media_file.title_key` groups files into titles until Phase 4 matches them to real ones: `series:<normalised title>` (all episodes of a show), `movie:<normalised title>:<year>`, and one key per personal video / extra. *Normalised* = lower-case, accents removed (Greek tonos too), punctuation dropped, final sigma folded, so `X-Men '97`, `X-Men 97` and `x-men 97` are one series.
+- `media_file_fts` is a contentless FTS5 index (titles, episode titles, path words). Its text is **folded by the application, not by SQLite**, because SQLite's `remove_diacritics` does not touch Greek accents (found by test: `ταινια` did not match `Ταινία`). The repository maintains it on every insert/update; deletes (including cascades from removing a folder) are done by a SQL trigger; `ensureSearchIndex()` rebuilds it at startup if it ever disagrees with the table.
+
+## 2. Target model (Phases 4–6) — **Designed**
+
+`media_file` above is the first piece of this model; Phase 4 adds `media_title` and a link table without discarding those rows.
 
 ```mermaid
 erDiagram

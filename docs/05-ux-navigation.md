@@ -24,7 +24,7 @@ flowchart TD
 | Details | Hero with backdrop, side-by-side layout | Stacked, thumb-reachable primary action |
 | Hover actions | Quick details + play + more on hover **and** focus | Never hover-dependent; actions always reachable by tap |
 
-Implemented: sidebar, bottom navigation, app bar, settings layout, recovery screen. The rest are specified below and built in later phases.
+Implemented: sidebar, bottom navigation, app bar, settings layout, recovery screen, **Home rails, poster grids for Movies / Series / My Videos, title details (movies and series with seasons), and Search**. Posters are generated placeholders until Phase 4 brings real artwork.
 
 ## 2. Screen specifications
 
@@ -60,7 +60,7 @@ Global shortcuts (implemented in `useGlobalShortcuts`):
 | `Ctrl+1…5`, `Ctrl+,`, `Ctrl+Shift+L` | Native menu accelerators: sections, settings, log history |
 | `Tab` / `Shift+Tab` | Standard focus order; every control has a visible focus ring (2 px bronze, offset) |
 
-Rails (Phase 3): the rail is one tab stop; `←/→` move within it, `↑/↓` move between rails keeping the column index, `Enter` opens, `Space` plays when a play action exists. Focus is remembered per rail; returning from a details page restores the focused poster and scroll offset (router `scrollBehavior` already restores scroll; focus restoration is added with the rails).
+Rails and grids (**built**): each rail or grid is one tab stop; `←/→` move within it, `↑/↓` move between rails keeping the column index, `Enter` opens, `Space` plays when a play action exists. Grids use `←/→/↑/↓`, `Home/End`, `PageUp/PageDown` (Down from a short last row lands on the last card). Returning with Back / Alt+←/ Esc restores the list, scroll position and focused card; opening a page fresh from the sidebar does not (the router tells us which it was). Esc/Backspace from a details page returns to the list. Down from the search box jumps into the first result.
 
 Rules: overlays own `Esc`; focus moves into a dialog when it opens and returns to its trigger on close; live regions announce counts and status changes (`aria-live` on log count, empty states).
 

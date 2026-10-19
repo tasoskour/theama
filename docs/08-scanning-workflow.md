@@ -1,6 +1,8 @@
-# 08 · Media scanning workflow (Phase 2) — **Designed**
+# 08 · Media scanning workflow — **Built** (Phase 2)
 
-Foundations already in place: `library_source` (with `volume_id`, `availability`, `last_seen_online_at`), `scan_job` (persisted status + diagnostics), job/progress channel (WebSocket), service-event and log infrastructure.
+Implemented in `apps/server/src/scan/`: `walk.ts` (directory walk), `filename.ts` (name parser), `scanner.ts` (reconciliation), `probe.ts` (FFprobe), `manager.ts` (job queue), `auto.ts` (watchers and triggers), `store.ts` (repositories). The text below is the design; where the implementation differs it is noted in **Implementation notes** at the end.
+
+Foundations: `library_source` (with `volume_id`, `availability`, `last_seen_online_at`), `scan_job` (persisted status + diagnostics), job/progress channel (WebSocket), service-event and log infrastructure.
 
 ## 1. Flow
 
@@ -56,4 +58,14 @@ flowchart TD
 - Process killed mid-scan: on startup, `scan_job` rows still `running` are marked `interrupted` and resumed.
 - DB locked: bounded retries with backoff (WAL + busy timeout already set).
 - Probe failures: retried once, then recorded; the file remains listed with minimal info.
-- Every scan writes a summary line to the log history, visible in Settings → Advanced → Log history.
+- Every scan writes a summary line to the log history, visible in Settings → Advanced → Log history.## 7. Implementation notes (what was actually built)
+- **One walk, one reconcile.** Every scan walks the whole folder (cheap: 131 files in 0.1 s on a real network-attached series folder), then compares with the database; unchanged `(size, mtime)` files are skipped and never probed. Nothing is written for unchanged files.
+- **Per-directory listing** (`readdir` with file types) instead of one stat per entry; every filesystem call is bounded by a 3 s timeout so a dead share cannot hang a scan. Unreadable directories are recorded in the scan's diagnostics and files under them are **never** flagged missing.
+- **Symlinks and junctions are skipped** (verified with a looping junction in tests); recursion is capped at 64 levels.
+- **Rename/move detection** matches on `(volume serial, NTFS file id, size)`; the row, its probe data and its history are kept.
+- **Missing files** are flagged `missing_unconfirmed` only if the folder is still online *after* the walk; a cancelled, failed or unreachable scan changes nothing. Nothing is ever deleted: `removed` and its grace-period clean-up are not built yet.
+- **Overlapping folders:** a folder nested inside another source is excluded from the parent's walk, so each file is indexed once.
+- **FFprobe** runs as bounded child processes (≤ 4, `cores − 1`), 30 s timeout, arguments as an array after `--`. A file FFprobe cannot read keeps its row with `probe_error` (shown as *Unreadable*) and is not retried while unchanged. Without FFprobe the scan still lists files and says why details are missing.
+- **Triggers** (`auto.ts`): service start (every enabled folder), folder added / re-enabled / type changed, **Scan now**, a folder coming back online (60 s availability poll), `fs.watch` events (2 s debounce, one scan per burst), and a 6-hour safety rescan. A watcher that errors (drive pulled) is dropped and re-attached by the next poll.
+- **Jobs** are persisted; scans left `running` by a crash are marked failed ("interrupted") on startup and the folders are scanned again.
+- **Not yet built:** exclusion patterns, per-folder extension lists, the grace-period `removed` state, targeted (per-directory) rescans, change journal (USN) based watching.

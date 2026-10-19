@@ -4,7 +4,7 @@
 
 A private, cinematic library for the movies, series and personal videos on your own drives — local-first, no account, works offline. Windows-first.
 
-**Status: Phase 1 (foundation) is built.** The desktop app, the background service (managed through NSSM), the local API, SQLite, English/Greek, dark/light themes, **service management** and **log history** work. Media scanning, posters and metadata arrive in the next phases — see [the roadmap](docs/09-roadmap.md).
+**Status: Phases 1–3 (first slice) are built.** Add a folder and Theama scans it (automatically, and again whenever files change or a drive returns), reads each video's details with FFprobe, groups the files into titles (one card per movie, one per series) shown as poster cards on Home, Movies, Series and My Videos, with title pages (seasons and episodes for series), keyboard navigation and accent-insensitive search. Unplugged drives stay in your library, dimmed and labelled *Offline*. The Windows service (managed through NSSM), service controls, log history, English/Greek and dark/light themes are in place. Posters, online metadata, series/season pages and playback come next — see [the roadmap](docs/09-roadmap.md).
 
 ## Quick start (development)
 
@@ -12,6 +12,7 @@ Requires Node.js ≥ 22 (tested on 24) and Yarn (Classic ≥ 1.22 on PATH is eno
 
 ```bash
 yarn install
+yarn ffprobe:fetch   # one-time: downloads FFprobe (pinned, checksum-verified) so durations/resolutions/codecs are shown
 yarn dev            # Vite + Electron; the backend runs as a plain Node process in .dev-data/
 ```
 
@@ -26,6 +27,7 @@ No Windows service and no administrator rights are needed for development. If yo
 | `yarn test` | Unit + integration tests (Vitest) |
 | `yarn test:e2e` | Builds the UI, then runs the Electron end-to-end suite (Playwright) |
 | `yarn icons` | Re-renders PNG/ICO assets from `packages/brand/src/*.svg` |
+| `yarn ffprobe:fetch` | Downloads FFmpeg 9.0.2 (SHA-256 verified) and keeps only `ffprobe.exe` in `tools/ffprobe/bin/` |
 | `yarn nssm:fetch` | Downloads NSSM 2.24 (SHA-256 verified) to `tools/nssm/bin/` |
 | `yarn service:install` · `:repair` · `:uninstall` | Install/repair/remove the real Windows service (UAC prompt) |
 

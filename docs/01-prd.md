@@ -29,9 +29,9 @@ Single-user, single-machine. A secured LAN/mobile mode is explicitly future work
 | **Log history** | Searchable, filterable, paged history with live tail; readable even when the service is down | **Built** |
 | Branding | Logo, app icon (`.ico`), tray/monochrome variants, favicon | **Built** |
 | Library sources | Add/remove folders, type per folder, subfolders, enable/pause, online/offline status | **Built** (folder management) |
-| Library scanning | Recursive scan, exclusions, filesystem watching | Designed (Phase 2) |
-| **Absent media** | Offline drives/files are kept, shown dimmed with the reason, unplayable, and reconcile when the drive returns | Designed (model in 03/08; columns exist in `library_source`) |
-| Discovery | Incremental scanning, FFprobe technical info, rename/move detection | Designed (Phase 2) |
+| Library scanning | Recursive scan, filesystem watching, rescan on return, progress and cancel | **Built** (exclusion patterns still to do) |
+| **Absent media** | Offline drives/files are kept, shown dimmed with the reason, and reconcile when the drive returns | **Built** (list, badge, filter, reconcile); Play button arrives with Phase 6 |
+| Discovery | Incremental scanning, FFprobe technical info, rename/move detection | **Built** |
 | Browsing | Posters, rails, details pages, search (FTS5), filters, continue watching | Designed (Phases 3, 5) |
 | Metadata | TMDB adapter, matching with confidence + manual correction + locking, artwork cache, Greek preferred | Designed (Phase 4) |
 | Series | Seasons/episodes, multi-episode files, missing-episode detection | Designed (Phase 5) |

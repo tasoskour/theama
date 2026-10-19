@@ -8,12 +8,12 @@ import { ServiceEventRepo, recordCrashIfUncleanShutdown } from '../repo/service-
 describe('migrations', () => {
   it('applies from an empty database and is idempotent', () => {
     const db = new Database(':memory:')
-    expect(migrate(db)).toEqual([1])
+    expect(migrate(db)).toEqual([1, 2, 3])
     expect(db.pragma('user_version', { simple: true })).toBe(LATEST_SCHEMA_VERSION)
     expect(migrate(db)).toEqual([])
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]
     expect(tables.map((t) => t.name)).toEqual(
-      expect.arrayContaining(['application_setting', 'service_event', 'library_source', 'scan_job']),
+      expect.arrayContaining(['application_setting', 'service_event', 'library_source', 'scan_job', 'media_file']),
     )
   })
 

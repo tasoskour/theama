@@ -21,6 +21,13 @@ describe('buildElevationCommand', () => {
     expect(cmd.trimEnd().endsWith('exit $p.ExitCode')).toBe(true)
   })
 
+  it('passes the FFprobe location to the service when known', () => {
+    const ffprobeExe = 'C:\\Program Files\\Theama\\ffprobe.exe'
+    const withProbe = buildElevationCommand('install', { kind: 'current-user' }, { ...paths, ffprobeExe }, user, 'C:\\Temp\\r.json')
+    expect(withProbe).toContain(`-FfprobeExe "${ffprobeExe}"`)
+    expect(buildElevationCommand('install', null, paths, user, 'C:\\Temp\\r.json')).not.toContain('-FfprobeExe')
+  })
+
   it('doubles single quotes so a name like O\'Brien cannot break out of the literal', () => {
     const cmd = buildElevationCommand('install', { kind: 'local-system' }, paths, { ...user, name: "PC\\O'Brien" }, 'C:\\Temp\\r.json')
     expect(cmd).toContain("PC\\O''Brien")

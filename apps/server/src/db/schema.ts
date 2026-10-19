@@ -54,6 +54,58 @@ export const scanJob = sqliteTable(
     startedAt: text('started_at'),
     finishedAt: text('finished_at'),
     diagnostics: text('diagnostics'),
+    /** JSON counters (found, new, changed, moved, missing, skipped, probed, errors). */
+    summary: text('summary'),
   },
   (t) => [index('idx_scan_job_source').on(t.sourceId)],
+)
+
+/**
+ * A video file discovered by a scan. Title/season/episode are guesses derived from
+ * the file name (recomputable); probe columns come from FFprobe. Phase 4 links these
+ * rows to real titles without losing them.
+ */
+export const mediaFile = sqliteTable(
+  'media_file',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    sourceId: integer('source_id')
+      .notNull()
+      .references(() => librarySource.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    size: integer('size').notNull(),
+    mtimeMs: integer('mtime_ms').notNull(),
+    volumeId: text('volume_id'),
+    /** NTFS file id; stays the same when a file is renamed or moved on the same volume. */
+    fileId: text('file_id'),
+    state: text('state', { enum: ['available', 'missing_unconfirmed'] }).notNull().default('available'),
+    firstSeenAt: text('first_seen_at').notNull(),
+    lastSeenAt: text('last_seen_at').notNull(),
+    missingSince: text('missing_since'),
+    kind: text('kind', { enum: ['movie', 'episode', 'video', 'extra'] }).notNull(),
+    guessedTitle: text('guessed_title').notNull(),
+    guessedYear: integer('guessed_year'),
+    season: integer('season'),
+    episode: integer('episode'),
+    episodeEnd: integer('episode_end'),
+    episodeTitle: text('episode_title'),
+    probedAt: text('probed_at'),
+    probeError: text('probe_error'),
+    durationMs: integer('duration_ms'),
+    width: integer('width'),
+    height: integer('height'),
+    container: text('container'),
+    videoCodec: text('video_codec'),
+    /** Comma-separated codec names. */
+    audioCodecs: text('audio_codecs'),
+    subtitleCount: integer('subtitle_count'),
+    /** Identity of the title this file belongs to (see titleKeyFor); groups episodes into series. */
+    titleKey: text('title_key'),
+  },
+  (t) => [
+    index('idx_media_file_kind_title').on(t.kind, t.guessedTitle, t.id),
+    index('idx_media_file_identity').on(t.sourceId, t.volumeId, t.fileId),
+    index('idx_media_file_state').on(t.sourceId, t.state),
+    index('idx_media_file_title_key').on(t.kind, t.titleKey),
+  ],
 )

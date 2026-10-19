@@ -22,6 +22,13 @@ Base: `http://127.0.0.1:<port>/api/v1` (default port 47890, falls back to a free
 | POST | `/library/sources` | `LibrarySource` (201) | Body `{ path, libraryType?: movies\|series\|videos\|auto, recursive? }`. Validates: full path, no `..`, exists, is a directory, readable **by the service account**; records the volume serial. Errors: `invalid_path`, `not_found`, `not_a_directory`, `permission_denied`, `unreachable` (400), `source_exists` (409, case-insensitive). |
 | PATCH | `/library/sources/:id` | `LibrarySource` | Partial `{ libraryType, recursive, enabled }`. |
 | DELETE | `/library/sources/:id` | `{ deleted: true }` | Removes the folder from Theama only; **never touches files on disk**. |
+| POST | `/library/sources/:id/scan` | `ScanJob` (202) | Queues a scan (or returns the one already waiting). Also started automatically when a folder is added, re-enabled or its type changes. |
+| GET | `/scans?limit=` | `{ items: ScanJob[] }` | Newest first. `summary` = found/new/changed/moved/missing/skipped/probed/errors; `diagnostics` = human-readable notes. |
+| GET | `/scans/:id` · POST `/scans/:id/cancel` | `ScanJob` · `{ cancelled }` | |
+| GET | `/library/files` | `MediaFilePage { items, nextCursor, total }` | Query: `kind` (`movie`/`episode`/`video`/`extra`; extras are hidden unless asked for), `sourceId`, `q` (title, episode title or path), `hideUnavailable`, `limit` ≤ 500, `cursor` (keyset on title, season, episode, id). Each file carries `state`: `available`, `source_offline` (its folder is unreachable — kept, not deleted) or `missing_unconfirmed`. |
+| GET | `/library/titles` | `TitlePage { items, nextCursor, total }` | One entry per **movie**, per **series** (all its episodes) and per personal video. Query: `kind` (`movie`/`series`/`video`; omitted = all except extras), `q` (full-text), `sort` (`title`/`added`/`year`), `hideUnavailable`, `limit` ≤ 200, `cursor`. Items carry file/episode/season counts and `availableCount` (0 = everything offline). |
+| GET | `/library/title?key=` | `TitleDetail { summary, files[] }` | A title with every file, episodes ordered by season then episode. 404 `not_found` if the key is gone. |
+| GET | `/library/status` | `{ ffprobeAvailable, fileCount, scanning }` | |
 | GET | `/service/events` | `{ items: ServiceEvent[] }` (latest 100) | `start`, `stop`, `crash`, `restart`, `migrate` with reason, pid, version. |
 | WS | `/events` | server → client `ServerEvent` | See below. |
 
@@ -32,7 +39,9 @@ Base: `http://127.0.0.1:<port>/api/v1` (default port 47890, falls back to a free
 | `heartbeat` | `{ time }` | Every 5 s. A client treats 12.5 s of silence as a dead socket and reconnects. |
 | `settings.changed` | `{ settings }` | After `PUT /settings` (keeps multiple windows in sync) |
 | `log.appended` | `{ entry }` | Every log line (live tail) |
-| `library.changed` | — | A folder was added, changed or removed |
+| `library.changed` | — | A folder was added, changed or removed, or a scan finished |
+| `scan.started` / `scan.finished` | `{ job }` | |
+| `scan.progress` | `{ progress: { jobId, sourceId, phase: walking\|probing\|finalizing, found, toProbe, probed } }` | Throttled to ~2.5 per second |
 
 ## Desktop IPC (renderer ⇄ main) — `window.theama`
 Defined in `packages/contracts/src/ipc.ts`; each channel has a Zod request schema, validated in the main process, and calls from frames other than Theama's own UI are rejected.
@@ -44,7 +53,6 @@ Defined in `packages/contracts/src/ipc.ts`; each channel has a Zod request schem
 ## Designed endpoints (not built yet)
 | Group | Endpoints | Phase |
 |---|---|---|
-| Library | `POST /library/sources/:id/scan` (folder CRUD is already built, see above) | 2 |
 | Scans | `GET /scans`, `GET /scans/:id`, `POST /scans/:id/cancel` | 2 |
 | Titles | `GET /movies`, `GET /series`, `GET /videos` (filters: genre, year, rating, watched, resolution, language, tags, collection, `availability`), `GET /movies/:id`, `GET /series/:id/seasons`, `GET /episodes/:id` | 2–5 |
 | Search | `GET /search?q=` (grouped by category) + `GET /search/suggest` | 3 |

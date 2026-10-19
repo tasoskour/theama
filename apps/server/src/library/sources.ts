@@ -20,7 +20,7 @@ export class ApiProblem extends Error {
 /** A dead network share can block stat() for a long time; never wait on it for more than this. */
 export const FS_TIMEOUT_MS = 3000
 
-function withTimeout<T>(work: Promise<T>, ms = FS_TIMEOUT_MS): Promise<T> {
+export function withTimeout<T>(work: Promise<T>, ms = FS_TIMEOUT_MS): Promise<T> {
   let timer: NodeJS.Timeout
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error('Timed out waiting for the folder (is the drive or share connected?)')), ms)

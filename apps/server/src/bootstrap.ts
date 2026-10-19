@@ -6,7 +6,13 @@ import { buildApp } from './app'
 import type { ServerConfig } from './config'
 import { openDatabase } from './db/client'
 import { createLogger } from './log/logger'
+import { EventsHub } from './events-hub'
 import { LibrarySourceRepo } from './library/sources'
+import { AutoScanner } from './scan/auto'
+import { ScanManager } from './scan/manager'
+import { createFfprobeRunner, findFfprobe } from './scan/probe'
+import { MediaFileRepo, ScanJobRepo } from './scan/store'
+import { TitleRepo } from './scan/titles'
 import { ServiceEventRepo, recordCrashIfUncleanShutdown } from './repo/service-events'
 import { SettingsRepo } from './repo/settings'
 import { loadOrCreateToken } from './security'
@@ -37,6 +43,28 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   const serviceEvents = new ServiceEventRepo(handle.db)
   const settings = new SettingsRepo(handle.db)
   const library = new LibrarySourceRepo(handle.db)
+  const files = new MediaFileRepo(handle.db, handle.raw)
+  const jobs = new ScanJobRepo(handle.db)
+  const titles = new TitleRepo(handle.raw)
+  const reindexed = files.ensureSearchIndex()
+  if (reindexed > 0) logger.info({ rows: reindexed }, 'Rebuilt the search index')
+  const keyed = files.backfillTitleKeys()
+  if (keyed > 0) logger.info({ rows: keyed }, 'Assigned title keys to existing files')
+  const events = new EventsHub()
+
+  const ffprobePath = findFfprobe()
+  if (ffprobePath) logger.info({ ffprobePath }, 'FFprobe found')
+  else logger.warn('FFprobe not found: files are listed without duration, resolution and codecs (run "yarn ffprobe:fetch")')
+  const scans = new ScanManager({
+    library,
+    files,
+    jobs,
+    probe: ffprobePath ? createFfprobeRunner({ command: ffprobePath }) : null,
+    emit: (e) => events.broadcast(e),
+    logger,
+  })
+  const auto = new AutoScanner({ library, manager: scans, logger })
+  scans.recoverInterrupted()
 
   if (recordCrashIfUncleanShutdown(serviceEvents)) {
     logger.warn('Previous run ended without a clean shutdown')
@@ -48,13 +76,19 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   }
 
   const token = loadOrCreateToken(config.tokenFile)
-  const { app, events } = await buildApp({
+  const { app } = await buildApp({
     config,
     logger,
     logHub: hub,
     settings,
     serviceEvents,
     library,
+    files,
+    titles,
+    jobs,
+    scans,
+    auto,
+    events,
     token,
     startedAt,
     schemaVersion: handle.schemaVersion,
@@ -71,6 +105,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   const port = typeof address === 'object' && address ? address.port : config.port
 
   events.startHeartbeat()
+  auto.start()
   writeRuntimeFile(config, {
     port,
     pid: process.pid,
@@ -90,6 +125,8 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   const stop = (reason: string): Promise<void> => {
     stopping ??= (async () => {
       logger.info({ reason }, 'Shutting down')
+      auto.stop()
+      await scans.close()
       events.stop()
       await app.close()
       serviceEvents.record('stop', { reason, pid: process.pid, version: APP_VERSION })

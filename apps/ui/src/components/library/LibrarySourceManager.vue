@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { mdiFolderPlusOutline, mdiTrashCanOutline } from '@mdi/js'
 import type { LibrarySource, LibraryType, SourceAvailability } from '@theama/contracts'
 import { useAddFolder } from '@/composables/useAddFolder'
 import { useLibraryStore } from '@/stores/library'
+import { useScansStore } from '@/stores/scans'
 import AddSourceDialog from './AddSourceDialog.vue'
+import ScanStatus from './ScanStatus.vue'
 
 const { t, d, te } = useI18n()
 const library = useLibraryStore()
+const scans = useScansStore()
+// Opening this page re-checks every drive, so "Offline" is never stale here.
+onMounted(() => void library.load())
 const flow = useAddFolder()
 const snackbar = ref<string | null>(null)
 const pendingRemoval = ref<LibrarySource | null>(null)
@@ -44,7 +49,9 @@ async function confirmRemove(): Promise<void> {
       <v-btn color="primary" :prepend-icon="mdiFolderPlusOutline" @click="flow.begin()">{{ $t('library.add') }}</v-btn>
     </div>
 
-    <v-alert type="info" variant="tonal" density="compact" class="mb-4">{{ $t('library.scanNotice') }}</v-alert>
+    <v-alert v-if="scans.status && !scans.ffprobeAvailable" type="warning" variant="tonal" density="compact" class="mb-4">
+      {{ $t('scan.ffprobeMissing') }}
+    </v-alert>
     <v-alert v-if="library.error" type="error" variant="tonal" density="compact" class="mb-4">{{ library.error }}</v-alert>
 
     <p v-if="library.loaded && library.sources.length === 0" class="th-muted empty">{{ $t('library.empty') }}</p>
@@ -61,6 +68,7 @@ async function confirmRemove(): Promise<void> {
             <v-chip v-if="!s.enabled" size="small" label variant="outlined">{{ $t('library.paused') }}</v-chip>
           </div>
           <p v-if="s.availability === 'offline'" class="th-muted text-caption offline-note">{{ $t('library.offlineNote') }}</p>
+          <ScanStatus :source="s" />
         </div>
 
         <div class="source__controls">

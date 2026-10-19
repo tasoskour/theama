@@ -11,6 +11,8 @@ export interface AdminPaths {
   nssmExe: string
   nodeExe: string
   serverEntry: string
+  /** Optional FFprobe location handed to the service (THEAMA_FFPROBE). */
+  ffprobeExe?: string
   scriptPath: string
   dataDir: string
 }
@@ -76,6 +78,7 @@ export function buildElevationCommand(
     arg('-NodeExe', paths.nodeExe),
     arg('-ServerEntry', paths.serverEntry),
     arg('-DataDir', paths.dataDir),
+    ...(paths.ffprobeExe ? [arg('-FfprobeExe', paths.ffprobeExe)] : []),
     arg('-ResultFile', resultFile),
   ].join(' ')
   return [

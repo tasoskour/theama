@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { rm } from 'node:fs/promises'
+import { rename, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
@@ -26,7 +26,7 @@ test.beforeAll(async () => {
   mkdirSync(mediaFolder)
   writeFileSync(join(mediaFolder, 'Interstellar (2014).mkv'), 'x')
   // VS Code (and some CI shells) export ELECTRON_RUN_AS_NODE, which turns electron.exe into plain Node.
-  const env: NodeJS.ProcessEnv = { ...process.env, THEAMA_DATA_DIR: dataDir, THEAMA_PORT: '0', THEAMA_CONTROLLER: 'dev', THEAMA_TEST_PICK_FOLDER: mediaFolder }
+  const env: NodeJS.ProcessEnv = { ...process.env, THEAMA_DATA_DIR: dataDir, THEAMA_PORT: '0', THEAMA_CONTROLLER: 'dev', THEAMA_TEST_PICK_FOLDER: mediaFolder, THEAMA_FFPROBE: 'none' }
   delete env.ELECTRON_RUN_AS_NODE
   app = await electron.launch({
     args: ['.', `--user-data-dir=${userDataDir}`],
@@ -66,12 +66,13 @@ test('every main section renders its empty state', async () => {
     ['Movies', 'No movies yet'],
     ['Series', 'No series yet'],
     ['My Videos', 'No personal videos yet'],
-    ['Search', 'Search your library'],
+    ['Search', 'Search'],
   ] as const) {
     await nav(link).click()
     await expect(page.getByRole('heading', { name: heading })).toBeVisible()
     // Regression: the call to action was hidden by Vue's Boolean prop casting.
-    await expect(page.getByRole('button', { name: 'Add a folder' })).toBeVisible()
+    // (Search has no call to action: it explains itself instead.)
+    if (link !== 'Search') await expect(page.getByRole('button', { name: 'Add a folder' })).toBeVisible()
   }
 })
 
@@ -89,12 +90,67 @@ test('adds a media folder (Greek name), shows it online, changes its type and re
     await dialog.getByRole('button', { name: 'Add folder' }).click()
 
     await expect(page.getByText('Folder added', { exact: true })).toBeVisible()
-    await expect(page.getByText("1 folder added, but its contents can't be shown yet.")).toBeVisible()
+
+    // Adding a folder starts a scan; the detected video appears as a poster card titled from its name.
+    const film = page.getByRole('link', { name: 'Interstellar, 2014' })
+    await expect(film).toBeVisible({ timeout: 30_000 })
+    await expect(film.getByText('Offline')).toHaveCount(0)
+
+    // Open it: details with the guessed title, the file's facts, and a way back that restores focus to the card.
+    await film.click()
+    await expect(page.getByRole('heading', { name: 'Interstellar', level: 1 })).toBeVisible()
+    await expect(page.getByText('Interstellar (2014).mkv').first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Play' })).toBeDisabled()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('heading', { name: 'Movies', level: 1 })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Interstellar, 2014' })).toBeFocused()
 
     await page.goto(page.url().split('#')[0] + '#/settings/library')
     const row = page.locator('li.source', { hasText: folder })
     await expect(row).toBeVisible()
     await expect(row.getByText('Online', { exact: true })).toBeVisible()
+    await expect(row).toContainText('Found 1 · 1 new')
+    // FFprobe is switched off for this run, and the page says so instead of silently showing no details.
+    await expect(page.getByText(/FFprobe was not found/).first()).toBeVisible()
+
+    // Rename the file on disk, rescan: recognised as the same file (renamed), not a new one plus a missing one.
+    await rename(join(folder, 'Interstellar (2014).mkv'), join(folder, 'Interstellar Ταινία (2014).mkv'))
+    await row.getByRole('button', { name: 'Scan now' }).click()
+    await expect(row).toContainText('1 renamed or moved', { timeout: 30_000 })
+    await expect(row).toContainText('0 missing')
+
+    // Unplug the drive: the folder shows offline and its video stays in the list, dimmed and labelled.
+    const away = join(mediaRoot, 'unplugged')
+    await rename(folder, away)
+    await page.goto(page.url().split('#')[0] + '#/settings/library')
+    await page.reload()
+    await expect(row.getByText('Offline', { exact: true })).toBeVisible({ timeout: 30_000 })
+    await nav('Movies').click()
+    // The file was renamed above, so the title is now "Interstellar Ταινία".
+    const dimmed = page.getByRole('link', { name: 'Interstellar Ταινία, 2014, Offline' })
+    await expect(dimmed).toBeVisible()
+    await expect(dimmed.getByText('Offline', { exact: true })).toBeVisible()
+    await page.getByLabel('Hide unavailable').check({ force: true })
+    await expect(page.getByText('Nothing matches.')).toBeVisible()
+    await page.getByLabel('Hide unavailable').uncheck({ force: true })
+
+    // Search finds it even while offline, in Greek without accents or capitals.
+    await nav('Search').click()
+    await page.getByRole('textbox', { name: 'Search your library' }).fill('ΤΑΙΝΙΑ')
+    await expect(page.getByRole('link', { name: 'Interstellar Ταινία, 2014, Offline' })).toBeVisible()
+    await page.getByRole('textbox', { name: 'Search your library' }).fill('interstel')
+    await expect(page.getByRole('link', { name: 'Interstellar Ταινία, 2014, Offline' })).toBeVisible()
+    await nav('Movies').click()
+
+    // Plug it back in: online again, nothing was lost.
+    await rename(away, folder)
+    await page.goto(page.url().split('#')[0] + '#/settings/library')
+    await page.reload()
+    await expect(row.getByText('Online', { exact: true })).toBeVisible({ timeout: 30_000 })
+    await nav('Movies').click()
+    await expect(page.getByRole('link', { name: 'Interstellar Ταινία, 2014' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Interstellar Ταινία, 2014, Offline' })).toHaveCount(0)
+    await page.goto(page.url().split('#')[0] + '#/settings/library')
 
     // The same folder cannot be added twice.
     await page.getByRole('button', { name: 'Add folder' }).first().click()
@@ -111,7 +167,7 @@ test('adds a media folder (Greek name), shows it online, changes its type and re
     await page.getByRole('dialog', { name: 'Remove this folder from Theama?' }).getByRole('button', { name: 'Remove folder' }).click()
     await expect(page.getByText('Folder removed from Theama', { exact: true })).toBeVisible()
     await expect(page.getByText('No folders yet.')).toBeVisible()
-    expect(existsSync(join(folder, 'Interstellar (2014).mkv'))).toBe(true)
+    expect(existsSync(join(folder, 'Interstellar Ταινία (2014).mkv'))).toBe(true)
   } finally {
     // mediaRoot is removed in afterAll
   }
@@ -120,7 +176,8 @@ test('adds a media folder (Greek name), shows it online, changes its type and re
 test('keyboard: "/" opens search', async () => {
   await nav('Home').click()
   await page.keyboard.press('/')
-  await expect(page.getByRole('heading', { name: 'Search your library' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Search', level: 1 })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Search your library' })).toBeFocused()
 })
 
 test('service page shows the running backend and its start history', async () => {
@@ -134,7 +191,9 @@ test('service page shows the running backend and its start history', async () =>
 
 test('log history lists entries from the service', async () => {
   await page.goto(page.url().split('#')[0] + '#/settings/advanced/logs')
-  await expect(page.getByText(/Theama server .* listening/).first()).toBeVisible()
+  // The history is virtualised and newest-first: recent activity (scans, folder changes) is listed too.
+  await page.getByRole('textbox', { name: 'Search messages' }).fill('Scan finished')
+  await expect(page.getByText(/Scan finished/).first()).toBeVisible()
   await page.getByRole('textbox', { name: 'Search messages' }).fill('listening')
   await expect(page.getByText(/Theama server .* listening/).first()).toBeVisible()
   await page.getByRole('textbox', { name: 'Search messages' }).fill('no-such-message-xyz')

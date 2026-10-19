@@ -24,7 +24,8 @@
     "service:uninstall": "yarn workspace @theama/desktop run service uninstall",
     "nssm:fetch": "node tools/nssm/fetch-nssm.mjs",
     "service:repair": "yarn workspace @theama/desktop run service repair",
-    "dev:server": "yarn workspace @theama/server run dev"
+    "dev:server": "yarn workspace @theama/server run dev",
+    "ffprobe:fetch": "node tools/ffprobe/fetch-ffprobe.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

@@ -77,7 +77,7 @@ describe('translation keys used in source', () => {
   const patterns = [
     /\$?\bt\(\s*(['"`])([^'"`]+)\1/g,
     /\$tc?\(\s*(['"`])([^'"`]+)\1/g,
-    /(?:title-key|body-key)="([^"]+)"/g,
+    /(?<![\w:-])(?:title-key|body-key)="([^"]+)"/g,
     /:(?:title-key|body-key)="`([^`]+)`"/g,
     /(?:labelKey|titleKey):\s*(['"`])([^'"`]+)\1/g,
   ]

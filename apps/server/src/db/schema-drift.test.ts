@@ -14,7 +14,8 @@ describe('drizzle schema matches the migrated database', () => {
   const tables = (Object.values(schema) as unknown[]).filter((v) => is(v, SQLiteTable)) as SQLiteTable[]
 
   it('declares every table', () => {
-    const inDb = (raw.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[])
+    // The FTS5 index and its shadow tables are created by SQL only; Drizzle never queries them.
+    const inDb = (raw.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'media_file_fts%'").all() as { name: string }[])
       .map((t) => t.name)
       .sort()
     expect(tables.map(getTableName).sort()).toEqual(inDb)

@@ -34,8 +34,8 @@ Single-user, single-machine. A secured LAN/mobile mode is explicitly future work
 | Discovery | Incremental scanning, FFprobe technical info, rename/move detection | **Built** |
 | Browsing | Posters, rails, details pages, search (FTS5), filters, continue watching | Designed (Phases 3, 5) |
 | Metadata | TMDB adapter, matching with confidence + manual correction + locking, artwork cache, Greek preferred | Designed (Phase 4) |
-| Series | Seasons/episodes, multi-episode files, missing-episode detection | Designed (Phase 5) |
-| Collections | Official collections, sequels, universes, user collections, never-fabricated orders | Designed (Phase 5) |
+| Series | Seasons/episodes, multi-episode files, missing-episode detection | **Built** (needs a TMDB key for the episode list); next-episode and continue-watching wait for playback state (Phase 6) |
+| Collections | Official collections, sequels, universes, user collections, never-fabricated orders | **Built** for official (TMDB) and user collections in release / custom order; sequel chains and universes are not built (they need curated data) |
 | Playback | External players (VLC, MPC-HC/BE, mpv, PotPlayer, default), open folder, copy path, watched state | Designed (Phase 6) |
 | Subtitles | Embedded/external detection, language, association, default selection | Designed (Phase 6) |
 | File organisation | Rename templates, preview, collision detection, journal, rollback | Designed (Phase 6) |

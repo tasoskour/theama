@@ -157,6 +157,9 @@ export const titleMetadata = sqliteTable('title_metadata', {
   imdbId: text('imdb_id'),
   status: text('status'),
   fetchedAt: text('fetched_at').notNull(),
+  collectionExternalId: text('collection_external_id'),
+  /** Bumped when a new build stores more fields; older rows are refreshed in the background. */
+  version: integer('version').notNull().default(1),
 })
 
 export const episodeMetadata = sqliteTable(
@@ -173,4 +176,41 @@ export const episodeMetadata = sqliteTable(
     stillFile: text('still_file'),
   },
   (t) => [primaryKey({ columns: [t.titleKey, t.season, t.episode] })],
+)
+
+/** A set of titles: published by the provider (official) or made by the person (user). */
+export const collection = sqliteTable('collection', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  kind: text('kind', { enum: ['official', 'user'] }).notNull(),
+  provider: text('provider'),
+  externalId: text('external_id'),
+  name: text('name').notNull(),
+  overview: text('overview'),
+  posterPath: text('poster_path'),
+  posterFile: text('poster_file'),
+  backdropPath: text('backdrop_path'),
+  backdropFile: text('backdrop_file'),
+  fetchedAt: text('fetched_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const collectionMember = sqliteTable(
+  'collection_member',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    collectionId: integer('collection_id')
+      .notNull()
+      .references(() => collection.id, { onDelete: 'cascade' }),
+    titleKey: text('title_key'),
+    externalId: text('external_id'),
+    title: text('title').notNull(),
+    year: integer('year'),
+    releaseDate: text('release_date'),
+    overview: text('overview'),
+    posterPath: text('poster_path'),
+    posterFile: text('poster_file'),
+    customOrder: integer('custom_order'),
+  },
+  (t) => [index('idx_collection_member_ext').on(t.externalId)],
 )

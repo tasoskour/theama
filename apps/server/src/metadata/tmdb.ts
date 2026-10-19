@@ -4,6 +4,7 @@ import { ResilientHttp } from './http'
 import {
   ProviderError,
   type ImageSize,
+  type ProviderCollection,
   type MetadataProvider,
   type ProviderCandidate,
   type ProviderEpisode,
@@ -79,6 +80,22 @@ const Detail = z.object({
     .nullish(),
   seasons: z
     .array(z.object({ season_number: z.number().int() }))
+    .nullish()
+    .transform((v) => v ?? []),
+  belongs_to_collection: z
+    .object({ id: z.number().int(), name: text })
+    .nullish()
+    .transform((v) => v ?? null),
+})
+
+const Collection = z.object({
+  id: z.number().int(),
+  name: text,
+  overview: text,
+  poster_path: text,
+  backdrop_path: text,
+  parts: z
+    .array(z.object({ id: z.number().int(), title: text, release_date: text, overview: text, poster_path: text }))
     .nullish()
     .transform((v) => v ?? []),
 })
@@ -210,6 +227,7 @@ export class TmdbProvider implements MetadataProvider {
       imdbId: d.imdb_id ?? d.external_ids?.imdb_id ?? null,
       status: d.status,
       seasons: d.seasons.map((s) => s.season_number),
+      collection: !tv && d.belongs_to_collection ? { externalId: String(d.belongs_to_collection.id), name: d.belongs_to_collection.name ?? '' } : null,
     }
   }
 
@@ -233,6 +251,34 @@ export class TmdbProvider implements MetadataProvider {
       genres: primary.genres.length ? primary.genres : english.genres,
       posterPath: primary.posterPath ?? english.posterPath,
       backdropPath: primary.backdropPath ?? english.backdropPath,
+    }
+  }
+
+  async fetchCollection(externalId: string, language: string): Promise<ProviderCollection> {
+    const get = async (lang: string) => parse(Collection, await this.call(`/collection/${encodeURIComponent(externalId)}`, { language: lang }))
+    const c = await get(language)
+    // A collection translated only in part keeps English for the gaps, like titles do.
+    const en = language.toLowerCase().startsWith('en') || (c.name && c.overview) ? null : await get('en-US').catch(() => null)
+    const enParts = new Map((en?.parts ?? []).map((p) => [p.id, p]))
+    return {
+      externalId: String(c.id),
+      name: c.name ?? en?.name ?? '',
+      overview: c.overview ?? en?.overview ?? null,
+      posterPath: c.poster_path ?? en?.poster_path ?? null,
+      backdropPath: c.backdrop_path ?? en?.backdrop_path ?? null,
+      parts: c.parts.map((p) => {
+        const fallback = enParts.get(p.id)
+        const releaseDate = p.release_date
+        const year = releaseDate ? Number(releaseDate.slice(0, 4)) : NaN
+        return {
+          externalId: String(p.id),
+          title: p.title ?? fallback?.title ?? '',
+          year: Number.isInteger(year) && year > 1800 ? year : null,
+          releaseDate,
+          overview: p.overview ?? fallback?.overview ?? null,
+          posterPath: p.poster_path ?? fallback?.poster_path ?? null,
+        }
+      }),
     }
   }
 

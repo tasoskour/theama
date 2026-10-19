@@ -26,7 +26,16 @@ A test (`schema-drift.test.ts`) fails if the Drizzle declarations and the migrat
 - The full-text index gained a fourth column (`meta_text`: provider title and original title), so a title is found by its real name as well as by its file name, with the same accent- and case-folding. The migration recreates the (contentless) index empty and the server refills it on start.
 - Artwork lives in `<cache>/artwork/` as `poster-…`, `backdrop-…`, `still-…`, `thumb-…` files named after the provider path. File names are validated on write and on read; the API serves them with `Cache-Control: immutable`.
 
-## 2. Target model (Phases 5–6) — **Designed**
+### Collections (migration 5) — **Built**
+- `collection(id, kind official|user, provider, external_id, name, overview, poster/backdrop path+file, fetched_at, created_at, updated_at)`; one official row per `(provider, external_id)`.
+- `collection_member(id, collection_id → collection ON DELETE CASCADE, title_key, external_id, title, year, release_date, overview, poster path+file, custom_order)`.
+  - **Official members** are the provider's movies (`external_id`), stored whether or not the library has them. Whether one is *local* is decided **when reading**: it is local if a matched movie title has that provider id and still has files. So identifying a title later links it with no extra step and no provider request, and an official set is listed only while at least one member is local. The provider's list replaces the stored one each time the set is read (at most every 30 days, or when a member movie is refreshed by hand).
+  - **User members** are library titles (`title_key`), with the name and year they had when added. If the files disappear the member stays, shown as a non-playable entry; it can still be removed or reordered.
+  - Orders: official sets are shown in release order; user collections in the person's own order (default) or release order. `story_order` is **not stored at all**: Theama has no curated data for it and never infers one.
+  - Deleting a user collection removes memberships only. Official collections cannot be edited or deleted.
+- `title_metadata` gained `collection_external_id` and `version`. Rows written by an older build have `version` 1 and are refreshed in the background, which is how data picks up fields added later. A movie whose collection could not be read yet counts as stale, so it is retried.
+
+## 2. Target model (Phases 5–6) — **Designed** (the parts above are built; the rest is still design)
 
 `media_file` above is the first piece of this model. Phase 4 keeps matches keyed by `title_key` (see above); `media_title` and a link table can replace that key later without discarding rows.
 

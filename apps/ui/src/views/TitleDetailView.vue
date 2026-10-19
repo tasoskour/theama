@@ -3,8 +3,9 @@ import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { mdiArrowLeft, mdiCloudOffOutline, mdiDotsVertical, mdiPlay, mdiStar } from '@mdi/js'
-import { TitleDetail, type EpisodeInfo, type MediaFile } from '@theama/contracts'
+import { TitleDetail, type EpisodeInfo, type EpisodeStatus, type MediaFile } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
+import AddToCollectionMenu from '@/components/collections/AddToCollectionMenu.vue'
 import FileFacts from '@/components/titles/FileFacts.vue'
 import IdentifyDialog from '@/components/titles/IdentifyDialog.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
@@ -106,25 +107,104 @@ function episodeName(f: MediaFile): string {
   return infoFor(f)?.name || f.episodeTitle || f.fileName
 }
 
-/** Season tabs: numbered seasons ascending (0 = Specials), then episodes with no season. */
-interface SeasonGroup { id: string; label: string; episodes: MediaFile[] }
+type Gap = Exclude<EpisodeStatus, 'local'>
+/** One line of the episode list: a file, or an episode the provider lists that has no file. */
+interface EpisodeRow {
+  id: string
+  file: MediaFile | null
+  info: EpisodeInfo | null
+  gap: Gap | null
+  /** The file's season/episode is not in the provider's list. */
+  stray: boolean
+  /** More than one file plays this episode. */
+  copies: number
+  code: string
+  sort: number
+}
+interface SeasonGroup {
+  id: string
+  label: string
+  rows: EpisodeRow[]
+  local: number
+  missing: number
+  summary: string | null
+}
+
+const fileRow = (f: MediaFile, info: EpisodeInfo | null, stray: boolean, copies: number): EpisodeRow => ({
+  id: `f${f.id}`,
+  file: f,
+  info,
+  gap: null,
+  stray,
+  copies,
+  code: episodeCode(f.season, f.episode, f.episodeEnd),
+  sort: f.episode ?? 1e6,
+})
+
+/**
+ * Season tabs. With the provider's episode list the rows are the provider's episodes (a file, or a clearly
+ * marked gap) plus any files the list does not know; without it, just the files grouped by their number.
+ */
 const seasons = computed<SeasonGroup[]>(() => {
   if (!isSeries.value) return []
+  const label = (n: number): string => (n === 0 ? t('detail.specials') : t('detail.season', { n }))
+  const cov = detail.value?.coverage
+  const groups: SeasonGroup[] = []
+  const placed = new Set<number>()
+
+  if (cov) {
+    const byId = new Map(files.value.map((f) => [f.id, f]))
+    const strays = new Set(cov.unmatchedFileIds)
+    for (const s of cov.seasons) {
+      const rows: EpisodeRow[] = []
+      for (const info of (detail.value?.episodes ?? []).filter((e) => e.season === s.season)) {
+        if (info.fileIds.length === 0) {
+          rows.push({ id: `g${info.season}-${info.episode}`, file: null, info, gap: info.status as Gap, stray: false, copies: 0, code: episodeCode(info.season, info.episode, null), sort: info.episode })
+          continue
+        }
+        for (const fid of info.fileIds) {
+          const f = byId.get(fid)
+          if (!f || placed.has(fid)) continue // a range file is listed once, at its first episode
+          placed.add(fid)
+          rows.push(fileRow(f, info, false, info.fileIds.length))
+        }
+      }
+      for (const f of files.value) {
+        if (f.season === s.season && strays.has(f.id) && !placed.has(f.id)) {
+          placed.add(f.id)
+          rows.push(fileRow(f, null, true, 1))
+        }
+      }
+      rows.sort((a, b) => a.sort - b.sort)
+      const parts = [t('series.summary', { expected: s.expected, local: s.local })]
+      if (s.missing) parts.push(t('series.missingN', { n: s.missing }))
+      if (s.upcoming) parts.push(t('series.upcomingN', { n: s.upcoming }))
+      if (s.undated) parts.push(t('series.undatedN', { n: s.undated }))
+      groups.push({ id: String(s.season), label: label(s.season), rows, local: s.local, missing: s.missing, summary: parts.join(' · ') })
+    }
+    const rest = files.value.filter((f) => !placed.has(f.id))
+    if (rest.length) groups.push({ id: 'none', label: t('detail.unnumbered'), rows: rest.map((f) => fileRow(f, null, true, 1)), local: rest.length, missing: 0, summary: null })
+    return groups
+  }
+
   const bySeason = new Map<number | null, MediaFile[]>()
   for (const f of files.value) bySeason.set(f.season, [...(bySeason.get(f.season) ?? []), f])
-  const numbered = [...bySeason.keys()].filter((s): s is number => s !== null).sort((a, b) => a - b)
-  const groups: SeasonGroup[] = numbered.map((s) => ({
-    id: String(s),
-    label: s === 0 ? t('detail.specials') : t('detail.season', { n: s }),
-    episodes: bySeason.get(s)!,
-  }))
-  if (bySeason.has(null)) groups.push({ id: 'none', label: t('detail.unnumbered'), episodes: bySeason.get(null)! })
+  for (const n of [...bySeason.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b)) {
+    const list = bySeason.get(n)!
+    groups.push({ id: String(n), label: label(n), rows: list.map((f) => fileRow(f, null, false, 1)), local: list.length, missing: 0, summary: null })
+  }
+  const none = bySeason.get(null)
+  if (none) groups.push({ id: 'none', label: t('detail.unnumbered'), rows: none.map((f) => fileRow(f, null, false, 1)), local: none.length, missing: 0, summary: null })
   return groups
 })
-watch(seasons, (groups) => {
-  if (!groups.some((g) => g.id === season.value)) season.value = groups[0]?.id ?? ''
-}, { immediate: true })
-const shown = computed(() => seasons.value.find((g) => g.id === season.value)?.episodes ?? [])
+watch(
+  seasons,
+  (groups) => {
+    if (!groups.some((g) => g.id === season.value)) season.value = groups.find((g) => g.missing === 0)?.id ?? groups[0]?.id ?? ''
+  },
+  { immediate: true },
+)
+const shownGroup = computed(() => seasons.value.find((g) => g.id === season.value) ?? null)
 
 const kindLabel = computed(() => (summary.value ? t(`detail.kind.${summary.value.kind}`) : ''))
 const expanded = ref<number | null>(null)
@@ -170,6 +250,9 @@ const metaChips = computed(() => {
           <p v-if="meta?.tagline" class="tagline">{{ meta.tagline }}</p>
           <ul class="chips" :aria-label="$t('detail.summary')">
             <li v-for="c in metaChips" :key="c"><v-chip size="small" label variant="tonal">{{ c }}</v-chip></li>
+            <li v-if="(summary.missingEpisodes ?? 0) > 0">
+              <v-chip size="small" label variant="tonal" color="warning" data-test="missing-chip">{{ $t('series.missingN', { n: summary.missingEpisodes }) }}</v-chip>
+            </li>
             <li v-if="ratingText">
               <v-chip size="small" label variant="tonal" color="primary" :prepend-icon="mdiStar" data-test="rating">{{ ratingText }}</v-chip>
             </li>
@@ -183,8 +266,14 @@ const metaChips = computed(() => {
             <!-- Honest placeholder: playback with external players is the next release; nothing pretends to play. -->
             <v-btn color="primary" size="large" :prepend-icon="mdiPlay" disabled aria-describedby="play-note">{{ $t('detail.play') }}</v-btn>
             <p id="play-note" class="th-muted text-caption">{{ $t('detail.playSoon') }}</p>
+            <AddToCollectionMenu :title-key="summary.key" :member-of="detail?.collections ?? []" @changed="load" />
           </div>
         </div>
+      </section>
+
+      <section v-if="detail?.collections.length" class="partof" :aria-label="$t('collections.partOf')" data-test="part-of">
+        <span class="th-muted">{{ $t('collections.partOf') }}</span>
+        <router-link v-for="c in detail.collections" :key="c.id" :to="{ name: 'collection', query: { id: c.id } }" class="partof__link">{{ c.name }}</router-link>
       </section>
 
       <!-- Identification: what Theama thinks this is, and the ways to put it right. -->
@@ -243,35 +332,55 @@ const metaChips = computed(() => {
       <!-- Series: season tabs and the episode list -->
       <section v-if="isSeries" class="episodes">
         <v-tabs v-model="season" color="primary" show-arrows class="mb-4" :aria-label="$t('detail.seasons')">
-          <v-tab v-for="g in seasons" :key="g.id" :value="g.id">{{ g.label }}<span class="th-muted tab-count">{{ g.episodes.length }}</span></v-tab>
+          <v-tab v-for="g in seasons" :key="g.id" :value="g.id">
+            {{ g.label }}<span class="th-muted tab-count">{{ g.local }}</span>
+            <v-chip v-if="g.missing" size="x-small" color="warning" variant="tonal" label class="ml-2">{{ $t('series.missingN', { n: g.missing }) }}</v-chip>
+          </v-tab>
         </v-tabs>
+        <p v-if="shownGroup?.summary" class="th-muted season-summary" data-test="season-summary">{{ shownGroup.summary }}</p>
         <ul class="eplist" role="list">
-          <li v-for="f in shown" :key="f.id" class="ep" :class="{ 'ep--dim': f.state !== 'available' }">
-            <button type="button" class="ep__row" :aria-expanded="expanded === f.id" @click="expanded = expanded === f.id ? null : f.id">
-              <span class="ep__code th-mono">{{ episodeCode(f.season, f.episode, f.episodeEnd) || '·' }}</span>
-              <span class="ep__name">
-                <span class="ep__title">{{ episodeName(f) }}</span>
-                <span v-if="episodeName(f) !== f.fileName" class="ep__file th-muted">{{ f.fileName }}</span>
-              </span>
-              <span class="ep__meta">
-                <v-chip v-if="f.state === 'source_offline'" size="x-small" color="warning" label variant="tonal">{{ $t('files.offline') }}</v-chip>
-                <v-chip v-else-if="f.state === 'missing_unconfirmed'" size="x-small" color="error" label variant="tonal">{{ $t('files.missing') }}</v-chip>
-                <v-chip v-if="f.probeError" size="x-small" color="error" label variant="outlined" :title="f.probeError">{{ $t('files.unreadable') }}</v-chip>
-                <v-chip v-else-if="resolutionLabel(f.width, f.height)" size="x-small" label variant="outlined">{{ resolutionLabel(f.width, f.height) }}</v-chip>
-                <span class="th-muted num">{{ formatDuration(f.durationMs, locale) }}</span>
-              </span>
-            </button>
-            <div v-if="expanded === f.id" class="ep__facts">
-              <div v-if="infoFor(f)?.overview || infoFor(f)?.stillUrl" class="ep__about">
-                <img v-if="infoFor(f)?.stillUrl" class="ep__still" :src="connection.assetUrl(infoFor(f)?.stillUrl) ?? ''" alt="" loading="lazy" decoding="async" />
-                <div>
-                  <p v-if="infoFor(f)?.overview" class="ep__overview">{{ infoFor(f)?.overview }}</p>
-                  <p v-if="infoFor(f)?.airDate" class="th-muted text-caption">{{ $t('match.aired', { date: infoFor(f)?.airDate }) }}</p>
-                </div>
+          <template v-for="r in shownGroup?.rows ?? []" :key="r.id">
+            <!-- An episode the provider lists but there is no file for: never a button, never playable. -->
+            <li v-if="!r.file" class="ep ep--gap" :data-gap="r.gap">
+              <div class="ep__row ep__row--static">
+                <span class="ep__code th-mono">{{ r.code }}</span>
+                <span class="ep__name"><span class="ep__title">{{ r.info?.name || $t('series.untitled') }}</span></span>
+                <span class="ep__meta">
+                  <v-chip v-if="r.gap === 'missing'" size="x-small" color="warning" label variant="tonal">{{ $t('series.missing') }}</v-chip>
+                  <v-chip v-else-if="r.gap === 'upcoming'" size="x-small" label variant="outlined">{{ $t('series.airs', { date: r.info?.airDate ?? '' }) }}</v-chip>
+                  <v-chip v-else size="x-small" label variant="outlined" :title="$t('series.undatedHint')">{{ $t('series.undated') }}</v-chip>
+                </span>
               </div>
-              <FileFacts :file="f" />
-            </div>
-          </li>
+            </li>
+            <li v-else class="ep" :class="{ 'ep--dim': r.file.state !== 'available' }">
+              <button type="button" class="ep__row" :aria-expanded="expanded === r.file.id" @click="expanded = expanded === r.file.id ? null : r.file.id">
+                <span class="ep__code th-mono">{{ r.code || '·' }}</span>
+                <span class="ep__name">
+                  <span class="ep__title">{{ episodeName(r.file) }}</span>
+                  <span v-if="episodeName(r.file) !== r.file.fileName" class="ep__file th-muted">{{ r.file.fileName }}</span>
+                </span>
+                <span class="ep__meta">
+                  <v-chip v-if="r.copies > 1" size="x-small" color="warning" label variant="outlined" :title="$t('series.copiesHint')">{{ $t('series.copies', { n: r.copies }) }}</v-chip>
+                  <v-chip v-if="r.stray" size="x-small" label variant="outlined" :title="$t('series.strayHint')">{{ $t('series.stray') }}</v-chip>
+                  <v-chip v-if="r.file.state === 'source_offline'" size="x-small" color="warning" label variant="tonal">{{ $t('files.offline') }}</v-chip>
+                  <v-chip v-else-if="r.file.state === 'missing_unconfirmed'" size="x-small" color="error" label variant="tonal">{{ $t('files.missing') }}</v-chip>
+                  <v-chip v-if="r.file.probeError" size="x-small" color="error" label variant="outlined" :title="r.file.probeError">{{ $t('files.unreadable') }}</v-chip>
+                  <v-chip v-else-if="resolutionLabel(r.file.width, r.file.height)" size="x-small" label variant="outlined">{{ resolutionLabel(r.file.width, r.file.height) }}</v-chip>
+                  <span class="th-muted num">{{ formatDuration(r.file.durationMs, locale) }}</span>
+                </span>
+              </button>
+              <div v-if="expanded === r.file.id" class="ep__facts">
+                <div v-if="infoFor(r.file)?.overview || infoFor(r.file)?.stillUrl" class="ep__about">
+                  <img v-if="infoFor(r.file)?.stillUrl" class="ep__still" :src="connection.assetUrl(infoFor(r.file)?.stillUrl) ?? ''" alt="" loading="lazy" decoding="async" />
+                  <div>
+                    <p v-if="infoFor(r.file)?.overview" class="ep__overview">{{ infoFor(r.file)?.overview }}</p>
+                    <p v-if="infoFor(r.file)?.airDate" class="th-muted text-caption">{{ $t('match.aired', { date: infoFor(r.file)?.airDate }) }}</p>
+                  </div>
+                </div>
+                <FileFacts :file="r.file" />
+              </div>
+            </li>
+          </template>
         </ul>
       </section>
 
@@ -323,6 +432,36 @@ const metaChips = computed(() => {
   gap: 8px;
   margin: 0;
   padding: 0;
+}
+.season-summary {
+  margin: -4px 0 12px;
+  font-size: 0.88rem;
+}
+.ep--gap .ep__row {
+  cursor: default;
+  opacity: 0.8;
+}
+.ep--gap {
+  background: repeating-linear-gradient(135deg, transparent 0 10px, rgba(var(--v-theme-on-surface), 0.035) 10px 20px);
+}
+.ep__row--static:hover {
+  background: transparent;
+}
+.partof {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 0.9rem;
+}
+.partof__link {
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+  text-decoration: none;
+}
+.partof__link:hover {
+  text-decoration: underline;
 }
 .original {
   margin: -8px 0 12px;

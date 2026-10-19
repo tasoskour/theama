@@ -8,6 +8,7 @@ import { openDatabase } from './db/client'
 import { createLogger } from './log/logger'
 import { EventsHub } from './events-hub'
 import { LibrarySourceRepo } from './library/sources'
+import { CollectionRepo } from './collections/store'
 import { ArtworkCache } from './metadata/artwork'
 import { CredentialStore } from './metadata/credentials'
 import { MetadataManager } from './metadata/manager'
@@ -52,6 +53,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   const jobs = new ScanJobRepo(handle.db)
   const metadataRepo = new MetadataRepo(handle.raw)
   const titles = new TitleRepo(handle.raw, metadataRepo)
+  const collections = new CollectionRepo(handle.raw, titles)
   const reindexed = files.ensureSearchIndex()
   if (reindexed > 0) logger.info({ rows: reindexed }, 'Rebuilt the search index')
   const keyed = files.backfillTitleKeys()
@@ -72,6 +74,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     provider,
     repo: metadataRepo,
     files,
+    collections,
     artwork,
     credentials,
     language: () => settings.get().metadataLanguage,
@@ -113,6 +116,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     library,
     files,
     titles,
+    collections,
     jobs,
     scans,
     auto,

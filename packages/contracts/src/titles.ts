@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { IsoDate } from './common'
 import { MediaFile } from './media'
+import { CollectionRef } from './collection-ref'
 import { EpisodeInfo, MatchState, TitleMatch, TitleMetadata } from './metadata'
 
 /** What a card in the library represents. A series is one card for all of its episodes. */
@@ -31,6 +32,8 @@ export const TitleSummary = z.object({
   rating: z.number().nullable(),
   /** null for personal videos, which are never identified. */
   matchState: MatchState.nullable(),
+  /** Series with provider data: aired episodes without a file (specials not counted). Null when unknown. */
+  missingEpisodes: z.number().int().nullable(),
 })
 export type TitleSummary = z.infer<typeof TitleSummary>
 
@@ -52,6 +55,28 @@ export const TitlePage = z.object({
 })
 export type TitlePage = z.infer<typeof TitlePage>
 
+export const SeasonCoverage = z.object({
+  season: z.number().int(),
+  /** Episodes the provider lists for this season. */
+  expected: z.number().int(),
+  local: z.number().int(),
+  missing: z.number().int(),
+  upcoming: z.number().int(),
+  undated: z.number().int(),
+  /** Local files with a number the provider does not list for this season. */
+  notInProvider: z.number().int(),
+  /** Episodes covered by more than one file. */
+  duplicates: z.number().int(),
+})
+export type SeasonCoverage = z.infer<typeof SeasonCoverage>
+
+export const SeriesCoverage = z.object({
+  seasons: z.array(SeasonCoverage),
+  /** Files whose season/episode is not in the provider's list, or that have no number at all. */
+  unmatchedFileIds: z.array(z.number().int()),
+})
+export type SeriesCoverage = z.infer<typeof SeriesCoverage>
+
 export const TitleDetail = z.object({
   summary: TitleSummary,
   /** Every file of the title, episodes ordered by season then episode. */
@@ -60,5 +85,9 @@ export const TitleDetail = z.object({
   metadata: TitleMetadata.nullable(),
   /** Episode names and details from the provider; empty until the series is identified. */
   episodes: z.array(EpisodeInfo),
+  /** Null unless the series is identified and the provider has its episodes. */
+  coverage: SeriesCoverage.nullable(),
+  /** Collections this title is part of (official and the person's own). */
+  collections: z.array(CollectionRef),
 })
 export type TitleDetail = z.infer<typeof TitleDetail>

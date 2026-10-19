@@ -21,12 +21,21 @@ const MOVIES = [
   { id: 438631, title: 'Dune', original_title: 'Dune', release_date: '2021-09-15', runtime: 155, popularity: 100, vote_average: 7.8, vote_count: 11000, poster_path: '/dune21.png', imdb_id: 'tt1160419', genres: ['Science Fiction', 'Adventure'], overview: 'Paul Atreides travels to the dangerous planet Arrakis.' },
   { id: 693134, title: 'Dune: Part Two', original_title: 'Dune: Part Two', release_date: '2024-02-27', runtime: 167, popularity: 150, vote_average: 8.2, vote_count: 6000, poster_path: '/dune2.png', genres: ['Science Fiction'], overview: 'Paul Atreides unites with the Fremen.' },
   { id: 496243, title: 'Parasite', original_title: '기생충', release_date: '2019-05-30', runtime: 133, popularity: 80, vote_average: 8.5, vote_count: 18000, poster_path: '/parasite.png', genres: ['Comedy', 'Thriller', 'Drama'], overview: 'All unemployed, Ki-taek’s family takes peculiar interest in the wealthy Parks.', el: { title: 'Παράσιτο', overview: 'Μια φτωχή οικογένεια παρεισφρέει στους πλούσιους Παρκ.', tagline: '', genres: ['Κωμωδία', 'Θρίλερ', 'Δράμα'] } },
+  { id: 9659, title: 'Mad Max', original_title: 'Mad Max', release_date: '1979-04-12', runtime: 95, popularity: 40, vote_average: 6.7, vote_count: 4000, poster_path: '/madmax.png', genres: ['Action'], overview: 'A highway patrolman vows revenge.', collection: 8945 },
+  { id: 8810, title: 'Mad Max 2', original_title: 'Mad Max 2', release_date: '1981-12-24', runtime: 96, popularity: 38, vote_average: 7.0, vote_count: 3500, poster_path: '/madmax2.png', genres: ['Action'], overview: 'The Road Warrior.', collection: 8945 },
+  { id: 9361, title: 'Mad Max Beyond Thunderdome', original_title: 'Mad Max Beyond Thunderdome', release_date: '1985-07-10', runtime: 107, popularity: 36, vote_average: 6.1, vote_count: 2800, poster_path: null, genres: ['Action'], overview: 'Max drifts into Bartertown.', collection: 8945 },
+  { id: 76341, title: 'Mad Max: Fury Road', original_title: 'Mad Max: Fury Road', release_date: '2015-05-13', runtime: 120, popularity: 110, vote_average: 7.6, vote_count: 22000, poster_path: '/furyroad.png', genres: ['Action', 'Adventure'], overview: 'Max joins Furiosa across the wasteland.', collection: 8945 },
   { id: 700001, title: 'Obscure Gem', original_title: 'Obscure Gem', release_date: '2001-01-01', runtime: 90, popularity: 1, poster_path: null, genres: [], overview: '' },
 ]
 
+/** Official collections, as TMDB publishes them. */
+const COLLECTIONS = {
+  8945: { id: 8945, name: 'Mad Max Collection', overview: 'Max Rockatansky in the wasteland.', poster_path: '/madmax-collection.png', backdrop_path: null, el: { name: 'Συλλογή Mad Max', overview: '' } },
+}
+
 /** @type {Record<string, any>[]} */
 const SHOWS = [
-  { id: 95396, name: 'Severance', original_name: 'Severance', first_air_date: '2022-02-17', episode_run_time: [50], popularity: 160, vote_average: 8.4, vote_count: 3000, poster_path: '/severance.png', backdrop_path: '/severance-bg.png', genres: ['Drama', 'Sci-Fi & Fantasy'], tagline: 'Work-life balance, redefined.', overview: 'Mark leads a team of office workers whose memories have been surgically divided.', status: 'Returning Series', cast: [['Adam Scott', 'Mark Scout']], seasons: { 1: [['Good News About Hell', '2022-02-18'], ['Half Loop', '2022-02-18'], ['In Perpetuity', '2022-02-18']], 2: [['Hello, Ms. Cobel', '2025-01-17']] } },
+  { id: 95396, name: 'Severance', original_name: 'Severance', first_air_date: '2022-02-17', episode_run_time: [50], popularity: 160, vote_average: 8.4, vote_count: 3000, poster_path: '/severance.png', backdrop_path: '/severance-bg.png', genres: ['Drama', 'Sci-Fi & Fantasy'], tagline: 'Work-life balance, redefined.', overview: 'Mark leads a team of office workers whose memories have been surgically divided.', status: 'Returning Series', cast: [['Adam Scott', 'Mark Scout']], seasons: { 1: [['Good News About Hell', '2022-02-18'], ['Half Loop', '2022-02-18'], ['In Perpetuity', '2022-02-18']], 2: [['Hello, Ms. Cobel', '2025-01-17'], ['The Future Episode', '2099-01-01']] } },
   { id: 70523, name: 'Dark', original_name: 'Dark', first_air_date: '2017-12-01', episode_run_time: [60], popularity: 90, vote_average: 8.4, vote_count: 5000, poster_path: '/dark.png', genres: ['Drama'], overview: 'A missing child sets four families on a frantic hunt.', seasons: { 1: [['Secrets', '2017-12-01'], ['Lies', '2017-12-01']] } },
   { id: 1000, name: 'Doctor Who', original_name: 'Doctor Who', first_air_date: '1963-11-23', episode_run_time: [25], popularity: 40, vote_average: 7.4, vote_count: 2400, poster_path: '/dw63.png', genres: ['Sci-Fi & Fantasy'], overview: 'The original series.', seasons: { 1: [['An Unearthly Child', '1963-11-23']] } },
   { id: 57243, name: 'Doctor Who', original_name: 'Doctor Who', first_air_date: '2005-03-26', episode_run_time: [45], popularity: 120, vote_average: 7.5, vote_count: 3000, poster_path: '/dw05.png', genres: ['Sci-Fi & Fantasy'], overview: 'The revived series.', seasons: { 1: [['Rose', '2005-03-26']] } },
@@ -128,6 +137,22 @@ export async function startFakeTmdb(options = {}) {
         status: 'Released',
         credits: { cast: (m.cast ?? []).map(([name, character], order) => ({ name, character, order })) },
         external_ids: { imdb_id: m.imdb_id ?? null },
+        belongs_to_collection: m.collection ? { id: m.collection, name: COLLECTIONS[m.collection].name } : null,
+      })
+    }
+
+    const coll = path.match(/^\/collection\/(\d+)$/)
+    if (coll) {
+      const c = COLLECTIONS[coll[1]]
+      if (!c) return json(404, { status_code: 34 })
+      const parts = MOVIES.filter((m) => m.collection === c.id).sort((a, b) => a.release_date.localeCompare(b.release_date))
+      return json(200, {
+        id: c.id,
+        name: lang === 'el' ? c.el.name : c.name,
+        overview: lang === 'el' ? c.el.overview : c.overview,
+        poster_path: c.poster_path,
+        backdrop_path: c.backdrop_path,
+        parts: parts.map((m) => ({ id: m.id, title: m.title, release_date: m.release_date, overview: m.overview, poster_path: m.poster_path })),
       })
     }
 

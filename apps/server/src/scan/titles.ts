@@ -1,8 +1,10 @@
 import type Database from 'better-sqlite3'
 import { z } from 'zod'
 import type { MediaKind, TitleDetail, TitleKind, TitlePage, TitleQuery, TitleSort, TitleSummary } from '@theama/contracts'
+import { collectionRefsFor } from '../collections/refs'
 import { artworkUrl } from '../metadata/artwork'
 import type { MetadataRepo } from '../metadata/store'
+import { buildCoverage } from './coverage'
 import { ftsQuery } from './fts'
 import { toMediaFile, type ListRow } from './store'
 
@@ -23,6 +25,7 @@ interface GroupRow {
   poster_file: string | null
   rating: number | null
   match_state: 'matched' | 'ambiguous' | 'unmatched' | null
+  missing_episodes: number | null
 }
 
 function toSummary(r: GroupRow): TitleSummary | null {
@@ -42,6 +45,7 @@ function toSummary(r: GroupRow): TitleSummary | null {
     posterUrl: artworkUrl(r.poster_file),
     rating: r.rating,
     matchState: r.match_state,
+    missingEpisodes: r.missing_episodes,
   }
 }
 
@@ -73,10 +77,21 @@ const GROUP_SELECT = `
          SUM(f.size) AS size,
          MAX(d.poster_file) AS poster_file,
          MAX(d.rating) AS rating,
-         MAX(m.state) AS match_state
+         MAX(m.state) AS match_state,
+         MAX(cov.missing) AS missing_episodes
   FROM media_file f JOIN library_source s ON s.id = f.source_id
        LEFT JOIN title_metadata d ON d.title_key = f.title_key
-       LEFT JOIN title_match m ON m.title_key = f.title_key`
+       LEFT JOIN title_match m ON m.title_key = f.title_key
+       LEFT JOIN (
+         -- Aired episodes (specials excluded) that no file covers; a file may cover a range (E03-E04).
+         SELECT em.title_key AS k,
+                SUM(CASE WHEN em.season > 0 AND em.air_date IS NOT NULL AND em.air_date <= date('now')
+                          AND NOT EXISTS (SELECT 1 FROM media_file f2
+                                           WHERE f2.title_key = em.title_key AND f2.season = em.season
+                                             AND em.episode BETWEEN f2.episode AND coalesce(f2.episode_end, f2.episode))
+                         THEN 1 ELSE 0 END) AS missing
+           FROM episode_metadata em GROUP BY em.title_key
+       ) cov ON cov.k = f.title_key`
 
 export class TitleRepo {
   constructor(
@@ -149,6 +164,22 @@ export class TitleRepo {
     return { items: page.map(toSummary).filter((s): s is TitleSummary => s !== null), nextCursor, total }
   }
 
+  /** Library cards for specific title keys (collections use this); unknown keys are simply absent. */
+  summaries(keys: readonly string[]): Map<string, TitleSummary> {
+    const out = new Map<string, TitleSummary>()
+    for (let i = 0; i < keys.length; i += 400) {
+      const chunk = keys.slice(i, i + 400)
+      const rows = this.raw
+        .prepare(`${GROUP_SELECT} WHERE f.kind <> 'extra' AND f.title_key IN (${chunk.map(() => '?').join(',')}) GROUP BY f.kind, f.title_key`)
+        .all(...chunk) as GroupRow[]
+      for (const r of rows) {
+        const s = toSummary(r)
+        if (s) out.set(s.key, s)
+      }
+    }
+    return out
+  }
+
   /** One title with all of its files, or null if the key is unknown. */
   detail(key: string): TitleDetail | null {
     const group = this.raw.prepare(`${GROUP_SELECT} WHERE f.title_key = ? GROUP BY f.kind, f.title_key`).get(key) as GroupRow | undefined
@@ -163,6 +194,15 @@ export class TitleRepo {
       )
       .all(key) as ListRow[]
     const stored = this.metadata?.getMatch(key) ?? null
+    const providerEpisodes = summary.kind === 'series' ? (this.metadata?.episodes(key) ?? []) : []
+    const covered =
+      providerEpisodes.length > 0
+        ? buildCoverage(
+            providerEpisodes,
+            rows.filter((r) => r.kind === 'episode').map((r) => ({ id: r.id, season: r.season, episode: r.episode, episodeEnd: r.episode_end })),
+            new Date().toISOString().slice(0, 10),
+          )
+        : null
     return {
       summary,
       files: rows.map(toMediaFile),
@@ -178,7 +218,9 @@ export class TitleRepo {
           }
         : null,
       metadata: this.metadata?.getMetadata(key) ?? null,
-      episodes: this.metadata?.episodes(key) ?? [],
+      episodes: covered?.episodes ?? [],
+      coverage: covered?.coverage ?? null,
+      collections: collectionRefsFor(this.raw, key),
     }
   }
 }

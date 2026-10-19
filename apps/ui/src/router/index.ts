@@ -21,6 +21,12 @@ const routes: RouteRecordRaw[] = [
   },
   { path: '/search', name: 'search', component: () => import('@/views/SearchView.vue'), meta: { titleKey: 'nav.search' } },
   {
+    path: '/collection',
+    name: 'collection',
+    component: () => import('@/views/CollectionDetailView.vue'),
+    meta: { titleKey: 'nav.collections' },
+  },
+  {
     path: '/collections',
     name: 'collections',
     component: () => import('@/views/CollectionsView.vue'),

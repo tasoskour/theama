@@ -8,7 +8,7 @@ import { ServiceEventRepo, recordCrashIfUncleanShutdown } from '../repo/service-
 describe('migrations', () => {
   it('applies from an empty database and is idempotent', () => {
     const db = new Database(':memory:')
-    expect(migrate(db)).toEqual([1, 2, 3, 4])
+    expect(migrate(db)).toEqual([1, 2, 3, 4, 5])
     expect(db.pragma('user_version', { simple: true })).toBe(LATEST_SCHEMA_VERSION)
     expect(migrate(db)).toEqual([])
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]

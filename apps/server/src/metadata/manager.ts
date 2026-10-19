@@ -7,6 +7,7 @@ import type {
   MetadataStatus,
   ServerEvent,
 } from '@theama/contracts'
+import type { CollectionRepo } from '../collections/store'
 import type { MediaFileRepo } from '../scan/store'
 import { ArtworkCache, artworkUrl } from './artwork'
 import type { CredentialStore } from './credentials'
@@ -17,11 +18,14 @@ import { MetadataRepo, type PendingTitle } from './store'
 const LANGUAGE_TAGS: Record<MetadataLanguage, string> = { en: 'en-US', el: 'el-GR' }
 const DAY_MS = 24 * 60 * 60 * 1000
 const BATCH = 25
+/** Official collections change rarely; a stored one is re-read after this long (or when a member is refreshed by hand). */
+const COLLECTION_FRESH_MS = 30 * DAY_MS
 
 export interface ManagerDeps {
   provider: MetadataProvider
   repo: MetadataRepo
   files: MediaFileRepo
+  collections: CollectionRepo
   artwork: ArtworkCache
   credentials: CredentialStore
   language: () => MetadataLanguage
@@ -61,6 +65,8 @@ export class MetadataManager {
   private lastChanged = 0
   private lastStatus = 0
   private idle: Promise<void> = Promise.resolve()
+  /** Collections already read in the current pass, so three films of one set cost one request. */
+  private readonly collectionsThisPass = new Set<string>()
 
   constructor(private readonly d: ManagerDeps) {}
 
@@ -167,11 +173,12 @@ export class MetadataManager {
     this.state = 'working'
     this.message = null
     const failed = new Set<string>()
+    this.collectionsThisPass.clear()
     try {
       for (;;) {
         if (this.stopped) return
         const pending = this.d.repo.pending(this.cutoff(), BATCH).filter((t) => !failed.has(t.key))
-        const stale = this.d.repo.stale(this.d.language(), BATCH).filter((s) => !failed.has(s.key))
+        const stale = this.d.repo.stale(this.d.language(), BATCH, this.now()).filter((s) => !failed.has(s.key))
         if (pending.length === 0 && stale.length === 0) break
         for (const t of pending) {
           if (this.stopped) return
@@ -332,6 +339,42 @@ export class MetadataManager {
       )
     })
     this.d.files.reindexTitle(key)
+    if (kind === 'movie' && title.collection) await this.ensureCollection(title.collection, how !== 'auto')
+  }
+
+  /**
+   * Reads the official collection a movie belongs to, so the Collections page can show the whole set and
+   * name the parts the library lacks. Never fails the movie it came from: a missing set is retried later
+   * (the movie then counts as stale again), a set the provider no longer has is stored empty.
+   */
+  private async ensureCollection(ref: { externalId: string; name: string }, force: boolean): Promise<void> {
+    if (this.collectionsThisPass.has(ref.externalId)) return
+    const id = this.d.provider.id
+    const existing = this.d.collections.getOfficial(id, ref.externalId)
+    const age = existing?.fetchedAt ? this.now().getTime() - new Date(existing.fetchedAt).getTime() : Infinity
+    if (existing && !force && age < COLLECTION_FRESH_MS) return
+    this.collectionsThisPass.add(ref.externalId)
+    const when = this.now().toISOString()
+    try {
+      const c = await this.d.provider.fetchCollection(ref.externalId, this.tag())
+      const parts = new Map<string, string | null>()
+      for (const p of c.parts) parts.set(p.externalId, await this.d.artwork.ensure(p.posterPath, 'poster'))
+      this.d.collections.upsertOfficial(
+        id,
+        c,
+        { poster: await this.d.artwork.ensure(c.posterPath, 'poster'), backdrop: await this.d.artwork.ensure(c.backdropPath, 'backdrop'), parts },
+        when,
+      )
+    } catch (err) {
+      if (err instanceof ProviderError && err.kind === 'not_found') {
+        this.d.collections.upsertOfficial(id, { externalId: ref.externalId, name: ref.name, overview: null, posterPath: null, backdropPath: null, parts: [] }, { poster: null, backdrop: null, parts: new Map() }, when)
+        return
+      }
+      this.collectionsThisPass.delete(ref.externalId)
+      if (err instanceof ProviderError && err.kind === 'auth') throw err
+      this.d.logger.warn({ err, collection: ref.name }, 'Could not read a collection; will try again later')
+    }
+    this.changed()
   }
 
   /** Downloads images that earlier attempts could not get (offline CDN, interrupted run). */
@@ -340,6 +383,10 @@ export class MetadataManager {
       const poster = a.needPoster ? await this.d.artwork.ensure(a.posterPath, 'poster') : null
       const backdrop = a.needBackdrop ? await this.d.artwork.ensure(a.backdropPath, 'backdrop') : null
       this.d.repo.setArtworkFiles(a.key, poster, backdrop)
+    }
+    for (const a of this.d.collections.missingArtwork(50)) {
+      const file = await this.d.artwork.ensure(a.path, a.target === 'collection_backdrop' ? 'backdrop' : 'poster')
+      if (file) this.d.collections.setArtworkFile(a.target, a.id, file)
     }
     // Episode stills are fetched last and in the background: they are nice to have, not needed to browse.
     for (let round = 0; round < 40 && !this.stopped; round++) {

@@ -24,6 +24,16 @@ No external player exposes resume position uniformly. VLC (HTTP/RC interface), m
 - **Not yet exercised against the live service:** the adapter follows TMDB's documented v3 shapes and is covered by a faithful fake; the first run with a real key may surface a field we did not anticipate. Responses are parsed leniently and any unexpected shape is reported as "provider unavailable" rather than crashing or storing garbage.
 - **What leaves the PC:** only the guessed title text and year (and the id of an identified title) go to TMDB; images are fetched by the backend, so the UI never contacts TMDB's CDN directly. Personal videos are never sent.
 
+## Series and collections
+| Risk | Detail | Mitigation |
+|---|---|---|
+| "Missing" is only as good as TMDB's episode list | TMDB sometimes numbers a series differently from release groups (absolute numbering for anime, split or merged seasons, "episode groups"). Files then look *unlisted* and the provider's episodes look *missing*. | Unlisted files stay visible and are never deleted or hidden; the wording says "Not in TMDB's list", not "wrong". Alternative orderings (episode groups) are a follow-up. |
+| Undated episodes | No air date means Theama cannot say it is missing. | Shown as *No air date*, counted neither as missing nor as present. |
+| Air dates and time zones | Dates are compared in UTC at read time; an episode airing "today" counts as aired. | Off by at most a day around midnight; no scheduling depends on it. |
+| Official collections are the provider's | They list franchise films, not story order, and include entries the person may not want. | Shown in release order only, with a note; story order is never inferred. Entries the library lacks are labelled and not playable. |
+| Collection data is read once per ~30 days | A new film added to a TMDB set shows up on the next read. | Refreshing any member movie by hand re-reads its set. |
+| Title keys for user collections | A user member is stored by title key. If a title's key changes (renamed files, different year in the name), the old member shows as a non-playable entry. | The entry stays removable; the title can be added again. Provider-id based keys arrive with a future title table. |
+
 ## Scanning and FFprobe
 | Risk | Detail | Mitigation |
 |---|---|---|

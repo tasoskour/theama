@@ -164,7 +164,7 @@ describe('automatic identification', () => {
     await until('episode stills', async () => (await detail((await byTitle('Severance')).key)).episodes.every((e) => e.stillUrl) || false)
     const files = readdirSync(cacheDir)
     expect(files).toContain('poster-interstellar.png')
-    expect(files.filter((f) => f.startsWith('still-')).length).toBe(4)
+    expect(files.filter((f) => f.startsWith('still-')).length).toBe(5)
     const before = fake.imageRequests
     const url = (await byTitle('Interstellar')).posterUrl!
     const res = await fetch(`http://127.0.0.1:${server.port}${url}`, { headers: auth() })

@@ -174,6 +174,50 @@ export const MIGRATIONS: readonly string[] = [
     DELETE FROM media_file_fts WHERE rowid = old.id;
   END;
   `,
+  /* 5 — collections; provider data records which collection a movie belongs to and a data version */
+  `
+  ALTER TABLE title_metadata ADD COLUMN collection_external_id TEXT;
+  -- Rows written before a column existed carry version 1; the metadata manager refreshes them in the
+  -- background, which is how older data picks up fields added later without a manual step.
+  ALTER TABLE title_metadata ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+
+  CREATE TABLE collection (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind          TEXT NOT NULL CHECK (kind IN ('official','user')),
+    provider      TEXT,
+    external_id   TEXT,
+    name          TEXT NOT NULL,
+    overview      TEXT,
+    poster_path   TEXT,
+    poster_file   TEXT,
+    backdrop_path TEXT,
+    backdrop_file TEXT,
+    fetched_at    TEXT,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX uq_collection_provider ON collection(provider, external_id) WHERE provider IS NOT NULL;
+
+  -- Official members are provider movies (external_id) that may or may not be in the library; whether one is
+  -- local is worked out when reading, from the movie's match, so identifying a title later links it at once.
+  -- User members are library titles (title_key) and keep the name they had when added, for when the files are gone.
+  CREATE TABLE collection_member (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    collection_id INTEGER NOT NULL REFERENCES collection(id) ON DELETE CASCADE,
+    title_key     TEXT,
+    external_id   TEXT,
+    title         TEXT NOT NULL,
+    year          INTEGER,
+    release_date  TEXT,
+    overview      TEXT,
+    poster_path   TEXT,
+    poster_file   TEXT,
+    custom_order  INTEGER
+  );
+  CREATE UNIQUE INDEX uq_collection_member_key ON collection_member(collection_id, title_key) WHERE title_key IS NOT NULL;
+  CREATE UNIQUE INDEX uq_collection_member_ext ON collection_member(collection_id, external_id) WHERE external_id IS NOT NULL;
+  CREATE INDEX idx_collection_member_ext ON collection_member(external_id);
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

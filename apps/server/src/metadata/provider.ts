@@ -51,6 +51,24 @@ export interface ProviderTitle {
   status: string | null
   /** Series only: season numbers that exist, including 0 for specials. */
   seasons: number[]
+  /** Movies only: the official collection it belongs to. */
+  collection: { externalId: string; name: string } | null
+}
+
+export interface ProviderCollection {
+  externalId: string
+  name: string
+  overview: string | null
+  posterPath: string | null
+  backdropPath: string | null
+  parts: {
+    externalId: string
+    title: string
+    year: number | null
+    releaseDate: string | null
+    overview: string | null
+    posterPath: string | null
+  }[]
 }
 
 export interface ProviderEpisode {
@@ -70,6 +88,7 @@ export interface MetadataProvider {
   search(query: SearchQuery): Promise<ProviderCandidate[]>
   fetchTitle(kind: MatchKind, externalId: string, language: string): Promise<ProviderTitle>
   fetchSeason(seriesId: string, season: number, language: string): Promise<ProviderEpisode[]>
+  fetchCollection(externalId: string, language: string): Promise<ProviderCollection>
   /** Where to download an image from; the result is only ever fetched by the artwork cache. */
   imageUrl(path: string, size: ImageSize): string
   /** Throws a ProviderError('auth') when the credentials are rejected. */

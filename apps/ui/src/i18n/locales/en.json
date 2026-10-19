@@ -470,5 +470,73 @@
       "action": "Set up",
       "dismiss": "Not now"
     }
+  },
+  "series": {
+    "summary": "{expected} expected · {local} in your library",
+    "missingN": "{n} missing",
+    "upcomingN": "{n} not aired yet",
+    "undatedN": "{n} without an air date",
+    "untitled": "Untitled episode",
+    "missing": "Missing",
+    "airs": "Airs {date}",
+    "undated": "No air date",
+    "undatedHint": "TMDB has no air date for this episode, so Theama cannot say whether it is missing.",
+    "copies": "{n} files",
+    "copiesHint": "More than one file plays this episode.",
+    "stray": "Not in TMDB's list",
+    "strayHint": "TMDB does not list this season and episode number for the series. The file is kept and still shown."
+  },
+  "collections": {
+    "mine": "Mine",
+    "inLibrary": "{local} of {total} in your library",
+    "titles": "{count} title | {count} titles",
+    "addTo": "Add to collection",
+    "alreadyIn": "Already in it",
+    "noneYet": "You have no collections yet",
+    "newEllipsis": "New collection…",
+    "newCollection": "New collection",
+    "new": {
+      "title": "New collection",
+      "name": "Name",
+      "duplicate": "You already have a collection with that name.",
+      "withTitle": "This title will be the first one in it.",
+      "create": "Create"
+    },
+    "filter": "Show collections",
+    "filters": {
+      "all": "All",
+      "official": "From TMDB",
+      "user": "Mine"
+    },
+    "noneOfKind": "Nothing of that kind",
+    "noneOfKindHint": "Try another filter.",
+    "emptyBody": "Sets such as film series appear here once their titles are identified. You can also make your own from any title page.",
+    "needsKey": "Official collections come from TMDB.",
+    "back": "Back",
+    "gone": "This collection no longer exists",
+    "goneHint": "It may have been deleted. Your titles are untouched.",
+    "kind": {
+      "official": "Collection from TMDB",
+      "user": "Your collection"
+    },
+    "order": "Order",
+    "orders": {
+      "release": "Release order",
+      "custom": "My order"
+    },
+    "rename": "Rename",
+    "delete": "Delete",
+    "officialNote": "Titles you do not have are listed so you can see what is missing. They cannot be played. Theama shows release order only: story order needs curated data and is never guessed.",
+    "emptyCollection": "Nothing in this collection yet. Open a title and choose Add to collection.",
+    "notInLibrary": "Not in your library",
+    "arrange": "Arrange {name}",
+    "earlier": "Move {name} earlier",
+    "later": "Move {name} later",
+    "removeFrom": "Remove {name} from this collection",
+    "remove": "Remove",
+    "deleteTitle": "Delete “{name}”?",
+    "deleteBody": "Only the collection is deleted. The titles and their files stay where they are.",
+    "deleteConfirm": "Delete collection",
+    "partOf": "Part of"
   }
 }

@@ -11,6 +11,16 @@ import { z } from 'zod'
 import { artworkUrl } from './artwork'
 import type { ProviderEpisode, ProviderTitle } from './provider'
 
+/** Bumped when a new build stores more provider fields; older rows are then refreshed in the background. */
+export const METADATA_VERSION = 2
+
+/** Series that can still gain episodes, so their data is refreshed now and then. */
+const IN_PRODUCTION = ['Returning Series', 'In Production', 'Planned', 'Pilot']
+const FRESH_MS = 7 * 24 * 60 * 60 * 1000
+
+/** A provider episode as stored; the library fills in its status from the files. */
+export type StoredEpisode = Omit<EpisodeInfo, 'status' | 'fileIds'>
+
 export interface PendingTitle {
   key: string
   kind: MatchKind
@@ -170,9 +180,9 @@ export class MetadataRepo {
         .prepare(
           `INSERT OR REPLACE INTO title_metadata (title_key, provider, external_id, language, title, original_title, year, tagline,
              overview, runtime_min, genres, rating, votes, poster_path, poster_file, backdrop_path, backdrop_file, cast_json,
-             imdb_id, status, fetched_at)
+             imdb_id, status, fetched_at, collection_external_id, version)
            VALUES (@key, @provider, @externalId, @language, @title, @originalTitle, @year, @tagline, @overview, @runtime, @genres,
-             @rating, @votes, @posterPath, @posterFile, @backdropPath, @backdropFile, @cast, @imdb, @status, @now)`,
+             @rating, @votes, @posterPath, @posterFile, @backdropPath, @backdropFile, @cast, @imdb, @status, @now, @collection, @version)`,
         )
         .run({
           key: w.key,
@@ -196,6 +206,8 @@ export class MetadataRepo {
           imdb: t.imdbId,
           status: t.status,
           now,
+          collection: t.collection?.externalId ?? null,
+          version: METADATA_VERSION,
         })
       this.raw.prepare('DELETE FROM episode_metadata WHERE title_key = ?').run(w.key)
       const insert = this.raw.prepare(
@@ -238,12 +250,13 @@ export class MetadataRepo {
       cast: parseArray<{ name: string; character: string | null }>(r.cast_json, []),
       imdbId: (r.imdb_id as string | null) ?? null,
       status: (r.status as string | null) ?? null,
+      collectionId: (r.collection_external_id as string | null) ?? null,
       language: String(r.language),
       fetchedAt: String(r.fetched_at),
     }
   }
 
-  episodes(key: string): EpisodeInfo[] {
+  episodes(key: string): StoredEpisode[] {
     const rows = this.raw
       .prepare('SELECT season, episode, name, overview, air_date, runtime_min, still_file FROM episode_metadata WHERE title_key = ? ORDER BY season, episode')
       .all(key) as {
@@ -284,16 +297,20 @@ export class MetadataRepo {
   }
 
   /** Matched titles whose provider data is missing or was fetched in another language. */
-  stale(language: string, limit: number): { key: string; kind: MatchKind; externalId: string }[] {
+  stale(language: string, limit: number, now: Date = new Date()): { key: string; kind: MatchKind; externalId: string }[] {
     const rows = this.raw
       .prepare(
         `SELECT m.title_key AS key, m.kind AS kind, m.external_id AS externalId
          FROM title_match m LEFT JOIN title_metadata d ON d.title_key = m.title_key
-         WHERE m.state = 'matched' AND m.external_id IS NOT NULL AND (d.title_key IS NULL OR d.language <> ?)
+         WHERE m.state = 'matched' AND m.external_id IS NOT NULL
+           AND (d.title_key IS NULL OR d.language <> ? OR d.version < ?
+                OR (d.status IN (${IN_PRODUCTION.map(() => '?').join(',')}) AND d.fetched_at < ?)
+                OR (d.collection_external_id IS NOT NULL AND NOT EXISTS (
+                      SELECT 1 FROM collection c WHERE c.provider = d.provider AND c.external_id = d.collection_external_id)))
            AND EXISTS (SELECT 1 FROM media_file f WHERE f.title_key = m.title_key)
          LIMIT ?`,
       )
-      .all(language, limit) as { key: string; kind: MatchKind; externalId: string }[]
+      .all(language, METADATA_VERSION, ...IN_PRODUCTION, new Date(now.getTime() - FRESH_MS).toISOString(), limit) as { key: string; kind: MatchKind; externalId: string }[]
     return rows
   }
 

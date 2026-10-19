@@ -7,6 +7,12 @@ import { ZodError } from 'zod'
 import {
   API_PREFIX,
   AppSettingsPatch,
+  AddMemberRequest,
+  CollectionDetailQuery,
+  CollectionListQuery,
+  CreateCollectionRequest,
+  RenameCollectionRequest,
+  ReorderRequest,
   CreateSourceRequest,
   IdentifyRequest,
   MetadataSearchQuery,
@@ -18,6 +24,8 @@ import {
   UpdateSourceRequest,
   type LibrarySource,
   type LibrarySourceList,
+  type CollectionDetail,
+  type CollectionList,
   type LibraryStatus,
   type MetadataSearchResult,
   type MetadataStatus,
@@ -47,6 +55,7 @@ import type { AutoScanner } from './scan/auto'
 import type { ScanManager } from './scan/manager'
 import type { MediaFileRepo, ScanJobRepo } from './scan/store'
 import type { TitleRepo } from './scan/titles'
+import { CollectionProblem, type CollectionRepo } from './collections/store'
 import { ApiProblem, LibrarySourceRepo, normaliseFolderPath, probeFolder, refreshAvailability } from './library/sources'
 import { extractBearer, isAllowedOrigin, isLoopbackHost, tokenMatches } from './security'
 import { APP_VERSION } from './version'
@@ -60,6 +69,7 @@ export interface AppDeps {
   library: LibrarySourceRepo
   files: MediaFileRepo
   titles: TitleRepo
+  collections: CollectionRepo
   jobs: ScanJobRepo
   scans: ScanManager
   auto: AutoScanner
@@ -78,7 +88,7 @@ function apiError(code: string, message: string, details?: unknown): ApiError {
 }
 
 export async function buildApp(deps: AppDeps) {
-  const { config, logger, logHub, settings, serviceEvents, library, files, titles, jobs, scans, auto, metadata, credentials, provider, artwork, events, token, startedAt } = deps
+  const { config, logger, logHub, settings, serviceEvents, library, files, titles, collections, jobs, scans, auto, metadata, credentials, provider, artwork, events, token, startedAt } = deps
   const app = Fastify({
     loggerInstance: logger,
     logController: new LogController({ disableRequestLogging: true }),
@@ -341,6 +351,81 @@ export async function buildApp(deps: AppDeps) {
       .header('X-Content-Type-Options', 'nosniff')
       .type(artworkContentType(file))
       .send(createReadStream(path))
+  })
+
+  // --- collections --------------------------------------------------------
+
+  /** Runs a collection change, turning the repository's refusals into API errors. */
+  function collectionCall<T>(fn: () => T): T {
+    try {
+      return fn()
+    } catch (err) {
+      if (err instanceof CollectionProblem) {
+        const status = { not_found: 404, not_editable: 403, unknown_title: 404, duplicate_name: 409, bad_order: 400 }[err.code]
+        throw new ApiProblem(err.code, err.message, status)
+      }
+      throw err
+    }
+  }
+  const collectionDetail = (id: number, order?: 'release' | 'custom'): CollectionDetail => {
+    const d = collections.detail(id, order)
+    if (!d) throw new ApiProblem('not_found', 'No such collection', 404)
+    return d
+  }
+  const nowIso = (): string => new Date().toISOString()
+  const KeyQuery = z.object({ key: z.string().min(1).max(1000) })
+
+  app.get(`${API_PREFIX}/collections`, async (req): Promise<CollectionList> => ({
+    items: collections.list(CollectionListQuery.parse(req.query).kind),
+  }))
+
+  app.get(`${API_PREFIX}/collections/:id`, async (req): Promise<CollectionDetail> => {
+    const { id } = IdParams.parse(req.params)
+    return collectionDetail(id, CollectionDetailQuery.parse(req.query).order)
+  })
+
+  app.post(`${API_PREFIX}/collections`, async (req, reply): Promise<CollectionDetail> => {
+    const body = CreateCollectionRequest.parse(req.body ?? {})
+    const id = collectionCall(() => collections.create(body.name, nowIso(), body.key))
+    logger.info({ collectionId: id }, 'Collection created')
+    events.broadcast({ type: 'library.changed' })
+    return reply.code(201).send(collectionDetail(id))
+  })
+
+  app.patch(`${API_PREFIX}/collections/:id`, async (req): Promise<CollectionDetail> => {
+    const { id } = IdParams.parse(req.params)
+    collectionCall(() => collections.rename(id, RenameCollectionRequest.parse(req.body ?? {}).name, nowIso()))
+    events.broadcast({ type: 'library.changed' })
+    return collectionDetail(id)
+  })
+
+  app.delete(`${API_PREFIX}/collections/:id`, async (req) => {
+    const { id } = IdParams.parse(req.params)
+    collectionCall(() => collections.remove(id))
+    logger.info({ collectionId: id }, 'Collection deleted (titles untouched)')
+    events.broadcast({ type: 'library.changed' })
+    return { deleted: true }
+  })
+
+  app.post(`${API_PREFIX}/collections/:id/members`, async (req): Promise<CollectionDetail> => {
+    const { id } = IdParams.parse(req.params)
+    collectionCall(() => collections.addMember(id, AddMemberRequest.parse(req.body ?? {}).key, nowIso()))
+    events.broadcast({ type: 'library.changed' })
+    return collectionDetail(id, 'custom')
+  })
+
+  app.delete(`${API_PREFIX}/collections/:id/members`, async (req): Promise<CollectionDetail> => {
+    const { id } = IdParams.parse(req.params)
+    collectionCall(() => collections.removeMember(id, KeyQuery.parse(req.query).key, nowIso()))
+    events.broadcast({ type: 'library.changed' })
+    return collectionDetail(id, 'custom')
+  })
+
+  app.put(`${API_PREFIX}/collections/:id/order`, async (req): Promise<CollectionDetail> => {
+    const { id } = IdParams.parse(req.params)
+    collectionCall(() => collections.reorder(id, ReorderRequest.parse(req.body ?? {}).keys, nowIso()))
+    events.broadcast({ type: 'library.changed' })
+    return collectionDetail(id, 'custom')
   })
 
   app.get(`${API_PREFIX}/library/status`, async (): Promise<LibraryStatus> => scans.status())

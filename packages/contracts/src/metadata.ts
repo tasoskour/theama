@@ -63,10 +63,20 @@ export const TitleMetadata = z.object({
   cast: z.array(CastMember),
   imdbId: z.string().nullable(),
   status: z.string().nullable(),
+  /** Provider id of the official collection this movie belongs to, if any. */
+  collectionId: z.string().nullable(),
   language: z.string(),
   fetchedAt: IsoDate,
 })
 export type TitleMetadata = z.infer<typeof TitleMetadata>
+
+/**
+ * What a series episode is to the library right now.
+ * local: at least one file. missing: aired, no file. upcoming: not aired yet.
+ * undated: the provider has no air date, so Theama cannot say whether it is missing.
+ */
+export const EpisodeStatus = z.enum(['local', 'missing', 'upcoming', 'undated'])
+export type EpisodeStatus = z.infer<typeof EpisodeStatus>
 
 export const EpisodeInfo = z.object({
   season: z.number().int(),
@@ -76,6 +86,9 @@ export const EpisodeInfo = z.object({
   airDate: z.string().nullable(),
   runtimeMinutes: z.number().int().nullable(),
   stillUrl: z.string().nullable(),
+  status: EpisodeStatus,
+  /** Files that play this episode; more than one means duplicates (or several versions). */
+  fileIds: z.array(z.number().int()),
 })
 export type EpisodeInfo = z.infer<typeof EpisodeInfo>
 

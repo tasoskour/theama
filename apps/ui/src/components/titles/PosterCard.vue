@@ -20,6 +20,7 @@ const detail = computed(() => {
     const parts: string[] = []
     if (x.seasonCount > 0) parts.push(t('titles.seasons', x.seasonCount))
     parts.push(t('titles.episodes', x.episodeCount > 0 ? x.episodeCount : x.fileCount))
+    if ((x.missingEpisodes ?? 0) > 0) parts.push(t('series.missingN', { n: x.missingEpisodes }))
     return parts.join(' · ')
   }
   if (x.kind === 'movie') return x.year ? String(x.year) : ''

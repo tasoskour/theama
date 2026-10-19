@@ -254,6 +254,89 @@ test('identifies titles with TMDB: key set-up, posters, details, and choosing be
   await expect(page.getByText('No folders yet.')).toBeVisible()
 })
 
+test('shows what a series is missing, and builds collections (official and your own)', async () => {
+  // The TMDB key from the previous test is still saved; this library has two Mad Max films and a gappy series.
+  for (const f of await readdir(mediaFolder)) await rm(join(mediaFolder, f), { force: true })
+  for (const f of ['Mad.Max.1979.mkv', 'Mad.Max.Fury.Road.2015.mkv', 'Severance.S01E01.mkv', 'Severance.S01E03.mkv', 'Severance.S01E09.mkv']) {
+    writeFileSync(join(mediaFolder, f), 'x')
+  }
+  const here = page.url().split('#')[0]
+  await page.goto(here + '#/settings/library')
+  await page.getByRole('button', { name: 'Add folder' }).first().click()
+  const add = page.getByRole('dialog', { name: 'Add a media folder' })
+  await add.getByRole('button', { name: 'Auto-detect' }).click()
+  await add.getByRole('button', { name: 'Add folder' }).click()
+  await expect(page.getByText('Folder added', { exact: true })).toBeVisible()
+
+  // --- a series with gaps ---------------------------------------------------------------
+  await nav('Series').click()
+  const card = page.getByRole('link', { name: /^Severance.*2 missing/ })
+  await expect(card).toBeVisible({ timeout: 30_000 })
+  await card.click()
+  await expect(page.getByRole('heading', { name: 'Severance', level: 1 })).toBeVisible()
+  await expect(page.locator('[data-test="missing-chip"]')).toContainText('2 missing')
+
+  // Season 1: 3 expected, 2 in the library; the aired gap is marked, and a file TMDB does not list stays visible.
+  await expect(page.locator('[data-test="season-summary"]')).toContainText('3 expected · 2 in your library · 1 missing')
+  const gap = page.locator('li[data-gap="missing"]', { hasText: 'Half Loop' })
+  await expect(gap).toContainText('Missing')
+  await expect(gap.getByRole('button')).toHaveCount(0) // a gap is never an action
+  await expect(page.getByText("Not in TMDB's list")).toBeVisible()
+
+  // Season 2: one aired episode missing, one not aired yet — shown differently.
+  await page.getByRole('tab', { name: /Season 2/ }).click()
+  await expect(page.locator('li[data-gap="missing"]', { hasText: 'Hello, Ms. Cobel' })).toContainText('Missing')
+  await expect(page.locator('li[data-gap="upcoming"]', { hasText: 'The Future Episode' })).toContainText('Airs 2099-01-01')
+
+  // --- an official collection, with the parts the library lacks ---------------------------------
+  await nav('Collections').click()
+  const set = page.getByRole('link', { name: 'Mad Max Collection, 2 of 4 in your library' })
+  await expect(set).toBeVisible({ timeout: 30_000 })
+  await set.click()
+  await expect(page.getByRole('heading', { name: 'Mad Max Collection', level: 1 })).toBeVisible()
+  await expect(page.locator('[data-test="collection-count"]')).toContainText('2 of 4 in your library')
+  await expect(page.locator('[data-test="contextual-member"]')).toHaveCount(2)
+  await expect(page.locator('[data-test="contextual-member"]').first()).toContainText('Mad Max 2')
+  await expect(page.locator('[data-test="contextual-member"]').first()).toContainText('Not in your library')
+  // Release order only; no way to edit someone else's set.
+  await expect(page.getByRole('button', { name: 'Rename' })).toHaveCount(0)
+
+  // --- your own collection, started from a title page ------------------------------------------
+  await page.getByRole('link', { name: /^Mad Max, 1979/ }).click()
+  await expect(page.getByRole('heading', { name: 'Mad Max', level: 1 })).toBeVisible()
+  await expect(page.locator('[data-test="part-of"]')).toContainText('Mad Max Collection')
+  await page.locator('[data-test="add-to-collection"]').click()
+  await page.locator('[data-test="new-collection"]').click()
+  const create = page.getByRole('dialog', { name: 'New collection' })
+  await create.getByLabel('Name').fill('Friday night')
+  await create.getByRole('button', { name: 'Create' }).click()
+  await expect(page.locator('[data-test="part-of"]')).toContainText('Friday night')
+
+  await page.locator('[data-test="part-of"]').getByRole('link', { name: 'Friday night' }).click()
+  await expect(page.getByRole('heading', { name: 'Friday night', level: 1 })).toBeVisible()
+  await expect(page.locator('[data-test="collection-count"]')).toContainText('1 title')
+  await page.locator('[data-test="rename-collection"]').click()
+  const rename = page.getByRole('dialog', { name: 'Rename' })
+  await rename.getByLabel('Name').fill('Movie night')
+  await rename.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('heading', { name: 'Movie night', level: 1 })).toBeVisible()
+
+  // Deleting the collection never touches the title.
+  await page.locator('[data-test="delete-collection"]').click()
+  await page.getByRole('dialog', { name: /Delete/ }).getByRole('button', { name: 'Delete collection' }).click()
+  await expect(page.getByRole('heading', { name: 'Collections', level: 1 })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Movie night/ })).toHaveCount(0)
+  await nav('Movies').click()
+  await expect(page.getByRole('link', { name: /^Mad Max, 1979/ })).toBeVisible()
+
+  // Tidy up so the following tests start from an empty library.
+  await page.goto(here + '#/settings/library')
+  const row = page.locator('li.source', { hasText: mediaFolder })
+  await row.getByRole('button', { name: new RegExp('^Remove: ') }).click()
+  await page.getByRole('dialog', { name: 'Remove this folder from Theama?' }).getByRole('button', { name: 'Remove folder' }).click()
+  await expect(page.getByText('No folders yet.')).toBeVisible()
+})
+
 test('keyboard: "/" opens search', async () => {
   await nav('Home').click()
   await page.keyboard.press('/')

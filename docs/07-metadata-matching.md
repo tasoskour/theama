@@ -13,8 +13,8 @@ Differences from the design, deliberately taken for the first slice:
 | Token-bucket rate limit | Minimum spacing of 40 ms between calls (≈ 25 req/s, under TMDB's limit) | Simpler and equally safe for one user. |
 | Credentials in DPAPI-backed storage | One file in the data folder's `secrets` directory (never in the database, never returned by the API, never logged) | Node has no built-in DPAPI; the file shares the trust boundary of the API token next to it. See `docs/11-risks.md`. |
 | Local NFO provider | Not built | Priority today: user edit/lock → provider → file name. |
-| "This is a series / movie" toggle in the dialog | Not built: the kind follows the files (episodes → series, otherwise movie) | Reclassifying changes the grouping key; planned with Phase 5. |
-| Expected-but-absent episode classification | Not built; episode names and details are shown for files that exist | Phase 5. |
+| "This is a series / movie" toggle in the dialog | Not built: the kind follows the files (episodes → series, otherwise movie) | Reclassifying changes the grouping key; still open after Phase 5. |
+| Expected-but-absent episode classification | **Built in Phase 5** (see §3): missing / not yet aired / undated, plus files the provider does not list | "Excluded by filter" has no filter to exclude by yet. |
 
 How an automatic decision is made (as built): search with the year; if the result is not a clear match and a year was given, search again without it and judge the combined list. **Matched** needs a score ≥ 0.85, a lead of ≥ 0.10 over the runner-up, and (when both sides have a year) a year within ±2. A score of 0.55–0.85, or a close runner-up, is **ambiguous** (the top five are stored with cached thumbnails and offered to the user). Below 0.55 is **unmatched**, retried after seven days. Personal videos are never looked up, and nothing but the guessed title text and year is sent to TMDB.
 
@@ -64,7 +64,10 @@ Every call goes through shared infrastructure: token-bucket **rate limiting**, *
 6. **Persist** `media_match(title_id, provider, external_id, score, signals JSON, decided_by: auto|user, locked, created_at)`. Clearly wrong metadata is never attached silently: auto-assignment requires the thresholds above and a sanity check (e.g. year within ±2, kind agreement).
 7. **Manual identification dialog**: search box prefilled from the normalised name, candidate list with poster/year/overview, "this is a series/movie" toggle, choose ⇒ match recorded with `decided_by = user` and **locked**. Locked matches are skipped by rescans and refreshes; "Unlock" is explicit.
 
-## 3. Episodes
+## 3. Episodes — **Built (Phase 5)**
+As built: the provider's episode list is stored per series (`episode_metadata`) and lined up with the files **when read**, so nothing needs re-scanning when a file arrives or goes (`apps/server/src/scan/coverage.ts`, table-tested). Each provider episode is *local* (≥ 1 file; several files = duplicates/versions, flagged), *missing* (aired — today counts — and no file), *upcoming* (air date in the future) or *undated* (no air date: Theama cannot say it is missing). A file whose season/episode the provider does not list, or that has no number, is *unmatched* and stays visible. Multi-episode files (`E03-E04`) cover every number in their range (capped at 40 as a guard against mis-parses). Specials (season 0) are shown but never counted as missing. A series that is still airing is refreshed in the background when its data is more than a week old, so new episodes appear without a manual step. Dates are compared in UTC.
+
+Original design:
 Series match ⇒ fetch seasons/episodes ⇒ map files by (season, episode), supporting ranges (`E03-E04` covers 3 and 4). Remaining local files become *unmatched*, duplicates are flagged, specials map to season 0, and unknown numbers stay visible. Expected-but-absent episodes are classified: **missing locally** (aired, no file) · **not yet aired** (air date in the future) · **excluded by filter** · **not in provider data**.
 
 ## 4. Failure behaviour

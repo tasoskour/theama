@@ -1,0 +1,30 @@
+{
+  "name": "@theama/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Electron shell for Theama: window, native menus, service control and the typed IPC bridge.",
+  "main": "out/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs && electron .",
+    "start": "electron .",
+    "typecheck": "tsc -p tsconfig.json",
+    "service": "tsx src/main/service/admin-cli.ts",
+    "test:e2e": "node scripts/build.mjs && playwright test"
+  },
+  "dependencies": {
+    "@theama/contracts": "workspace:*",
+    "@theama/logs": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^24.0.0",
+    "electron": "^44.9.0",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

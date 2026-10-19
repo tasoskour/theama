@@ -1,0 +1,301 @@
+{
+  "app": {
+    "name": "Theama",
+    "tagline": "Your private cinema"
+  },
+  "nav": {
+    "home": "Home",
+    "movies": "Movies",
+    "series": "Series",
+    "videos": "My Videos",
+    "search": "Search",
+    "collections": "Collections",
+    "settings": "Settings",
+    "main": "Main navigation"
+  },
+  "common": {
+    "retry": "Retry",
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "refresh": "Refresh",
+    "copy": "Copy",
+    "copied": "Copied",
+    "openFolder": "Open folder",
+    "loading": "Loading…",
+    "unknown": "Unknown",
+    "none": "None",
+    "all": "All",
+    "yes": "Yes",
+    "no": "No",
+    "comingSoon": "Coming in a later release"
+  },
+  "connection": {
+    "connected": "Connected",
+    "connecting": "Connecting…",
+    "unavailable": "Backend unavailable",
+    "banner": "The Theama service is not responding."
+  },
+  "empty": {
+    "title": "Nothing here yet",
+    "addFolderHint": "Add a media folder and Theama will discover your films, series and personal videos.",
+    "addFolder": "Add a folder",
+    "home": {
+      "title": "Welcome to Theama",
+      "body": "Your library is empty. Once you add folders, Continue Watching, Recently Added and more will appear here."
+    },
+    "movies": {
+      "title": "No movies yet",
+      "body": "Point Theama at the folders that hold your films."
+    },
+    "series": {
+      "title": "No series yet",
+      "body": "Series, seasons and episodes will be grouped automatically once you add a folder."
+    },
+    "videos": {
+      "title": "No personal videos yet",
+      "body": "Family recordings, travel clips and projects live here, untouched by movie databases."
+    },
+    "collections": {
+      "title": "No collections yet",
+      "body": "Franchises and your own collections will appear here."
+    },
+    "search": {
+      "title": "Search your library",
+      "body": "Titles, actors, directors, genres and tags will be searchable once your library has content."
+    }
+  },
+  "library": {
+    "title": "Media folders",
+    "description": "Folders Theama keeps track of for your movies, series and personal videos. Removing a folder here never deletes anything on disk.",
+    "add": "Add folder",
+    "browse": "Browse…",
+    "manage": "Manage folders",
+    "empty": "No folders yet. Add the folders that hold your media.",
+    "added": "Folder added",
+    "removed": "Folder removed from Theama",
+    "scanNotice": "Folders are saved now. Scanning them and showing their contents arrives with the media-discovery release.",
+    "sectionNotice": "{count} folder added, but its contents can't be shown yet. | {count} folders added, but their contents can't be shown yet.",
+    "dialog": {
+      "title": "Add a media folder",
+      "path": "Folder path",
+      "pathHint": "A full path such as D:\\Movies or \\\\NAS\\media. For network shares use the network path, not a mapped drive letter.",
+      "type": "What is in this folder?",
+      "recursive": "Include subfolders",
+      "confirm": "Add folder"
+    },
+    "types": {
+      "movies": "Movies",
+      "series": "Series",
+      "videos": "My Videos",
+      "auto": "Auto-detect"
+    },
+    "typeHints": {
+      "movies": "Films are matched with movie databases and shown under Movies.",
+      "series": "Episodes are grouped into series, seasons and episodes.",
+      "videos": "Personal recordings. They are never matched against movie databases.",
+      "auto": "Theama decides from file names. Personal videos are never forced into a movie match."
+    },
+    "status": {
+      "online": "Online",
+      "offline": "Offline",
+      "unknown": "Not checked"
+    },
+    "lastSeen": "Last seen {time}",
+    "offlineNote": "This folder can't be reached right now. Its titles stay in your library and come back when it reconnects.",
+    "paused": "Paused",
+    "watch": "Watch for changes",
+    "recursiveShort": "Subfolders",
+    "remove": "Remove",
+    "removeTitle": "Remove this folder from Theama?",
+    "removeBody": "Your files on disk are not touched. Titles from this folder will no longer appear in Theama.",
+    "removeConfirm": "Remove folder",
+    "errors": {
+      "not_found": "That folder does not exist, or its drive is not connected.",
+      "not_a_directory": "That path is a file, not a folder.",
+      "invalid_path": "Enter a full folder path such as D:\\Movies (no \"..\" parts).",
+      "permission_denied": "The Theama service is not allowed to read that folder. Check the account the service runs as in Settings → Advanced → Service.",
+      "source_exists": "That folder has already been added.",
+      "unreachable": "The folder could not be reached. For network shares, use the network path rather than a mapped drive letter."
+    }
+  },
+  "recovery": {
+    "title": "Theama cannot reach its background service",
+    "body": "Your library and settings are safe on disk. The service that manages them is not responding.",
+    "notInstalled": "The Theama service is not installed on this computer.",
+    "stopped": "The Theama service is installed but stopped.",
+    "startingUp": "The service is starting. This usually takes a few seconds.",
+    "running": "The service reports it is running, but its API is not answering.",
+    "devProcess": "Development mode: the backend runs as a normal process.",
+    "start": "Start service",
+    "install": "Install service…",
+    "retry": "Check again",
+    "viewLogs": "Recent log lines",
+    "noLogs": "No log files were found yet.",
+    "needsDesktop": "Open Theama from the desktop application to manage the service."
+  },
+  "settings": {
+    "title": "Settings",
+    "sections": {
+      "general": "General",
+      "library": "Library",
+      "metadata": "Metadata",
+      "playback": "Playback",
+      "files": "File organization",
+      "advanced": "Advanced"
+    },
+    "advancedTabs": {
+      "service": "Service",
+      "logs": "Log history",
+      "about": "About"
+    },
+    "general": {
+      "language": "Language",
+      "languageHint": "Applies immediately; no restart needed.",
+      "theme": "Theme",
+      "themeHint": "System follows your Windows appearance setting.",
+      "themes": {
+        "system": "System",
+        "dark": "Dark",
+        "light": "Light"
+      },
+      "logRetention": "Keep log history for",
+      "logRetentionHint": "Older log files are deleted automatically.",
+      "days": "{count} day | {count} days",
+      "saved": "Settings saved"
+    },
+    "placeholder": {
+      "metadata": "Metadata providers, preferred language, artwork and cache controls will be configured here.",
+      "playback": "Default player, external players and subtitle preferences will be configured here.",
+      "files": "Filename templates and bulk rename previews will be configured here."
+    },
+    "about": {
+      "version": "Version",
+      "nodeVersion": "Node.js",
+      "host": "Host",
+      "pid": "Process ID",
+      "uptime": "Uptime",
+      "schema": "Database schema",
+      "dataDir": "Data folder",
+      "database": "Database file",
+      "cache": "Cache folder",
+      "logs": "Logs folder",
+      "desktop": "Desktop app",
+      "hostService": "Windows service",
+      "hostForeground": "Foreground process (development)"
+    }
+  },
+  "service": {
+    "title": "Background service",
+    "description": "Theama keeps your library up to date in a Windows service that keeps running when this window is closed.",
+    "state": {
+      "not-installed": "Not installed",
+      "stopped": "Stopped",
+      "start-pending": "Starting…",
+      "running": "Running",
+      "stop-pending": "Stopping…",
+      "paused": "Paused",
+      "unknown": "Unknown"
+    },
+    "host": {
+      "nssm": "Windows service (NSSM)",
+      "dev-process": "Development process"
+    },
+    "fields": {
+      "state": "State",
+      "host": "Host",
+      "name": "Service name",
+      "account": "Runs as",
+      "pid": "Process ID",
+      "api": "API"
+    },
+    "api": {
+      "reachable": "Responding",
+      "unreachable": "Not responding"
+    },
+    "actions": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "install": "Install…",
+      "repair": "Repair…",
+      "uninstall": "Uninstall…"
+    },
+    "result": {
+      "ok": "Done",
+      "failed": "The operation did not complete"
+    },
+    "elevation": "Installing, repairing or removing the service asks Windows for administrator permission once. Starting and stopping afterwards does not.",
+    "install": {
+      "title": "Install the Theama service",
+      "repairTitle": "Repair the Theama service",
+      "account": "Run the service as",
+      "currentUser": "My Windows account (recommended)",
+      "currentUserHint": "Keeps your file permissions and network shares. Windows asks for your password once.",
+      "localSystem": "Local System",
+      "localSystemHint": "No password needed, but file operations run with full system rights and network shares need extra setup.",
+      "confirm": "Continue",
+      "uninstallTitle": "Remove the Theama service?",
+      "uninstallBody": "Your library database, settings and logs stay on disk. You can install the service again at any time."
+    },
+    "history": {
+      "title": "Start and stop history",
+      "empty": "No events recorded yet.",
+      "time": "Time",
+      "event": "Event",
+      "reason": "Reason",
+      "kind": {
+        "start": "Started",
+        "stop": "Stopped",
+        "crash": "Crashed",
+        "restart": "Restarted",
+        "migrate": "Database updated"
+      }
+    },
+    "needsDesktop": "Service controls are available in the Theama desktop application."
+  },
+  "logs": {
+    "title": "Log history",
+    "description": "Everything the background service has recorded, newest first.",
+    "filters": {
+      "search": "Search messages",
+      "level": "Minimum level",
+      "source": "Source",
+      "range": "Time range"
+    },
+    "level": {
+      "trace": "Trace",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warning",
+      "error": "Error",
+      "fatal": "Fatal"
+    },
+    "source": {
+      "app": "Application",
+      "service-stdout": "Service output",
+      "service-stderr": "Service errors"
+    },
+    "range": {
+      "any": "Any time",
+      "hour": "Last hour",
+      "day": "Last 24 hours",
+      "week": "Last 7 days"
+    },
+    "live": "Live tail",
+    "livePaused": "Paused while filtering by time",
+    "loadMore": "Load older entries",
+    "end": "End of history",
+    "empty": "No log entries match.",
+    "export": "Export",
+    "openFolder": "Open logs folder",
+    "count": "{count} entry | {count} entries",
+    "serviceOutputNote": "Service output files have no timestamps of their own; the file's last write time is shown.",
+    "error": "Could not load the log history."
+  },
+  "errors": {
+    "generic": "Something went wrong.",
+    "network": "Could not reach the Theama backend.",
+    "unauthorized": "The backend rejected this app's credentials."
+  }
+}

@@ -1,0 +1,90 @@
+# 03 · Domain model and database
+
+SQLite (WAL, `foreign_keys=ON`, `busy_timeout=5000`) via better-sqlite3; Drizzle ORM for typed queries; forward-only SQL migrations (`PRAGMA user_version`) applied at startup inside a transaction. A database written by a *newer* build is refused rather than downgraded.
+
+## 1. What exists today (migration 1) — **Built**
+
+| Table | Purpose |
+|---|---|
+| `application_setting(key PK, value JSON-text, updated_at)` | Settings as key/value so adding a setting never needs a migration. Invalid stored values fall back to defaults per key. |
+| `service_event(id, time, kind, reason, pid, version)` | start / stop / crash / restart / migrate history. Index on `time`. |
+| `library_source(id, path UNIQUE, library_type, recursive, enabled, volume_id, availability, last_seen_online_at, created_at)` | Media folders. `volume_id` + `availability` exist now so offline drives are modelled before scanning is. |
+| `scan_job(id, source_id → library_source ON DELETE CASCADE, status, started_at, finished_at, diagnostics)` | Persisted scan runs and diagnostics. |
+
+A test (`schema-drift.test.ts`) fails if the Drizzle declarations and the migrated tables disagree on names, nullability or primary keys.
+
+## 2. Target model (Phases 2–6) — **Designed**
+
+```mermaid
+erDiagram
+  LIBRARY_SOURCE ||--o{ MEDIA_FILE : contains
+  MEDIA_TITLE ||--o| MOVIE : is
+  MEDIA_TITLE ||--o| SERIES : is
+  SERIES ||--o{ SEASON : has
+  SEASON ||--o{ EPISODE : has
+  MEDIA_TITLE ||--o{ MEDIA_FILE_LINK : "played by"
+  EPISODE ||--o{ MEDIA_FILE_LINK : "played by"
+  MEDIA_FILE ||--o{ MEDIA_FILE_LINK : "covers 1..n"
+  MEDIA_FILE ||--|| FILE_IDENTITY : tracked_by
+  MEDIA_FILE ||--o{ SUBTITLE : has
+  MEDIA_TITLE ||--o{ METADATA_PROVIDER_RECORD : "identified by"
+  MEDIA_TITLE ||--o{ MEDIA_MATCH : "candidates"
+  MEDIA_TITLE ||--o{ ARTWORK : has
+  MEDIA_TITLE ||--o{ CREDIT : has
+  PERSON ||--o{ CREDIT : in
+  MEDIA_TITLE }o--o{ GENRE : tagged
+  MEDIA_TITLE }o--o{ TAG : tagged
+  COLLECTION ||--o{ COLLECTION_MEMBERSHIP : has
+  MEDIA_TITLE ||--o{ COLLECTION_MEMBERSHIP : in
+  MEDIA_TITLE ||--o{ USER_OVERRIDE : "edited by user"
+  MEDIA_FILE ||--o| PLAYBACK_STATE : progress
+  MEDIA_FILE ||--o{ FILE_OPERATION : journal
+```
+
+### Key decisions
+1. **Title identity ≠ file identity.** `media_title` (a movie, a series, or a personal video) is independent of `media_file` (a physical path). A link table connects them, so:
+   - one movie can have several files (cuts, qualities);
+   - one file can cover several episodes (`S02E03-E04`);
+   - files can be moved/renamed/replaced without losing the title, its metadata, collections or progress.
+2. **File identity** (`file_identity`) stores volume serial + NTFS file ID (+ size and a cheap content fingerprint) so a rename or move on the same volume is recognised as the same file instead of delete + add.
+3. **Provider data is separate and attributed.** `metadata_provider_record(title_id, provider, external_id, fetched_at, payload, language)` — a title can have TMDB + IMDb + local NFO ids. Ratings are stored per provider with vote counts and are **never labelled as IMDb unless they came from IMDb**.
+4. **Override layering** (highest wins): `user_override` → local NFO (when configured) → cached provider data → filename-derived. Provider refreshes write only to the provider layer, so user edits survive rescans and refreshes. A *locked* `media_match` is never replaced automatically.
+5. **Collections**: `collection(kind: official | sequel_chain | universe | user)` and `collection_membership(collection_id, title_id, release_order, story_order NULL, custom_order NULL)`. `story_order` is only populated from curated data — never inferred. A title may belong to many collections. Missing members are stored as *contextual* provider entries (no file) and never rendered as playable.
+6. **Playback state** is per file (and rolled up per title/episode): `position_seconds, duration_seconds, watched, last_played_at, source` (`manual` / `player:<name>`), because automatic progress cannot be assumed for every external player.
+
+## 3. Media availability (absent media) — **Designed**, columns **Built**
+
+```mermaid
+stateDiagram-v2
+  [*] --> available: file seen on online source
+  available --> source_offline: volume unreachable / volume id mismatch
+  source_offline --> available: volume back, file present
+  available --> missing_unconfirmed: source online, file not found
+  missing_unconfirmed --> available: file reappears (or rename detected)
+  missing_unconfirmed --> removed: user confirms OR grace period elapsed
+  removed --> [*]: only the file link is dropped; title, metadata, overrides, progress remain
+```
+
+Rules:
+- A source's availability is decided by the **source**, not by individual files. If the root is unreachable (or its volume serial differs from the one recorded when the source was added), **every file under it becomes `source_offline` and nothing else changes**. This is what makes an unplugged external drive harmless.
+- `missing_unconfirmed` only applies when the source is online; it needs a user confirmation or a configurable grace period (default 30 days) before `removed`.
+- The volume serial is read with `fs.stat().dev` (Windows volume serial); no marker files are ever written to the user's drives.
+- Titles whose every file is offline are still returned by the API with `availability: offline` and `offlineReason`, so the UI can dim them and disable Play.
+
+## 4. Delete behaviour and integrity
+| Action | Effect |
+|---|---|
+| Remove a library source | Deletes its `scan_job` rows (cascade) and unlinks its files; **never touches files on disk**; titles keep metadata/overrides/progress and become "no files". |
+| File vanishes | State change only (see §3). |
+| Delete a user collection | Removes memberships only. |
+| Delete a title (explicit user action) | Cascades to credits-links, artwork rows, matches, overrides, memberships; cached image files are removed by the cache janitor. |
+
+All relations use real foreign keys with explicit `ON DELETE` rules; `foreign_keys` is on for every connection.
+
+## 5. Indexes and search (planned)
+- `media_file(source_id, path)` unique; `media_file(state)`; `file_identity(volume_id, file_id)`; `episode(season_id, number)`; `collection_membership(title_id)`; `playback_state(last_played_at DESC)`.
+- Search: FTS5 virtual table over title, original title, alternate titles, episode titles, people, genres, tags, collections, year, overview. `unicode61 remove_diacritics 2` tokenizer so Greek accented/unaccented forms match. FTS5 is present in the bundled SQLite (verified: SQLite 3.53 from better-sqlite3 13).
+- Lists use keyset (cursor) pagination; nothing loads the whole library into memory.
+
+## 6. Migrations policy
+Append-only list in `apps/server/src/db/migrations.ts`; never edit a released migration. Each runs in a transaction and bumps `user_version`. Backups (Phase 7) copy the DB with SQLite's backup API, not a file copy of a live WAL database.

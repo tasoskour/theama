@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 360" role="img" aria-label="Theama">
+  <defs>
+    <linearGradient id="bronze" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E3C58A"/>
+      <stop offset="0.55" stop-color="#B8925A"/>
+      <stop offset="1" stop-color="#8A6A3C"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(20 20) scale(0.6406)">
+    <circle cx="256" cy="256" r="212" fill="none" stroke="url(#bronze)" stroke-width="6"/>
+    <rect x="30" y="252" width="30" height="8" fill="url(#bronze)"/>
+    <rect x="452" y="252" width="30" height="8" fill="url(#bronze)"/>
+    <circle cx="256" cy="256" r="140" fill="none" stroke="url(#bronze)" stroke-width="32"/>
+    <rect x="150" y="241" width="212" height="30" fill="url(#bronze)"/>
+    <circle cx="256" cy="256" r="9" fill="#12100E"/>
+  </g>
+  <!-- Wordmark uses the UI display serif when installed; the app itself renders it with bundled Noto Serif Display. -->
+  <text x="400" y="218" font-family="'Noto Serif Display','GFS Didot','Didot','Georgia',serif" font-size="150" font-weight="500" letter-spacing="18" fill="#F2EBDD">THEAMA</text>
+  <text x="404" y="286" font-family="'Noto Serif Display','GFS Didot','Didot','Georgia',serif" font-size="58" font-weight="400" letter-spacing="26" fill="#B8925A">ΘΕΑΜΑ</text>
+</svg>

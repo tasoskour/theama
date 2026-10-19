@@ -1,0 +1,14 @@
+node_modules/
+dist/
+out/
+release/
+.dev-data/
+*.log
+*.tsbuildinfo
+.yarn/*
+!.yarn/releases
+!.yarn/patches
+!.yarn/plugins
+tools/nssm/bin/
+test-results/
+playwright-report/

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Theama">
+  <defs>
+    <linearGradient id="bronze" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E3C58A"/>
+      <stop offset="0.55" stop-color="#B8925A"/>
+      <stop offset="1" stop-color="#8A6A3C"/>
+    </linearGradient>
+    <radialGradient id="bg" cx="0.5" cy="0.38" r="0.8">
+      <stop offset="0" stop-color="#26211B"/>
+      <stop offset="1" stop-color="#0E0D0B"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="6" y="6" width="500" height="500" rx="106" fill="none" stroke="#B8925A" stroke-opacity="0.35" stroke-width="3"/>
+  <g transform="translate(76 76) scale(0.703)">
+    <circle cx="256" cy="256" r="212" fill="none" stroke="url(#bronze)" stroke-width="8"/>
+    <circle cx="256" cy="256" r="140" fill="none" stroke="url(#bronze)" stroke-width="36"/>
+    <rect x="146" y="238" width="220" height="36" fill="url(#bronze)"/>
+    <circle cx="256" cy="256" r="10" fill="#0E0D0B"/>
+  </g>
+</svg>

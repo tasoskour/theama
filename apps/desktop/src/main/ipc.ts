@@ -1,0 +1,100 @@
+import { ipcMain, shell, dialog, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { mkdirSync } from 'node:fs'
+import { z } from 'zod'
+import {
+  IPC,
+  LocalLogsRequest,
+  PathRequest,
+  PickFolderRequest,
+  ServiceInstallRequest,
+  SetLanguageRequest,
+  type AppInfo,
+  type ServiceActionResult,
+  type ServiceStatus,
+} from '@theama/contracts'
+import { readRecentLocal, type DataPaths } from '@theama/logs'
+import { originOf } from './origin'
+import { assertSafeUserPath } from './path-safety'
+import type { ApiConnection } from './runtime'
+import type { ServiceController } from './service/controller'
+
+export interface IpcDeps {
+  getWindow(): BrowserWindow | null
+  paths: DataPaths
+  controller: ServiceController
+  connection(): ApiConnection | null
+  version: string
+  dev: boolean
+  /** Origins allowed to call IPC (the app:// protocol, plus the Vite dev server in development). */
+  trustedOrigins: string[]
+  setLanguage(lang: 'en' | 'el'): void
+  pickFolderTitle(): string
+  /** Development/test only: answer the folder picker with this path instead of opening a native dialog. */
+  testPickFolder?: string
+  /** Runs a service action with UI side effects (busy state, status push, confirmations). */
+  runService(action: 'start' | 'stop' | 'restart' | 'install' | 'repair' | 'uninstall', account?: 'current-user' | 'local-system'): Promise<ServiceActionResult>
+  currentStatus(): Promise<ServiceStatus>
+}
+
+function isTrusted(event: IpcMainInvokeEvent, trusted: string[]): boolean {
+  const url = event.senderFrame?.url
+  if (!url) return false
+  const origin = originOf(url)
+  return origin !== null && trusted.includes(origin)
+}
+
+/**
+ * Registers the narrow IPC surface. Each handler rejects calls from any frame
+ * that is not Theama's own UI, and validates its argument with a Zod schema.
+ */
+export function registerIpc(deps: IpcDeps): void {
+  function handle<S extends z.ZodType, R>(channel: string, schema: S, fn: (arg: z.output<S>) => Promise<R> | R): void {
+    ipcMain.handle(channel, async (event, raw: unknown) => {
+      if (!isTrusted(event, deps.trustedOrigins)) throw new Error(`Rejected IPC call to ${channel} from an untrusted frame`)
+      return fn(schema.parse(raw))
+    })
+  }
+  const none = z.undefined().or(z.null())
+
+  handle(IPC.appInfo, none, (): AppInfo => {
+    const conn = deps.connection()
+    return {
+      version: deps.version,
+      platform: process.platform,
+      dev: deps.dev,
+      apiBase: conn?.base ?? null,
+      wsUrl: conn?.wsUrl ?? null,
+    }
+  })
+
+  handle(IPC.setLanguage, SetLanguageRequest, ({ language }) => deps.setLanguage(language))
+
+  handle(IPC.pickFolder, PickFolderRequest, async ({ title }) => {
+    if (deps.testPickFolder) return deps.testPickFolder
+    const win = deps.getWindow()
+    const options = { title: title ?? deps.pickFolderTitle(), properties: ['openDirectory' as const] }
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+    return result.canceled ? null : (result.filePaths[0] ?? null)
+  })
+
+  handle(IPC.openPath, PathRequest, async ({ path }) => {
+    const error = await shell.openPath(assertSafeUserPath(path))
+    if (error) throw new Error(error)
+  })
+
+  handle(IPC.showItemInFolder, PathRequest, ({ path }) => shell.showItemInFolder(assertSafeUserPath(path)))
+
+  handle(IPC.serviceStatus, none, () => deps.currentStatus())
+  handle(IPC.serviceStart, none, () => deps.runService('start'))
+  handle(IPC.serviceStop, none, () => deps.runService('stop'))
+  handle(IPC.serviceRestart, none, () => deps.runService('restart'))
+  handle(IPC.serviceUninstall, none, () => deps.runService('uninstall'))
+  handle(IPC.serviceInstall, ServiceInstallRequest, ({ account }) => deps.runService('install', account.kind))
+  handle(IPC.serviceRepair, ServiceInstallRequest, ({ account }) => deps.runService('repair', account.kind))
+
+  handle(IPC.logsReadLocal, LocalLogsRequest, ({ limit }) => readRecentLocal(deps.paths.logsDir, limit))
+  handle(IPC.openLogsFolder, none, async () => {
+    mkdirSync(deps.paths.logsDir, { recursive: true })
+    await shell.openPath(deps.paths.logsDir)
+  })
+}

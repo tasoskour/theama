@@ -1,0 +1,15 @@
+{
+  "name": "@theama/brand",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Theama logo and icon masters plus the script that renders PNG/ICO assets.",
+  "scripts": {
+    "build": "node scripts/build-icons.mjs",
+    "typecheck": "echo brand has no TypeScript sources"
+  },
+  "devDependencies": {
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.5"
+  }
+}

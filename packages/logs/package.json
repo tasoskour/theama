@@ -1,0 +1,23 @@
+{
+  "name": "@theama/logs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Node-only log file writing and reading, shared by the server and the desktop shell.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@theama/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

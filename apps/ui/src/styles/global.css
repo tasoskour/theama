@@ -1,0 +1,85 @@
+:root {
+  --th-font-display: 'Noto Serif Display Variable', 'GFS Didot', Georgia, 'Times New Roman', serif;
+  --th-font-ui: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+  --th-radius: 10px;
+  --th-sidebar-width: 232px;
+  --th-motion: 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: var(--th-font-ui);
+  font-feature-settings: 'cv11', 'ss03';
+  -webkit-font-smoothing: antialiased;
+}
+
+.v-application {
+  font-family: var(--th-font-ui) !important;
+}
+
+/* Editorial display type for page titles and hero text. */
+.th-display {
+  font-family: var(--th-font-display);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.15;
+}
+
+.th-eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(var(--v-theme-primary));
+}
+
+.th-hairline {
+  border: 1px solid rgb(var(--v-theme-hairline));
+}
+
+.th-muted {
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+
+/* One consistent, always visible keyboard focus ring. */
+:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.th-page {
+  padding: 32px clamp(16px, 4vw, 56px) 48px;
+  max-width: 1400px;
+  margin-inline: auto;
+}
+
+.th-mono {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.8rem;
+}
+
+/* Page transition: a short fade, removed for reduced motion. */
+.th-fade-enter-active,
+.th-fade-leave-active {
+  transition: opacity var(--th-motion);
+}
+.th-fade-enter-from,
+.th-fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

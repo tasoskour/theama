@@ -35,6 +35,13 @@ A test (`schema-drift.test.ts`) fails if the Drizzle declarations and the migrat
   - Deleting a user collection removes memberships only. Official collections cannot be edited or deleted.
 - `title_metadata` gained `collection_external_id` and `version`. Rows written by an older build have `version` 1 and are refreshed in the background, which is how data picks up fields added later. A movie whose collection could not be read yet counts as stale, so it is retried.
 
+### Playback, stream details and the rename journal (migration 6) — **Built**
+- `media_file.tracks` — JSON `{ audio: [{codec, language, channels, title}], subtitles: [{codec, language, title, forced, default}] }` from FFprobe, languages normalised to ISO 639-1. Rows probed before this existed have NULL and are read again once at the next scan.
+- `playback_state(file_id PK → media_file ON DELETE CASCADE, watched, watched_at, last_played_at, play_count, source)`. **Per file**, so a rename or move keeps it; a title, season or series is rolled up from its files (a series counts distinct episodes; an episode is watched if any of its files is). Starting a player sets `last_played_at` and `play_count` only: Theama cannot see inside an external player, so `watched` is something the person marks.
+- **Next episode** (`apps/server/src/playback/next.ts`, table-tested): the first unwatched *local* episode after the last one watched, or the first episode when nothing is watched; specials and unnumbered files are left out, missing episodes are skipped, and unwatched episodes *before* the last watched one are deliberately not offered (the person skipped them). **Continue watching** = series that have a next episode plus films started but not marked watched, newest activity first.
+- `file_operation(id, batch_id, seq, kind video|subtitle, file_id, from_path, to_path, status pending|done|failed|rolled_back|rollback_failed, error, created_at, finished_at)` — the rename journal. No foreign key to `media_file`: a record outlives the file row it describes.
+- Subtitle files are **not** stored: they are read from disk when asked (`GET /library/files/:id/subtitles`, and at launch), so one added or renamed since the last scan is seen and an offline drive simply yields none.
+
 ## 2. Target model (Phases 5–6) — **Designed** (the parts above are built; the rest is still design)
 
 `media_file` above is the first piece of this model. Phase 4 keeps matches keyed by `title_key` (see above); `media_title` and a link table can replace that key later without discarding rows.

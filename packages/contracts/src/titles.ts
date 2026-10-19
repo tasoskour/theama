@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { IsoDate } from './common'
 import { MediaFile } from './media'
 import { CollectionRef } from './collection-ref'
+import { PlaybackInfo } from './playback-info'
 import { EpisodeInfo, MatchState, TitleMatch, TitleMetadata } from './metadata'
 
 /** What a card in the library represents. A series is one card for all of its episodes. */
@@ -34,6 +35,8 @@ export const TitleSummary = z.object({
   matchState: MatchState.nullable(),
   /** Series with provider data: aired episodes without a file (specials not counted). Null when unknown. */
   missingEpisodes: z.number().int().nullable(),
+  /** None, some or all of it watched (a series counts episodes, not files). */
+  watchState: z.enum(['none', 'some', 'all']),
 })
 export type TitleSummary = z.infer<typeof TitleSummary>
 
@@ -89,5 +92,6 @@ export const TitleDetail = z.object({
   coverage: SeriesCoverage.nullable(),
   /** Collections this title is part of (official and the person's own). */
   collections: z.array(CollectionRef),
+  playback: PlaybackInfo,
 })
 export type TitleDetail = z.infer<typeof TitleDetail>

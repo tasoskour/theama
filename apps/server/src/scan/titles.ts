@@ -4,6 +4,7 @@ import type { MediaKind, TitleDetail, TitleKind, TitlePage, TitleQuery, TitleSor
 import { collectionRefsFor } from '../collections/refs'
 import { artworkUrl } from '../metadata/artwork'
 import type { MetadataRepo } from '../metadata/store'
+import { nextEpisode, toEpisodeFile } from '../playback/next'
 import { buildCoverage } from './coverage'
 import { ftsQuery } from './fts'
 import { toMediaFile, type ListRow } from './store'
@@ -26,6 +27,8 @@ interface GroupRow {
   rating: number | null
   match_state: 'matched' | 'ambiguous' | 'unmatched' | null
   missing_episodes: number | null
+  watched_files: number
+  watched_episodes: number
 }
 
 function toSummary(r: GroupRow): TitleSummary | null {
@@ -46,7 +49,17 @@ function toSummary(r: GroupRow): TitleSummary | null {
     rating: r.rating,
     matchState: r.match_state,
     missingEpisodes: r.missing_episodes,
+    watchState: watchState(r),
   }
+}
+
+/** A series counts episodes (two copies of one episode are one episode); a film or video is watched or not. */
+function watchState(r: GroupRow): 'none' | 'some' | 'all' {
+  if (r.watched_files === 0) return 'none'
+  if (r.kind !== 'episode') return 'all'
+  const total = r.episode_count > 0 ? r.episode_count : r.file_count
+  const seen = r.episode_count > 0 ? r.watched_episodes : r.watched_files
+  return seen >= total ? 'all' : 'some'
 }
 
 const Cursor = z.array(z.union([z.string(), z.number()])).min(2).max(3)
@@ -78,10 +91,13 @@ const GROUP_SELECT = `
          MAX(d.poster_file) AS poster_file,
          MAX(d.rating) AS rating,
          MAX(m.state) AS match_state,
-         MAX(cov.missing) AS missing_episodes
+         MAX(cov.missing) AS missing_episodes,
+         SUM(coalesce(pb.watched, 0)) AS watched_files,
+         COUNT(DISTINCT CASE WHEN pb.watched = 1 AND f.episode IS NOT NULL THEN coalesce(f.season, -1) * 100000 + f.episode END) AS watched_episodes
   FROM media_file f JOIN library_source s ON s.id = f.source_id
        LEFT JOIN title_metadata d ON d.title_key = f.title_key
        LEFT JOIN title_match m ON m.title_key = f.title_key
+       LEFT JOIN playback_state pb ON pb.file_id = f.id
        LEFT JOIN (
          -- Aired episodes (specials excluded) that no file covers; a file may cover a range (E03-E04).
          SELECT em.title_key AS k,
@@ -187,13 +203,18 @@ export class TitleRepo {
     if (!group || !summary) return null
     const rows = this.raw
       .prepare(
-        `SELECT f.*, s.availability AS source_availability
-         FROM media_file f JOIN library_source s ON s.id = f.source_id
+        `SELECT f.*, s.availability AS source_availability, p.watched AS watched, p.last_played_at AS last_played_at
+         FROM media_file f JOIN library_source s ON s.id = f.source_id LEFT JOIN playback_state p ON p.file_id = f.id
          WHERE f.title_key = ?
          ORDER BY coalesce(f.season, -1), coalesce(f.episode, -1), lower(f.path)`,
       )
       .all(key) as ListRow[]
     const stored = this.metadata?.getMatch(key) ?? null
+    const lastPlayedAt = rows.reduce<string | null>((latest, r) => (r.last_played_at && (!latest || r.last_played_at > latest) ? r.last_played_at : latest), null)
+    const next =
+      summary.kind === 'series'
+        ? nextEpisode(rows.filter((r) => r.kind === 'episode').map((r) => toEpisodeFile({ id: r.id, season: r.season, episode: r.episode, watched: r.watched, state: r.state, availability: r.source_availability })))
+        : null
     const providerEpisodes = summary.kind === 'series' ? (this.metadata?.episodes(key) ?? []) : []
     const covered =
       providerEpisodes.length > 0
@@ -221,6 +242,7 @@ export class TitleRepo {
       episodes: covered?.episodes ?? [],
       coverage: covered?.coverage ?? null,
       collections: collectionRefsFor(this.raw, key),
+      playback: { next, lastPlayedAt },
     }
   }
 }

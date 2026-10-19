@@ -13,6 +13,24 @@ export type MediaKind = z.infer<typeof MediaKind>
 export const FileState = z.enum(['available', 'source_offline', 'missing_unconfirmed'])
 export type FileState = z.infer<typeof FileState>
 
+export const AudioTrack = z.object({
+  codec: z.string().nullable(),
+  /** ISO 639-1 where it could be worked out, else the file's own tag. */
+  language: z.string().nullable(),
+  channels: z.number().int().nullable(),
+  title: z.string().nullable(),
+})
+export type AudioTrack = z.infer<typeof AudioTrack>
+
+export const SubtitleTrack = z.object({
+  codec: z.string().nullable(),
+  language: z.string().nullable(),
+  title: z.string().nullable(),
+  forced: z.boolean(),
+  default: z.boolean(),
+})
+export type SubtitleTrack = z.infer<typeof SubtitleTrack>
+
 export const MediaFile = z.object({
   id: z.number().int(),
   sourceId: z.number().int(),
@@ -38,6 +56,11 @@ export const MediaFile = z.object({
   videoCodec: z.string().nullable(),
   audioCodecs: z.array(z.string()),
   subtitleCount: z.number().int().nullable(),
+  /** Audio and subtitle streams inside the file; empty until FFprobe has read it. */
+  audioTracks: z.array(AudioTrack),
+  subtitleTracks: z.array(SubtitleTrack),
+  watched: z.boolean(),
+  lastPlayedAt: IsoDate.nullable(),
   probeError: z.string().nullable(),
   firstSeenAt: IsoDate,
 })

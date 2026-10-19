@@ -34,6 +34,18 @@ No external player exposes resume position uniformly. VLC (HTTP/RC interface), m
 | Collection data is read once per ~30 days | A new film added to a TMDB set shows up on the next read. | Refreshing any member movie by hand re-reads its set. |
 | Title keys for user collections | A user member is stored by title key. If a title's key changes (renamed files, different year in the name), the old member shows as a non-playable entry. | The entry stays removable; the title can be added again. Provider-id based keys arrive with a future title table. |
 
+## Playback and file renaming
+| Risk | Detail | Mitigation |
+|---|---|---|
+| Launching a program from a UI | A compromised renderer could try to run something. | The UI sends only a **file id** and a player id; the desktop shell asks the backend for the path (a library file), validates it, and starts only detected players or programs the person picked in a native dialog, with `shell: false` and an argument array. Players are stored in the shell's own preferences, never in the backend. |
+| Argument injection through file names | A name like `--fullscreen` or one with `&`/quotes. | Paths are absolute (so never start with `-`), passed as single arguments; mpv gets `--` before the file. |
+| "Watched" is not automatic | External players do not report progress uniformly. | Honest by design: the person marks watched; a launch is only remembered as "started". Resume and automatic tracking need per-player integrations (VLC web interface, mpv IPC) and are listed as future work. |
+| PotPlayer subtitle switch | Its command-line switch for an external subtitle is not documented well enough to rely on. | PotPlayer is started on the video only and listed as "No automatic subtitle". |
+| Rename races | A file can change between the preview and the rename, or a name can appear in between. | The server rebuilds the plan at apply time and only runs pairs identical to the approved ones; it checks that the target is free immediately before each rename. The remaining window is milliseconds and ends in a refusal, not an overwrite (Node's rename would overwrite on Windows, which is why the check exists). |
+| Rename and identification | Matches are keyed by the grouping key derived from file names. | A renamed file keeps its library row and key (the path is updated in place), so locked matches survive; a later full re-parse of that file could produce another key, in which case the title is simply identified again. |
+| Service account permissions | Renames run in the service's account, which may not be allowed to change a user's files. | The failure is shown per file with a plain reason ("Access was denied…"); nothing is half-done. |
+| Subtitles named oddly | Release folders use names like `2_English.srt`. | Handled inside a folder named after the video; otherwise the player's own embedded-track handling applies. |
+
 ## Scanning and FFprobe
 | Risk | Detail | Mitigation |
 |---|---|---|
@@ -50,7 +62,7 @@ No external player exposes resume position uniformly. VLC (HTTP/RC interface), m
 | Risk | Mitigation |
 |---|---|
 | **Misidentification** attaching wrong art/metadata | Thresholds + margin, provenance and score stored, manual dialog, match locking, never silent for ambiguous cases (07) |
-| **File operations** (renames) can leave inconsistent state | Explicit approval, preview, collision checks, journalled steps with recovery and rollback, refuse while playing (Phase 6) |
+| **File operations** (renames) can leave inconsistent state | **Built:** explicit approval of exactly the previewed pairs, collision checks (an existing name is never overwritten), a write-ahead journal, per-item failure handling, Undo that refuses to force, and recovery after a crash by inspecting the disk. A player holding the file open makes Windows refuse the rename (`EBUSY`), which is reported and leaves the file as it was. |
 | **SQLite growth / locks** | WAL, bounded worker concurrency, keyset pagination, FTS5 contentless-friendly design, backup API |
 | **Native module** (`better-sqlite3`) | v13 ships N-API prebuilds for win32-x64/arm64 (no compiler needed; also loads in Electron). Verified installing and opening FTS5 on Node 24. Packaging must copy the `.node` file next to the bundled server. |
 | **Dependency churn** | Latest majors chosen deliberately (Vuetify 4, Vite 8, Electron 44, Zod 4, Vitest 5); versions verified against npm on 2026-10-19; Yarn lockfile committed. TypeScript is pinned to 5.9 because TS 7's API compatibility with `vue-tsc` was not evaluated. |

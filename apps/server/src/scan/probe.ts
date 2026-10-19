@@ -2,6 +2,8 @@ import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
+import type { AudioTrack, SubtitleTrack } from '@theama/contracts'
+import { normaliseLanguage } from '../subtitles/languages'
 
 /** Technical facts about a video file, as reported by FFprobe. */
 export interface ProbeResult {
@@ -12,6 +14,9 @@ export interface ProbeResult {
   videoCodec: string | null
   audioCodecs: string[]
   subtitleCount: number
+  /** Per-stream details; absent in results from older code paths and tests. */
+  audioTracks?: AudioTrack[]
+  subtitleTracks?: SubtitleTrack[]
 }
 
 export class ProbeError extends Error {
@@ -38,7 +43,9 @@ const FfprobeOutput = z.object({
         codec_name: z.string().optional(),
         width: z.number().optional(),
         height: z.number().optional(),
-        disposition: z.object({ attached_pic: z.number().optional() }).optional(),
+        channels: z.number().optional(),
+        tags: z.record(z.string(), z.unknown()).optional(),
+        disposition: z.object({ attached_pic: z.number().optional(), forced: z.number().optional(), default: z.number().optional() }).optional(),
       }),
     )
     .default([]),
@@ -60,7 +67,27 @@ export function parseFfprobeJson(json: unknown): ProbeResult {
     videoCodec: video?.codec_name ?? null,
     audioCodecs: streams.filter((s) => s.codec_type === 'audio' && s.codec_name).map((s) => s.codec_name!),
     subtitleCount: streams.filter((s) => s.codec_type === 'subtitle').length,
+    audioTracks: streams
+      .filter((s) => s.codec_type === 'audio')
+      .map((s) => ({ codec: s.codec_name ?? null, language: tag(s.tags, 'language'), channels: s.channels ?? null, title: tag(s.tags, 'title') })),
+    subtitleTracks: streams
+      .filter((s) => s.codec_type === 'subtitle')
+      .map((s) => ({
+        codec: s.codec_name ?? null,
+        language: tag(s.tags, 'language'),
+        title: tag(s.tags, 'title'),
+        forced: s.disposition?.forced === 1,
+        default: s.disposition?.default === 1,
+      })),
   }
+}
+
+/** A container tag (tag names differ in case between formats), as text; languages are normalised to ISO 639-1. */
+function tag(tags: Record<string, unknown> | undefined, name: 'language' | 'title'): string | null {
+  const key = Object.keys(tags ?? {}).find((k) => k.toLowerCase() === name)
+  const value = key ? tags?.[key] : undefined
+  if (typeof value !== 'string' || !value.trim()) return null
+  return name === 'language' ? normaliseLanguage(value) : value.trim().slice(0, 200)
 }
 
 export interface FfprobeRunnerOptions {

@@ -145,7 +145,24 @@
     "missing": "Missing",
     "missingHint": "This file is no longer in its folder. Theama keeps it until you confirm its removal.",
     "unreadable": "Unreadable",
-    "unreadableHint": "FFprobe could not read this file. It may be incomplete or corrupt."
+    "unreadableHint": "FFprobe could not read this file. It may be incomplete or corrupt.",
+    "intro": "How Theama names files when you ask it to rename them. Templates build a name from what Theama knows about the title; nothing is renamed unless you review and approve it.",
+    "templates": "Name templates",
+    "reset": "Use default",
+    "tokenHint": "A colon in a title becomes \" - \" and characters Windows does not allow are left out. A template names a file, not a folder.",
+    "history": "Rename history",
+    "historyHint": "Every approved rename is recorded here. Undo puts the names back, as long as the files are still where they were left.",
+    "noHistory": "Nothing has been renamed yet.",
+    "batchSummary": "{n} renamed",
+    "batchUndone": "{n} undone",
+    "batchFailed": "{n} failed",
+    "opStatus": {
+      "pending": "Interrupted",
+      "done": "Renamed",
+      "failed": "Failed",
+      "rolled_back": "Undone",
+      "rollback_failed": "Could not undo"
+    }
   },
   "titles": {
     "seasons": "{count} season | {count} seasons",
@@ -165,7 +182,8 @@
     "partlyHint": "Some files of this title are not available right now."
   },
   "home": {
-    "recent": "Recently added"
+    "recent": "Recently added",
+    "continue": "Continue watching"
   },
   "detail": {
     "back": "Back",
@@ -176,7 +194,6 @@
     },
     "summary": "Summary",
     "play": "Play",
-    "playSoon": "Playing in your preferred player arrives in the next update.",
     "seasons": "Seasons",
     "season": "Season {n}",
     "specials": "Specials",
@@ -197,8 +214,14 @@
       "container": "Container",
       "size": "Size",
       "modified": "Modified",
-      "path": "Path"
-    }
+      "path": "Path",
+      "audioTracks": "Audio tracks",
+      "subtitleFiles": "Subtitles",
+      "insideFile": "inside the file",
+      "languageUnknown": "Language unknown",
+      "usedWhenPlaying": "Used when playing"
+    },
+    "renameFiles": "Rename files…"
   },
   "search": {
     "label": "Search your library",
@@ -250,10 +273,6 @@
       "logRetentionHint": "Older log files are deleted automatically.",
       "days": "{count} day | {count} days",
       "saved": "Settings saved"
-    },
-    "placeholder": {
-      "playback": "Default player, external players and subtitle preferences will be configured here.",
-      "files": "Filename templates and bulk rename previews will be configured here."
     },
     "about": {
       "version": "Version",
@@ -538,5 +557,91 @@
     "deleteBody": "Only the collection is deleted. The titles and their files stay where they are.",
     "deleteConfirm": "Delete collection",
     "partOf": "Part of"
+  },
+  "play": {
+    "next": "Play {label}",
+    "again": "Play again",
+    "upNext": "Next:",
+    "resume": "Not finished",
+    "with": "Play with…",
+    "default": "Default player",
+    "unavailable": "Not available right now: the drive is offline or the file has moved.",
+    "needsApp": "Playing needs the Theama desktop app",
+    "needsAppHint": "Videos are opened in your media player by the desktop app. In a browser tab Theama can only browse.",
+    "noPlayer": "That player is not available on this PC. Choose another in Settings → Playback.",
+    "failed": "The player could not be started.",
+    "watched": "Watched",
+    "watchedMenu": "Watched…",
+    "markAllWatched": "Mark all as watched",
+    "markAllUnwatched": "Mark all as not watched",
+    "markSeasonWatched": "Mark {season} as watched",
+    "markSeasonUnwatched": "Mark {season} as not watched",
+    "markWatched": "Mark {name} as watched",
+    "markUnwatched": "Mark {name} as not watched",
+    "markWatchedShort": "Mark as watched",
+    "episode": "Play {name}",
+    "version": "Play {name}"
+  },
+  "playback": {
+    "intro": "Theama opens your videos in the media player you choose. It starts the player on the file (with a subtitle in your preferred language when one sits next to the video) and keeps track of what you mark as watched.",
+    "players": "Media player",
+    "systemHint": "Whatever Windows opens video files with",
+    "notFound": "Not found",
+    "noSubtitle": "No automatic subtitle",
+    "noSubtitleHint": "Theama can start this player on the video, but cannot hand it a subtitle file. Embedded subtitles still work.",
+    "remove": "Remove",
+    "addProgram": "Add a program…",
+    "rescan": "Look for players again",
+    "playersHint": "VLC, MPC-HC, MPC-BE, mpv and PotPlayer are found automatically. Only programs you pick here are ever started, and always with the video as an argument — never through a command line.",
+    "subtitleLanguages": "Preferred subtitle languages",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "removeLanguage": "Remove {name}",
+    "addLanguage": "Add a language",
+    "noLanguages": "No preference: the player decides.",
+    "subtitleHint": "When you play something, Theama looks next to the video (and in Subs or Subtitles folders) for a subtitle file in the first of these languages and hands it to the player. Forced-only subtitles are never chosen.",
+    "tracking": "What Theama knows about watching",
+    "trackingText": "Theama cannot see inside an external player, so it does not know how far you got. Starting a video is remembered, and \"Watched\" is something you mark (per episode, season or title). Continue watching offers the next episode you have not marked."
+  },
+  "rename": {
+    "title": "Rename files",
+    "lead": "Review the new names. Nothing changes until you press Rename, every rename is written to a history you can undo, and a name that is already taken is never overwritten.",
+    "movieTemplate": "Name for a film",
+    "episodeTemplate": "Name for an episode",
+    "tokens": "You can use: {tokens}. Add :00 to pad a number, for example {example}.",
+    "update": "Update preview",
+    "nothing": "There are no files to rename here.",
+    "include": "Rename {name}",
+    "subtitle": "Subtitle",
+    "summary": "{chosen} of {total} selected",
+    "apply": "Rename {n} file | Rename {n} files",
+    "nothingChanged": "Nothing was renamed: the files changed since the preview. Open it again.",
+    "undo": "Undo",
+    "done": "Renamed {n} file. | Renamed {n} files.",
+    "failedSome": "{n} could not be renamed and were left as they were.",
+    "undone": "Put {n} file back. | Put {n} files back.",
+    "undoneSome": "{n} could not be put back because they changed since.",
+    "safety": "Files are renamed where they are: never moved, deleted or overwritten. Subtitles that share the video's name are renamed with it. A player that has the file open can stop a rename.",
+    "status": {
+      "ok": "Will be renamed",
+      "unchanged": "Already named this way",
+      "collision_exists": "Name taken",
+      "collision_batch": "Same name as another file",
+      "too_long": "Name too long",
+      "unavailable": "Drive offline",
+      "missing": "File missing",
+      "skipped": "Needs a number",
+      "changed": "Changed since"
+    },
+    "statusHint": {
+      "unchanged": "This file already has the name the template gives it.",
+      "collision_exists": "Something in this folder already has the new name, so this file is left alone.",
+      "collision_batch": "Two files in this rename would get the same name, so neither is renamed. Change the template or the titles.",
+      "too_long": "The new path would be too long for Windows.",
+      "unavailable": "Its drive is not connected, so it cannot be renamed now.",
+      "missing": "Theama cannot find this file where it expected it.",
+      "skipped": "An episode needs a season and an episode number to be named by this template.",
+      "changed": "This file changed since the preview."
+    }
   }
 }

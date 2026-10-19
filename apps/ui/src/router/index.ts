@@ -48,15 +48,9 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'playback',
         name: 'settings-playback',
-        component: () => import('@/views/settings/PlaceholderSettings.vue'),
-        props: { sectionKey: 'playback' },
+        component: () => import('@/views/settings/PlaybackSettings.vue'),
       },
-      {
-        path: 'files',
-        name: 'settings-files',
-        component: () => import('@/views/settings/PlaceholderSettings.vue'),
-        props: { sectionKey: 'files' },
-      },
+      { path: 'files', name: 'settings-files', component: () => import('@/views/settings/FilesSettings.vue') },
       {
         path: 'advanced',
         component: () => import('@/views/settings/AdvancedSettings.vue'),

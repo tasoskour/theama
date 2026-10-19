@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiCloudOffOutline } from '@mdi/js'
+import { mdiCheckCircle, mdiCloudOffOutline } from '@mdi/js'
 import type { TitleSummary } from '@theama/contracts'
 import { useConnectionStore } from '@/stores/connection'
 import PosterArt from './PosterArt.vue'
 
-const props = defineProps<{ title: TitleSummary; tabindex?: number }>()
+const props = defineProps<{ title: TitleSummary; tabindex?: number; caption?: string }>()
 const { t } = useI18n()
 const connection = useConnectionStore()
 
@@ -31,7 +31,9 @@ const detail = computed(() => {
 const needsId = computed(() => props.title.matchState === 'ambiguous' || props.title.matchState === 'unmatched')
 
 const label = computed(() =>
-  [props.title.title, detail.value, offline.value ? t('files.offline') : '', needsId.value ? t('match.notIdentified') : ''].filter(Boolean).join(', '),
+  [props.title.title, props.caption ?? detail.value, offline.value ? t('files.offline') : '', props.title.watchState === 'all' ? t('play.watched') : '', needsId.value ? t('match.notIdentified') : '']
+    .filter(Boolean)
+    .join(', '),
 )
 </script>
 
@@ -57,11 +59,14 @@ const label = computed(() =>
         {{ $t('files.offline') }}
       </span>
       <span v-else-if="partly" class="card__badge" :title="$t('titles.partlyHint')">{{ title.availableCount }}/{{ title.fileCount }}</span>
+      <span v-if="title.watchState === 'all'" class="card__seen" :title="$t('play.watched')">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path :d="mdiCheckCircle" fill="currentColor" /></svg>
+      </span>
       <span v-if="needsId" class="card__badge card__badge--id" :title="$t('match.notIdentifiedHint')">?</span>
     </div>
     <div class="card__meta" aria-hidden="true">
       <div class="card__title">{{ title.title }}</div>
-      <div v-if="detail" class="card__detail th-muted">{{ detail }}</div>
+      <div v-if="caption ?? detail" class="card__detail th-muted">{{ caption ?? detail }}</div>
     </div>
   </router-link>
 </template>
@@ -102,6 +107,15 @@ const label = computed(() =>
   background: rgba(15, 14, 12, 0.82);
   color: #efe8da;
   border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.card__seen {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  color: #8fd19e;
+  background: rgba(15, 14, 12, 0.78);
+  border-radius: 50%;
 }
 .card__badge--id {
   left: auto;

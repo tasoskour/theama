@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { readdir, rename, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,11 +17,13 @@ let userDataDir: string
 let mediaRoot: string
 let mediaFolder: string
 let fake: FakeTmdb
+let playerLog: string
 
 test.beforeAll(async () => {
   // TMDB is replaced by a local stand-in, so the test needs no key, no network and cannot hit the real service.
   fake = await startFakeTmdb()
   dataDir = mkdtempSync(join(tmpdir(), 'theama-e2e-'))
+  playerLog = join(dataDir, 'players.log')
   // Own Chromium profile: isolates the test from a Theama the developer may have open (single-instance lock, caches).
   userDataDir = mkdtempSync(join(tmpdir(), 'theama-e2e-profile-'))
   // A media folder with a Greek name, answered to the folder picker through the dev-only test hook.
@@ -30,7 +32,7 @@ test.beforeAll(async () => {
   mkdirSync(mediaFolder)
   writeFileSync(join(mediaFolder, 'Interstellar (2014).mkv'), 'x')
   // VS Code (and some CI shells) export ELECTRON_RUN_AS_NODE, which turns electron.exe into plain Node.
-  const env: NodeJS.ProcessEnv = { ...process.env, THEAMA_DATA_DIR: dataDir, THEAMA_PORT: '0', THEAMA_CONTROLLER: 'dev', THEAMA_TEST_PICK_FOLDER: mediaFolder, THEAMA_FFPROBE: 'none', THEAMA_TMDB_API_BASE: fake.url, THEAMA_TMDB_IMAGE_BASE: fake.imageUrl }
+  const env: NodeJS.ProcessEnv = { ...process.env, THEAMA_DATA_DIR: dataDir, THEAMA_PORT: '0', THEAMA_CONTROLLER: 'dev', THEAMA_TEST_PICK_FOLDER: mediaFolder, THEAMA_FFPROBE: 'none', THEAMA_TEST_PLAYER_LOG: playerLog, THEAMA_TMDB_API_BASE: fake.url, THEAMA_TMDB_IMAGE_BASE: fake.imageUrl }
   delete env.ELECTRON_RUN_AS_NODE
   app = await electron.launch({
     args: ['.', `--user-data-dir=${userDataDir}`],
@@ -105,7 +107,7 @@ test('adds a media folder (Greek name), shows it online, changes its type and re
     await film.click()
     await expect(page.getByRole('heading', { name: 'Interstellar', level: 1 })).toBeVisible()
     await expect(page.getByText('Interstellar (2014).mkv').first()).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Play' })).toBeDisabled()
+    await expect(page.locator('[data-test="play"]')).toBeEnabled() // a real Play button now (the shell here has pretend players)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('heading', { name: 'Movies', level: 1 })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Interstellar, 2014' })).toBeFocused()
@@ -328,6 +330,137 @@ test('shows what a series is missing, and builds collections (official and your 
   await expect(page.getByRole('link', { name: /^Movie night/ })).toHaveCount(0)
   await nav('Movies').click()
   await expect(page.getByRole('link', { name: /^Mad Max, 1979/ })).toBeVisible()
+
+  // Tidy up so the following tests start from an empty library.
+  await page.goto(here + '#/settings/library')
+  const row = page.locator('li.source', { hasText: mediaFolder })
+  await row.getByRole('button', { name: new RegExp('^Remove: ') }).click()
+  await page.getByRole('dialog', { name: 'Remove this folder from Theama?' }).getByRole('button', { name: 'Remove folder' }).click()
+  await expect(page.getByText('No folders yet.')).toBeVisible()
+})
+
+test('starts a player on a video with the right subtitle, remembers what was watched, and offers the next episode', async () => {
+  for (const f of await readdir(mediaFolder)) await rm(join(mediaFolder, f), { force: true })
+  for (const f of ['Show.S01E01.mkv', 'Show.S01E02.mkv', 'Show.S01E01.el.srt', 'Show.S01E01.en.srt']) writeFileSync(join(mediaFolder, f), 'x')
+  const here = page.url().split('#')[0]
+  await page.goto(here + '#/settings/library')
+  await page.getByRole('button', { name: 'Add folder' }).first().click()
+  const add = page.getByRole('dialog', { name: 'Add a media folder' })
+  await add.getByRole('button', { name: 'Auto-detect' }).click()
+  await add.getByRole('button', { name: 'Add folder' }).click()
+  await expect(page.getByText('Folder added', { exact: true })).toBeVisible()
+
+  // Settings -> Playback: the players found on this PC (pretend ones in this run), VLC first by default.
+  await page.goto(here + '#/settings/playback')
+  await expect(page.getByRole('heading', { name: 'Playback', level: 2 })).toBeVisible()
+  await expect(page.locator('[data-test="player-row"]', { hasText: 'VLC media player' }).getByRole('radio')).toBeChecked()
+  await expect(page.locator('[data-test="player-row"]', { hasText: 'mpv' })).toBeVisible()
+  await expect(page.locator('[data-test="player-row"]', { hasText: 'System default' })).toBeVisible()
+  await expect(page.getByText('Greek').first()).toBeVisible() // subtitle preferences start with Greek, then English
+
+  // Play the series from its page: the first episode, with the Greek subtitle next to it, in VLC.
+  await nav('Series').click()
+  await page.getByRole('link', { name: /^Show/ }).click()
+  await expect(page.getByRole('heading', { name: 'Show', level: 1 })).toBeVisible()
+  await expect(page.locator('[data-test="play"]')).toHaveText(/Play S01E01/)
+  const launches = () => (existsSync(playerLog) ? readFileSync(playerLog, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as { exe: string; args: string[] }) : [])
+  await page.locator('[data-test="play"]').click()
+  await expect.poll(() => launches().length).toBe(1)
+  expect(launches()[0]!.exe).toMatch(/VLC[\\/]vlc\.exe$/)
+  expect(launches()[0]!.args).toEqual([`--sub-file=${join(mediaFolder, 'Show.S01E01.el.srt')}`, join(mediaFolder, 'Show.S01E01.mkv')])
+
+  // Starting a video is not the same as having watched it.
+  await expect(page.locator('[data-test="play"]')).toHaveText(/Play S01E01/)
+
+  // Another player for this one run: mpv, with "--" before the file and the preferred languages.
+  await page.locator('[data-test="play-with"]').click()
+  await page.locator('.v-overlay-container .v-list-item', { hasText: 'mpv' }).click()
+  await expect.poll(() => launches().length).toBe(2)
+  expect(launches()[1]!.args).toEqual([`--sub-file=${join(mediaFolder, 'Show.S01E01.el.srt')}`, '--slang=el,en', '--', join(mediaFolder, 'Show.S01E01.mkv')])
+
+  // Mark the first episode watched: the big button moves on, and Home offers to continue.
+  await page.locator('[data-test="toggle-watched"]').first().click()
+  await expect(page.locator('[data-test="play"]')).toHaveText(/Play S01E02/)
+  await nav('Home').click()
+  const resume = page.locator('[data-test="continue-rail"]')
+  await expect(resume).toBeVisible()
+  await expect(resume.getByRole('link', { name: /^Show/ })).toContainText('Next: S01E02')
+
+  // Marking everything watched ends the rail, and the card says so.
+  await resume.getByRole('link', { name: /^Show/ }).click()
+  await page.locator('[data-test="watched-menu"]').click()
+  await page.locator('[data-test="mark-all-watched"]').click()
+  await expect(page.locator('[data-test="play"]')).toHaveText(/Play again/)
+  await nav('Series').click()
+  await expect(page.getByRole('link', { name: /^Show.*Watched/ })).toBeVisible()
+  await nav('Home').click()
+  await expect(page.locator('[data-test="continue-rail"]')).toHaveCount(0)
+
+  // Tidy up so the following tests start from an empty library.
+  await page.goto(here + '#/settings/library')
+  const row = page.locator('li.source', { hasText: mediaFolder })
+  await row.getByRole('button', { name: new RegExp('^Remove: ') }).click()
+  await page.getByRole('dialog', { name: 'Remove this folder from Theama?' }).getByRole('button', { name: 'Remove folder' }).click()
+  await expect(page.getByText('No folders yet.')).toBeVisible()
+})
+
+test('renames files from a preview, takes the subtitle along, and can put everything back', async () => {
+  for (const f of await readdir(mediaFolder)) await rm(join(mediaFolder, f), { force: true })
+  for (const f of ['Interstellar.2014.1080p.BluRay.mkv', 'Interstellar.2014.1080p.BluRay.en.srt']) writeFileSync(join(mediaFolder, f), 'x')
+  const here = page.url().split('#')[0]
+  await page.goto(here + '#/settings/library')
+  await page.getByRole('button', { name: 'Add folder' }).first().click()
+  const add = page.getByRole('dialog', { name: 'Add a media folder' })
+  await add.getByRole('button', { name: 'Auto-detect' }).click()
+  await add.getByRole('button', { name: 'Add folder' }).click()
+  await expect(page.getByText('Folder added', { exact: true })).toBeVisible()
+
+  await nav('Movies').click()
+  await page.getByRole('link', { name: /^Interstellar/ }).click()
+  await expect(page.getByRole('heading', { name: 'Interstellar', level: 1 })).toBeVisible()
+
+  // The preview changes nothing on disk.
+  await page.locator('[data-test="rename-files"]').click()
+  const dialog = page.getByRole('dialog', { name: 'Rename files' })
+  const rows = dialog.locator('[data-test="rename-rows"] li')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.first()).toContainText('Interstellar.2014.1080p.BluRay.mkv')
+  await expect(rows.first()).toContainText('Interstellar (2014).mkv')
+  await expect(rows.nth(1)).toContainText('Interstellar (2014).en.srt')
+  await expect(rows.nth(1)).toContainText('Subtitle')
+  expect(existsSync(join(mediaFolder, 'Interstellar.2014.1080p.BluRay.mkv'))).toBe(true)
+
+  // A template that cannot work is explained, not applied.
+  await dialog.locator('[data-test="rename-template"] input').fill('{titel}')
+  await dialog.getByRole('button', { name: 'Update preview' }).click()
+  await expect(dialog.getByText(/Unknown name \{titel\}/)).toBeVisible()
+  await dialog.locator('[data-test="rename-template"] input').fill('{title} [{year}]')
+  await dialog.getByRole('button', { name: 'Update preview' }).click()
+  await expect(rows.first()).toContainText('Interstellar [2014].mkv')
+  await dialog.locator('[data-test="rename-template"] input').fill('{title} ({year})')
+  await dialog.getByRole('button', { name: 'Update preview' }).click()
+  await expect(rows.first()).toContainText('Interstellar (2014).mkv')
+
+  // Apply: both files are renamed, and the page follows.
+  await dialog.locator('[data-test="rename-apply"]').click()
+  await expect(dialog.locator('[data-test="rename-result"]')).toContainText('Renamed 2 files.')
+  expect(existsSync(join(mediaFolder, 'Interstellar (2014).mkv'))).toBe(true)
+  expect(existsSync(join(mediaFolder, 'Interstellar (2014).en.srt'))).toBe(true)
+  expect(existsSync(join(mediaFolder, 'Interstellar.2014.1080p.BluRay.mkv'))).toBe(false)
+
+  // Undo: everything back where it was.
+  await dialog.locator('[data-test="rename-undo"]').click()
+  await expect(dialog.locator('[data-test="rename-result"]')).toContainText('Put 2 files back.')
+  expect(existsSync(join(mediaFolder, 'Interstellar.2014.1080p.BluRay.mkv'))).toBe(true)
+  expect(existsSync(join(mediaFolder, 'Interstellar.2014.1080p.BluRay.en.srt'))).toBe(true)
+  expect(existsSync(join(mediaFolder, 'Interstellar (2014).mkv'))).toBe(false)
+  await dialog.getByRole('button', { name: 'Close' }).click()
+
+  // The history remembers it.
+  await page.goto(here + '#/settings/files')
+  const history = page.locator('[data-test="rename-history"] li').first()
+  await expect(history).toContainText('2 renamed')
+  await expect(history).toContainText('2 undone')
 
   // Tidy up so the following tests start from an empty library.
   await page.goto(here + '#/settings/library')

@@ -5,7 +5,7 @@ import type { RouteLocationRaw } from 'vue-router'
 import type { TitleSummary } from '@theama/contracts'
 import PosterCard from './PosterCard.vue'
 
-const props = defineProps<{ heading: string; titles: TitleSummary[]; seeAll?: RouteLocationRaw; total?: number }>()
+const props = defineProps<{ heading: string; titles: TitleSummary[]; seeAll?: RouteLocationRaw; total?: number; captions?: Record<string, string> }>()
 
 const scroller = ref<HTMLElement | null>(null)
 const active = ref(0)
@@ -98,7 +98,7 @@ watch(
       </button>
       <ul ref="scroller" class="rail__list" role="list" @keydown="onKeydown" @focusin="onFocusin">
         <li v-for="(t, i) in titles" :key="t.key" class="rail__item">
-          <PosterCard :title="t" :tabindex="i === active ? 0 : -1" />
+          <PosterCard :title="t" :tabindex="i === active ? 0 : -1" :caption="captions?.[t.key]" />
         </li>
       </ul>
       <button type="button" class="rail__nav rail__nav--next" :aria-label="$t('titles.scrollRight')" tabindex="-1" @click="page(1)">

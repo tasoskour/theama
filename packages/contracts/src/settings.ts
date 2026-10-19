@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { MetadataLanguage } from './metadata'
+import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, Template } from './rename'
 
 export const UiLanguage = z.enum(['en', 'el'])
 export type UiLanguage = z.infer<typeof UiLanguage>
@@ -10,12 +11,18 @@ export type ThemePreference = z.infer<typeof ThemePreference>
 /** Days of rotated NDJSON log files kept on disk. */
 const LogRetentionDays = z.number().int().min(1).max(365)
 
+const SubtitleLanguages = z.array(z.string().regex(/^[a-z]{2}$/)).max(6)
+
 export const AppSettings = z.object({
   language: UiLanguage.default('en'),
   theme: ThemePreference.default('system'),
   logRetentionDays: LogRetentionDays.default(14),
   /** Language requested from the metadata provider; independent of the interface language. */
   metadataLanguage: MetadataLanguage.default('en'),
+  /** Subtitle languages to prefer when starting a video, most wanted first (ISO 639-1). */
+  subtitleLanguages: SubtitleLanguages.default(['el', 'en']),
+  renameMovieTemplate: Template.default(DEFAULT_MOVIE_TEMPLATE),
+  renameEpisodeTemplate: Template.default(DEFAULT_EPISODE_TEMPLATE),
 })
 export type AppSettings = z.infer<typeof AppSettings>
 
@@ -25,6 +32,9 @@ export const AppSettingsPatch = z.object({
   theme: ThemePreference.optional(),
   logRetentionDays: LogRetentionDays.optional(),
   metadataLanguage: MetadataLanguage.optional(),
+  subtitleLanguages: SubtitleLanguages.optional(),
+  renameMovieTemplate: Template.optional(),
+  renameEpisodeTemplate: Template.optional(),
 })
 export type AppSettingsPatch = z.infer<typeof AppSettingsPatch>
 

@@ -186,7 +186,9 @@ export async function runScan(ctx: ScanContext): Promise<ScanOutcome> {
   // Files never probed (an earlier scan was interrupted, or FFprobe was installed later).
   if (ctx.probe) {
     for (const r of existing) {
-      if (r.state === 'available' && r.probedAt === null && r.probeError === null && seenKeys.has(pathKey(r.path)) && !probeIds.has(r.id)) {
+      // Never probed, or probed before stream details were stored (tracks is null): read it (again) once.
+      const needsProbe = r.probedAt === null || r.tracks === null
+      if (r.state === 'available' && needsProbe && r.probeError === null && seenKeys.has(pathKey(r.path)) && !probeIds.has(r.id)) {
         probeIds.set(r.id, r.path)
       }
     }

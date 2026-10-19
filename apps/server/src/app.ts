@@ -1,4 +1,5 @@
 import { createReadStream, existsSync } from 'node:fs'
+import { win32 } from 'node:path'
 import Fastify, { LogController } from 'fastify'
 import cors from '@fastify/cors'
 import websocket from '@fastify/websocket'
@@ -8,6 +9,10 @@ import {
   API_PREFIX,
   AppSettingsPatch,
   AddMemberRequest,
+  RenameApplyRequest,
+  RenamePreviewRequest,
+  SetTitleWatchedRequest,
+  SetWatchedRequest,
   CollectionDetailQuery,
   CollectionListQuery,
   CreateCollectionRequest,
@@ -25,6 +30,13 @@ import {
   type LibrarySource,
   type LibrarySourceList,
   type CollectionDetail,
+  type OperationBatch,
+  type OperationList,
+  type RenameApplyResult,
+  type RenamePreview,
+  type ContinueList,
+  type FileSubtitles,
+  type LaunchInfo,
   type CollectionList,
   type LibraryStatus,
   type MetadataSearchResult,
@@ -56,7 +68,12 @@ import type { ScanManager } from './scan/manager'
 import type { MediaFileRepo, ScanJobRepo } from './scan/store'
 import type { TitleRepo } from './scan/titles'
 import { CollectionProblem, type CollectionRepo } from './collections/store'
-import { ApiProblem, LibrarySourceRepo, normaliseFolderPath, probeFolder, refreshAvailability } from './library/sources'
+import { PlaybackProblem, type PlaybackRepo } from './playback/store'
+import type { FileJournal } from './files/journal'
+import { RenameProblem, type RenameService } from './files/rename'
+import { TemplateError, validateTemplate } from './files/template'
+import { chooseSubtitle, discoverExternal } from './subtitles/discover'
+import { ApiProblem, LibrarySourceRepo, normaliseFolderPath, probeFolder, refreshAvailability, withTimeout } from './library/sources'
 import { extractBearer, isAllowedOrigin, isLoopbackHost, tokenMatches } from './security'
 import { APP_VERSION } from './version'
 
@@ -70,6 +87,9 @@ export interface AppDeps {
   files: MediaFileRepo
   titles: TitleRepo
   collections: CollectionRepo
+  playback: PlaybackRepo
+  renamer: RenameService
+  journal: FileJournal
   jobs: ScanJobRepo
   scans: ScanManager
   auto: AutoScanner
@@ -88,7 +108,7 @@ function apiError(code: string, message: string, details?: unknown): ApiError {
 }
 
 export async function buildApp(deps: AppDeps) {
-  const { config, logger, logHub, settings, serviceEvents, library, files, titles, collections, jobs, scans, auto, metadata, credentials, provider, artwork, events, token, startedAt } = deps
+  const { config, logger, logHub, settings, serviceEvents, library, files, titles, collections, playback, renamer, journal, jobs, scans, auto, metadata, credentials, provider, artwork, events, token, startedAt } = deps
   const app = Fastify({
     loggerInstance: logger,
     logController: new LogController({ disableRequestLogging: true }),
@@ -155,6 +175,15 @@ export async function buildApp(deps: AppDeps) {
 
   app.put(`${API_PREFIX}/settings`, async (req) => {
     const patch = AppSettingsPatch.parse(req.body ?? {})
+    for (const t of [patch.renameMovieTemplate, patch.renameEpisodeTemplate]) {
+      if (t === undefined) continue
+      try {
+        validateTemplate(t)
+      } catch (err) {
+        if (err instanceof TemplateError) throw new ApiProblem('invalid_template', err.message, 400)
+        throw err
+      }
+    }
     const updated = settings.update(patch)
     if (patch.logRetentionDays !== undefined) pruneLogs(config.logsDir, updated.logRetentionDays)
     // Titles fetched in another language are refreshed in the background.
@@ -426,6 +455,117 @@ export async function buildApp(deps: AppDeps) {
     collectionCall(() => collections.reorder(id, ReorderRequest.parse(req.body ?? {}).keys, nowIso()))
     events.broadcast({ type: 'library.changed' })
     return collectionDetail(id, 'custom')
+  })
+
+  // --- playback and subtitles ---------------------------------------------
+
+  function playbackCall<T>(fn: () => T): T {
+    try {
+      return fn()
+    } catch (err) {
+      if (err instanceof PlaybackProblem) throw new ApiProblem(err.code, err.message, err.code === 'not_found' ? 404 : 409)
+      throw err
+    }
+  }
+
+  app.put(`${API_PREFIX}/playback/files/:id`, async (req) => {
+    const { id } = IdParams.parse(req.params)
+    const { watched } = SetWatchedRequest.parse(req.body ?? {})
+    const changed = playback.setWatched([id], watched, nowIso())
+    if (changed === 0) throw new ApiProblem('not_found', 'No such file', 404)
+    events.broadcast({ type: 'library.changed' })
+    return { changed }
+  })
+
+  app.put(`${API_PREFIX}/playback/titles`, async (req) => {
+    const body = SetTitleWatchedRequest.parse(req.body ?? {})
+    const changed = playbackCall(() => playback.setTitleWatched(body.key, body.watched, body.season, nowIso()))
+    events.broadcast({ type: 'library.changed' })
+    return { changed }
+  })
+
+  app.get(`${API_PREFIX}/playback/continue`, async (req): Promise<ContinueList> => {
+    const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(60).default(20) }).parse(req.query)
+    return { items: playback.continueWatching(limit) }
+  })
+
+  /** The desktop shell asks for this just before starting a player; it never takes a path from the UI. */
+  app.get(`${API_PREFIX}/playback/files/:id/launch`, async (req): Promise<LaunchInfo> => {
+    const { id } = IdParams.parse(req.params)
+    const file = playback.fileForLaunch(id)
+    if (!file) throw new ApiProblem('not_found', 'No such file', 404)
+    if (file.sourceOffline) throw new ApiProblem('unavailable', 'This file is on a drive that cannot be reached right now', 409)
+    if (!file.available) throw new ApiProblem('unavailable', 'This file is no longer where Theama last saw it', 409)
+    const preferred = settings.get().subtitleLanguages
+    const external = await withTimeout(discoverExternal(file.path), 3000).catch(() => [])
+    const chosen = chooseSubtitle(external, preferred)
+    return {
+      fileId: file.id,
+      path: file.path,
+      fileName: win32.basename(file.path),
+      title: file.title,
+      kind: file.kind,
+      subtitle: chosen ? { path: chosen.path, language: chosen.language } : null,
+      subtitleLanguages: preferred,
+    }
+  })
+
+  app.post(`${API_PREFIX}/playback/files/:id/launched`, async (req) => {
+    const { id } = IdParams.parse(req.params)
+    playbackCall(() => playback.launched(id, nowIso()))
+    events.broadcast({ type: 'library.changed' })
+    return { ok: true }
+  })
+
+  app.get(`${API_PREFIX}/library/files/:id/subtitles`, async (req): Promise<FileSubtitles> => {
+    const { id } = IdParams.parse(req.params)
+    const file = playback.fileForLaunch(id)
+    if (!file) throw new ApiProblem('not_found', 'No such file', 404)
+    const preferred = settings.get().subtitleLanguages
+    const external = file.available ? await withTimeout(discoverExternal(file.path), 3000).catch(() => []) : []
+    return { embedded: playback.embeddedSubtitles(id), external, chosen: chooseSubtitle(external, preferred), preferred }
+  })
+
+  // --- renaming files -----------------------------------------------------
+
+  async function renameCall<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn()
+    } catch (err) {
+      if (err instanceof RenameProblem) throw new ApiProblem(err.code, err.message, err.code === 'not_found' ? 404 : 400)
+      throw err
+    }
+  }
+  const templates = () => ({ movie: settings.get().renameMovieTemplate, episode: settings.get().renameEpisodeTemplate })
+
+  app.post(`${API_PREFIX}/files/rename/preview`, async (req): Promise<RenamePreview> =>
+    renameCall(() => renamer.preview(RenamePreviewRequest.parse(req.body ?? {}), templates())),
+  )
+
+  app.post(`${API_PREFIX}/files/rename/apply`, async (req): Promise<RenameApplyResult> => {
+    const result = await renameCall(() => renamer.apply(RenameApplyRequest.parse(req.body ?? {}), templates()))
+    if (result.batch) events.broadcast({ type: 'library.changed' })
+    return result
+  })
+
+  const BatchParams = z.object({ id: z.string().uuid() })
+
+  app.get(`${API_PREFIX}/files/operations`, async (req): Promise<OperationList> => {
+    const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(200).default(30) }).parse(req.query)
+    return { items: journal.list(limit) }
+  })
+
+  app.get(`${API_PREFIX}/files/operations/:id`, async (req): Promise<OperationBatch> => {
+    const batch = journal.batch(BatchParams.parse(req.params).id)
+    if (!batch) throw new ApiProblem('not_found', 'No such batch of renames', 404)
+    return batch
+  })
+
+  app.post(`${API_PREFIX}/files/operations/:id/rollback`, async (req): Promise<OperationBatch> => {
+    const batch = await renamer.undo(BatchParams.parse(req.params).id)
+    if (!batch) throw new ApiProblem('not_found', 'No such batch of renames', 404)
+    events.broadcast({ type: 'library.changed' })
+    return batch
   })
 
   app.get(`${API_PREFIX}/library/status`, async (): Promise<LibraryStatus> => scans.status())

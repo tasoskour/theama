@@ -9,6 +9,9 @@ import { createLogger } from './log/logger'
 import { EventsHub } from './events-hub'
 import { LibrarySourceRepo } from './library/sources'
 import { CollectionRepo } from './collections/store'
+import { FileJournal } from './files/journal'
+import { RenameService } from './files/rename'
+import { PlaybackRepo } from './playback/store'
 import { ArtworkCache } from './metadata/artwork'
 import { CredentialStore } from './metadata/credentials'
 import { MetadataManager } from './metadata/manager'
@@ -54,6 +57,9 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   const metadataRepo = new MetadataRepo(handle.raw)
   const titles = new TitleRepo(handle.raw, metadataRepo)
   const collections = new CollectionRepo(handle.raw, titles)
+  const playback = new PlaybackRepo(handle.raw, titles)
+  const journal = new FileJournal(handle.raw)
+  const renamer = new RenameService({ raw: handle.raw, titles, files, journal, logger })
   const reindexed = files.ensureSearchIndex()
   if (reindexed > 0) logger.info({ rows: reindexed }, 'Rebuilt the search index')
   const keyed = files.backfillTitleKeys()
@@ -117,6 +123,9 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     files,
     titles,
     collections,
+    playback,
+    renamer,
+    journal,
     jobs,
     scans,
     auto,
@@ -143,6 +152,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   events.startHeartbeat()
   auto.start()
   metadata.start()
+  void renamer.recover().catch((err: unknown) => logger.error({ err }, 'Could not settle interrupted renames'))
   writeRuntimeFile(config, {
     port,
     pid: process.pid,

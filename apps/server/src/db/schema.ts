@@ -101,6 +101,8 @@ export const mediaFile = sqliteTable(
     subtitleCount: integer('subtitle_count'),
     /** Identity of the title this file belongs to (see titleKeyFor); groups episodes into series. */
     titleKey: text('title_key'),
+    /** JSON: audio and subtitle streams from FFprobe; null until the file was read by a build that stores them. */
+    tracks: text('tracks'),
   },
   (t) => [
     index('idx_media_file_kind_title').on(t.kind, t.guessedTitle, t.id),
@@ -213,4 +215,38 @@ export const collectionMember = sqliteTable(
     customOrder: integer('custom_order'),
   },
   (t) => [index('idx_collection_member_ext').on(t.externalId)],
+)
+
+export const playbackState = sqliteTable(
+  'playback_state',
+  {
+    fileId: integer('file_id')
+      .primaryKey()
+      .references(() => mediaFile.id, { onDelete: 'cascade' }),
+    watched: integer('watched', { mode: 'boolean' }).notNull().default(false),
+    watchedAt: text('watched_at'),
+    lastPlayedAt: text('last_played_at'),
+    playCount: integer('play_count').notNull().default(0),
+    source: text('source').notNull().default('manual'),
+  },
+  (t) => [index('idx_playback_last').on(t.lastPlayedAt)],
+)
+
+/** The journal of file renames: written before a rename happens, updated after, kept for undo. */
+export const fileOperation = sqliteTable(
+  'file_operation',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    batchId: text('batch_id').notNull(),
+    seq: integer('seq').notNull(),
+    kind: text('kind', { enum: ['video', 'subtitle'] }).notNull(),
+    fileId: integer('file_id'),
+    fromPath: text('from_path').notNull(),
+    toPath: text('to_path').notNull(),
+    status: text('status', { enum: ['pending', 'done', 'failed', 'rolled_back', 'rollback_failed'] }).notNull(),
+    error: text('error'),
+    createdAt: text('created_at').notNull(),
+    finishedAt: text('finished_at'),
+  },
+  (t) => [index('idx_file_operation_batch').on(t.batchId, t.seq)],
 )

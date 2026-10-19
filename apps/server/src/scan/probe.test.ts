@@ -9,10 +9,10 @@ const sample = {
   format: { format_name: 'matroska,webm', duration: '2754.321000' },
   streams: [
     { codec_type: 'video', codec_name: 'hevc', width: 1920, height: 1080 },
-    { codec_type: 'audio', codec_name: 'eac3' },
-    { codec_type: 'audio', codec_name: 'aac' },
-    { codec_type: 'subtitle', codec_name: 'subrip' },
-    { codec_type: 'subtitle', codec_name: 'ass' },
+    { codec_type: 'audio', codec_name: 'eac3', channels: 6, tags: { language: 'eng', title: 'Surround' } },
+    { codec_type: 'audio', codec_name: 'aac', channels: 2, tags: { LANGUAGE: 'gre' } },
+    { codec_type: 'subtitle', codec_name: 'subrip', tags: { language: 'ell', title: 'Full' }, disposition: { default: 1 } },
+    { codec_type: 'subtitle', codec_name: 'ass', tags: { language: 'und' }, disposition: { forced: 1 } },
   ],
 }
 
@@ -26,6 +26,14 @@ describe('parseFfprobeJson', () => {
       videoCodec: 'hevc',
       audioCodecs: ['eac3', 'aac'],
       subtitleCount: 2,
+      audioTracks: [
+        { codec: 'eac3', language: 'en', channels: 6, title: 'Surround' },
+        { codec: 'aac', language: 'el', channels: 2, title: null },
+      ],
+      subtitleTracks: [
+        { codec: 'subrip', language: 'el', title: 'Full', forced: false, default: true },
+        { codec: 'ass', language: null, title: null, forced: true, default: false },
+      ],
     })
   })
   it('ignores embedded cover art when choosing the video stream', () => {
@@ -41,6 +49,8 @@ describe('parseFfprobeJson', () => {
   it('tolerates missing fields (audio-only or unknown duration)', () => {
     expect(parseFfprobeJson({ format: {}, streams: [{ codec_type: 'audio', codec_name: 'mp3' }] })).toEqual({
       durationMs: null, width: null, height: null, container: null, videoCodec: null, audioCodecs: ['mp3'], subtitleCount: 0,
+      audioTracks: [{ codec: 'mp3', language: null, channels: null, title: null }],
+      subtitleTracks: [],
     })
     expect(parseFfprobeJson({}).audioCodecs).toEqual([])
   })

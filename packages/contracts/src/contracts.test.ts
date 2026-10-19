@@ -3,7 +3,7 @@ import { AppSettings, AppSettingsPatch, DEFAULT_SETTINGS, LogQuery, ServerEvent 
 
 describe('settings contract', () => {
   it('fills defaults', () => {
-    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'system', logRetentionDays: 14, metadataLanguage: 'en' })
+    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'system', logRetentionDays: 14, metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}' })
   })
   it('rejects unknown language', () => {
     expect(AppSettings.safeParse({ language: 'fr' }).success).toBe(false)

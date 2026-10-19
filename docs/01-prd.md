@@ -30,15 +30,15 @@ Single-user, single-machine. A secured LAN/mobile mode is explicitly future work
 | Branding | Logo, app icon (`.ico`), tray/monochrome variants, favicon | **Built** |
 | Library sources | Add/remove folders, type per folder, subfolders, enable/pause, online/offline status | **Built** (folder management) |
 | Library scanning | Recursive scan, filesystem watching, rescan on return, progress and cancel | **Built** (exclusion patterns still to do) |
-| **Absent media** | Offline drives/files are kept, shown dimmed with the reason, and reconcile when the drive returns | **Built** (list, badge, filter, reconcile); Play button arrives with Phase 6 |
+| **Absent media** | Offline drives/files are kept, shown dimmed with the reason, and reconcile when the drive returns | **Built** (list, badge, filter, reconcile); Play is real since Phase 6 |
 | Discovery | Incremental scanning, FFprobe technical info, rename/move detection | **Built** |
 | Browsing | Posters, rails, details pages, search (FTS5), filters, continue watching | Designed (Phases 3, 5) |
 | Metadata | TMDB adapter, matching with confidence + manual correction + locking, artwork cache, Greek preferred | Designed (Phase 4) |
-| Series | Seasons/episodes, multi-episode files, missing-episode detection | **Built** (needs a TMDB key for the episode list); next-episode and continue-watching wait for playback state (Phase 6) |
+| Series | Seasons/episodes, multi-episode files, missing-episode detection | **Built** (needs a TMDB key for the episode list); next-episode and continue-watching are built on the watched marks (Phase 6) |
 | Collections | Official collections, sequels, universes, user collections, never-fabricated orders | **Built** for official (TMDB) and user collections in release / custom order; sequel chains and universes are not built (they need curated data) |
-| Playback | External players (VLC, MPC-HC/BE, mpv, PotPlayer, default), open folder, copy path, watched state | Designed (Phase 6) |
-| Subtitles | Embedded/external detection, language, association, default selection | Designed (Phase 6) |
-| File organisation | Rename templates, preview, collision detection, journal, rollback | Designed (Phase 6) |
+| Playback | External players (VLC, MPC-HC/BE, mpv, PotPlayer, default), open folder, copy path, watched state | **Built** — started by the desktop shell with argument arrays; watched is marked by hand (Theama cannot see inside an external player); resume position is not tracked |
+| Subtitles | Embedded/external detection, language, association, default selection | **Built** for detection (embedded streams from FFprobe; external files beside the video, with language), language preferences and default selection at launch; picking a file by hand to associate is not built |
+| File organisation | Rename templates, preview, collision detection, journal, rollback | **Built** for in-place renames of films and episodes (with their subtitles); moving into folders is not built |
 | Packaging | Installer, updates, backup/restore | Designed (Phase 7) |
 
 ### Post-MVP

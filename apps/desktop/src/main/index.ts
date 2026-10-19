@@ -1,13 +1,14 @@
 import { app, BrowserWindow, dialog, Menu, net, protocol, session, shell } from 'electron'
-import { existsSync } from 'node:fs'
+import { appendFileSync, existsSync } from 'node:fs'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { IPC, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
+import { IPC, LaunchInfo, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
 import { defaultDataDir, resolveDataPaths } from '@theama/logs'
 import { registerIpc } from './ipc'
 import { buildMenu, type ServiceMenuAction } from './menu'
 import { menuStrings } from './menu-strings'
 import { originOf } from './origin'
+import { launchDetached, PlayerManager } from './players'
 import { PrefsStore } from './prefs'
 import { probeHealth, readConnection, type ApiConnection } from './runtime'
 import { resolveAdminPaths } from './service/admin-paths'
@@ -42,6 +43,37 @@ let cachedConn: { at: number; value: ApiConnection | null } = { at: 0, value: nu
 function connection(): ApiConnection | null {
   if (Date.now() - cachedConn.at > 500) cachedConn = { at: Date.now(), value: readConnection(paths) }
   return cachedConn.value
+}
+
+/** Development/test only: record what would be started instead of starting a real player (never honoured in a released build). */
+const testPlayerLog = dev ? process.env.THEAMA_TEST_PLAYER_LOG : undefined
+
+function testPlayerHost(): { env: NodeJS.ProcessEnv; exists(path: string): boolean } | undefined {
+  if (!testPlayerLog) return undefined
+  // Pretend the usual players are installed under a made-up Program Files folder.
+  const env: NodeJS.ProcessEnv = { ...process.env, ProgramFiles: 'C:\\FAKE-PF', 'ProgramFiles(x86)': '', ProgramW6432: '', PATH: '' }
+  return { env, exists: (p) => p.startsWith('C:\\FAKE-PF\\') || existsSync(p) }
+}
+
+async function recordLaunch(exe: string, args: string[]): Promise<void> {
+  appendFileSync(testPlayerLog!, `${JSON.stringify({ exe, args })}\n`)
+}
+
+/** Asks the backend which file to open. The path never comes from the UI: only a file id does. */
+async function fetchLaunchInfo(fileId: number) {
+  const conn = connection()
+  if (!conn) return { ok: false as const, code: 'unreachable' as const, message: 'The Theama service is not running' }
+  try {
+    const res = await fetch(`${conn.base}/api/v1/playback/files/${fileId}/launch`, { headers: { Authorization: `Bearer ${conn.token}` } })
+    const body: unknown = await res.json().catch(() => null)
+    if (!res.ok) {
+      const message = (body as { error?: { message?: string } } | null)?.error?.message ?? `The service answered ${res.status}`
+      return { ok: false as const, code: res.status === 404 || res.status === 409 ? ('unavailable' as const) : ('unreachable' as const), message }
+    }
+    return { ok: true as const, info: LaunchInfo.parse(body) }
+  } catch (err) {
+    return { ok: false as const, code: 'unreachable' as const, message: err instanceof Error ? err.message : 'The Theama service could not be reached' }
+  }
 }
 const probe = async (c: ApiConnection): Promise<boolean> => (await probeHealth(c)) !== null
 
@@ -222,7 +254,21 @@ async function main(): Promise<void> {
   registerProtocol()
   hardenSession()
   installAuthHeaderInjection()
+  const players = new PlayerManager({
+    host: testPlayerHost(),
+    getPrefs: () => prefs.players,
+    setPrefs: (p) => prefs.setPlayers(p),
+    launch: testPlayerLog ? recordLaunch : launchDetached,
+    openWithSystem: (path) => shell.openPath(path),
+    fetchLaunchInfo: fetchLaunchInfo,
+    reportLaunched: async (fileId) => {
+      const conn = connection()
+      if (!conn) return
+      await fetch(`${conn.base}/api/v1/playback/files/${fileId}/launched`, { method: 'POST', headers: { Authorization: `Bearer ${conn.token}` } })
+    },
+  })
   registerIpc({
+    players,
     getWindow: () => mainWindow,
     paths,
     controller,

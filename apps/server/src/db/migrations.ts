@@ -218,6 +218,42 @@ export const MIGRATIONS: readonly string[] = [
   CREATE UNIQUE INDEX uq_collection_member_ext ON collection_member(collection_id, external_id) WHERE external_id IS NOT NULL;
   CREATE INDEX idx_collection_member_ext ON collection_member(external_id);
   `,
+  /* 6 — playback state, stream details, file-operation journal */
+  `
+  -- Audio and subtitle streams (JSON) read by FFprobe. Files probed before this column existed have NULL
+  -- and are read again at the next scan.
+  ALTER TABLE media_file ADD COLUMN tracks TEXT;
+
+  -- What the person has watched. Per file, so a rename or move keeps it; titles and seasons are rolled up
+  -- from their files. Theama cannot see inside an external player, so watched is set by hand or by
+  -- marking a title, and a launch only records that something was started (last_played_at).
+  CREATE TABLE playback_state (
+    file_id        INTEGER PRIMARY KEY REFERENCES media_file(id) ON DELETE CASCADE,
+    watched        INTEGER NOT NULL DEFAULT 0,
+    watched_at     TEXT,
+    last_played_at TEXT,
+    play_count     INTEGER NOT NULL DEFAULT 0,
+    source         TEXT NOT NULL DEFAULT 'manual'
+  );
+  CREATE INDEX idx_playback_last ON playback_state(last_played_at);
+
+  -- Every rename is written here before it happens and updated after, so an interrupted batch can be
+  -- understood and any finished one undone. No foreign key to media_file: the record outlives the file row.
+  CREATE TABLE file_operation (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id    TEXT NOT NULL,
+    seq         INTEGER NOT NULL,
+    kind        TEXT NOT NULL CHECK (kind IN ('video','subtitle')),
+    file_id     INTEGER,
+    from_path   TEXT NOT NULL,
+    to_path     TEXT NOT NULL,
+    status      TEXT NOT NULL CHECK (status IN ('pending','done','failed','rolled_back','rollback_failed')),
+    error       TEXT,
+    created_at  TEXT NOT NULL,
+    finished_at TEXT
+  );
+  CREATE INDEX idx_file_operation_batch ON file_operation(batch_id, seq);
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

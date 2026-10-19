@@ -20,7 +20,7 @@ flowchart LR
 | **Media folders** (pulled forward from Phase 2): add/remove folders with the native picker, type per folder (Movies/Series/My Videos/Auto), subfolders, enable/pause, per-folder online/offline status (volume-aware), duplicate detection; no scanning yet | ✅ |
 | UI shell: sidebar / bottom nav / app bar, 6 section pages with empty states, themes, EN/ΕΛ, settings, **Service page**, **Log history**, recovery screen | ✅ |
 | Logo + icons (SVG masters → PNG/ICO) | ✅ |
-| Tests: 363 unit/integration + 13 Electron e2e (Phases 1–5) | ✅ |
+| Tests: 443 unit/integration + 15 Electron e2e (Phases 1–6) | ✅ |
 
 **Acceptance (brief):** Theama opens as a desktop app, talks to the backend, shows a functional shell — ✅ (e2e). **Added:** service manageable from the UI, logs browsable, recovery when the service is down — ✅.
 
@@ -54,7 +54,11 @@ Not yet: continue-watching and next-episode rules (need Phase 6 playback state),
 Original scope:
 Series/season/episode model and episode detection (multi-episode, specials), missing-episode classification, continue-watching + next-episode rules, collections (official, sequels, universes, user; release/story/custom ordering; contextual missing entries). *Depends on:* 4.
 
-## Phase 6 — Playback & file management
+## Phase 6 — Playback & file management ✅ (first slice delivered)
+Delivered: players detected (VLC, MPC-HC, MPC-BE, mpv, PotPlayer, PATH) plus any program the person adds and the system default; started by the desktop shell with argument arrays (`--` before the file for mpv), never through a shell; subtitle chosen from the person's language order and passed to players that accept one; watched marks per file/episode/season/title; next-episode rule, Continue watching rail, watched check on cards; embedded and external subtitle detection with language; rename templates with preview, collisions (name taken, same name twice, path too long), in-place renames with their subtitles, an approved-pairs-only apply, a write-ahead journal, Undo, crash recovery.
+Not yet: resume position and automatic watched tracking (needs per-player integrations: VLC web interface, mpv IPC); picking a subtitle file by hand; moving files into folders by template; refusing a rename while a player has the file open (Windows reports it as 'in use' and the item fails safely); bulk rename across the library from one screen; per-title player choice that is remembered.
+
+Original scope:
 External players (detect, configure, per-video choice, argument arrays only) executed by the **desktop shell**; open folder; copy path; subtitles (embedded + external, language, association); rename templates + preview + collision detection + **journalled, recoverable** operations + rollback; playback-state capabilities per player. *Depends on:* 2, 4.
 
 ## Phase 7 — Production readiness

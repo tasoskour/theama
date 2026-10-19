@@ -26,7 +26,7 @@ export type FilePatch = Partial<
     FileRow,
     | 'path' | 'size' | 'mtimeMs' | 'volumeId' | 'fileId' | 'state' | 'lastSeenAt' | 'missingSince'
     | 'kind' | 'guessedTitle' | 'guessedYear' | 'season' | 'episode' | 'episodeEnd' | 'episodeTitle' | 'titleKey'
-    | 'probedAt' | 'probeError' | 'durationMs' | 'width' | 'height' | 'container' | 'videoCodec' | 'audioCodecs' | 'subtitleCount'
+    | 'probedAt' | 'probeError' | 'durationMs' | 'width' | 'height' | 'container' | 'videoCodec' | 'audioCodecs' | 'subtitleCount' | 'tracks'
   >
 >
 
@@ -36,7 +36,7 @@ const COLUMN_SQL: Record<keyof FilePatch, string> = {
   guessedYear: 'guessed_year', season: 'season', episode: 'episode', episodeEnd: 'episode_end',
   episodeTitle: 'episode_title', probedAt: 'probed_at', probeError: 'probe_error', durationMs: 'duration_ms',
   width: 'width', height: 'height', container: 'container', videoCodec: 'video_codec', audioCodecs: 'audio_codecs',
-  subtitleCount: 'subtitle_count', titleKey: 'title_key',
+  subtitleCount: 'subtitle_count', titleKey: 'title_key', tracks: 'tracks',
 }
 
 const INSERT_COLUMNS = [
@@ -69,10 +69,26 @@ export interface ListRow {
   video_codec: string | null
   audio_codecs: string | null
   subtitle_count: number | null
+  tracks: string | null
+  watched: number | null
+  last_played_at: string | null
+}
+
+export function parseTracks(raw: string | null): Pick<MediaFile, 'audioTracks' | 'subtitleTracks'> {
+  if (!raw) return { audioTracks: [], subtitleTracks: [] }
+  try {
+    const t = JSON.parse(raw) as { audio?: MediaFile['audioTracks']; subtitles?: MediaFile['subtitleTracks'] }
+    return { audioTracks: Array.isArray(t.audio) ? t.audio : [], subtitleTracks: Array.isArray(t.subtitles) ? t.subtitles : [] }
+  } catch {
+    return { audioTracks: [], subtitleTracks: [] }
+  }
 }
 
 export function toMediaFile(r: ListRow): MediaFile {
   return {
+    ...parseTracks(r.tracks),
+    watched: r.watched === 1,
+    lastPlayedAt: r.last_played_at,
     id: r.id,
     sourceId: r.source_id,
     path: r.path,
@@ -220,6 +236,7 @@ export class MediaFileRepo {
               probedAt: now, probeError: null, durationMs: result.durationMs, width: result.width, height: result.height,
               container: result.container, videoCodec: result.videoCodec,
               audioCodecs: result.audioCodecs.join(',') || null, subtitleCount: result.subtitleCount,
+              tracks: JSON.stringify({ audio: result.audioTracks ?? [], subtitles: result.subtitleTracks ?? [] }),
             }
           : { probedAt: now, probeError: error ?? 'Unknown probe error' },
       },
@@ -268,7 +285,7 @@ export class MediaFileRepo {
       where.push("s.availability <> 'offline' AND f.state = 'available'")
     }
     const baseWhere = where.length ? `WHERE ${where.join(' AND ')}` : ''
-    const from = 'FROM media_file f JOIN library_source s ON s.id = f.source_id'
+    const from = 'FROM media_file f JOIN library_source s ON s.id = f.source_id LEFT JOIN playback_state p ON p.file_id = f.id'
     const total = (this.raw.prepare(`SELECT COUNT(*) AS n ${from} ${baseWhere}`).get(...params) as { n: number }).n
 
     const pageWhere = [...where]
@@ -280,7 +297,7 @@ export class MediaFileRepo {
     }
     const rows = this.raw
       .prepare(
-        `SELECT f.*, s.availability AS source_availability ${from}
+        `SELECT f.*, s.availability AS source_availability, p.watched AS watched, p.last_played_at AS last_played_at ${from}
          ${pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : ''}
          ORDER BY ${SORT_EXPR} LIMIT ?`,
       )

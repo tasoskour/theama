@@ -27,6 +27,13 @@ const bridge: TheamaBridge = {
     readLocal: (limit) => ipcRenderer.invoke(IPC.logsReadLocal, { limit: limit ?? 200 }) as Promise<LogEntry[]>,
     openFolder: () => ipcRenderer.invoke(IPC.openLogsFolder),
   },
+  players: {
+    list: () => ipcRenderer.invoke(IPC.playersList),
+    setDefault: (id) => ipcRenderer.invoke(IPC.playersSetDefault, { id }),
+    addCustom: () => ipcRenderer.invoke(IPC.playersAddCustom),
+    remove: (id) => ipcRenderer.invoke(IPC.playersRemove, { id }),
+    play: (request) => ipcRenderer.invoke(IPC.playersPlay, request),
+  },
   onNavigate: (listener) => {
     const handler = (_e: unknown, route: string) => listener(route)
     ipcRenderer.on(IPC.evNavigate, handler)

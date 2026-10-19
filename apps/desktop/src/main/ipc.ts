@@ -6,6 +6,8 @@ import {
   LocalLogsRequest,
   PathRequest,
   PickFolderRequest,
+  PlayerIdRequest,
+  PlayRequest,
   ServiceInstallRequest,
   SetLanguageRequest,
   type AppInfo,
@@ -15,6 +17,7 @@ import {
 import { readRecentLocal, type DataPaths } from '@theama/logs'
 import { originOf } from './origin'
 import { assertSafeUserPath } from './path-safety'
+import type { PlayerManager } from './players'
 import type { ApiConnection } from './runtime'
 import type { ServiceController } from './service/controller'
 
@@ -34,6 +37,7 @@ export interface IpcDeps {
   /** Runs a service action with UI side effects (busy state, status push, confirmations). */
   runService(action: 'start' | 'stop' | 'restart' | 'install' | 'repair' | 'uninstall', account?: 'current-user' | 'local-system'): Promise<ServiceActionResult>
   currentStatus(): Promise<ServiceStatus>
+  players: PlayerManager
 }
 
 function isTrusted(event: IpcMainInvokeEvent, trusted: string[]): boolean {
@@ -83,6 +87,18 @@ export function registerIpc(deps: IpcDeps): void {
   })
 
   handle(IPC.showItemInFolder, PathRequest, ({ path }) => shell.showItemInFolder(assertSafeUserPath(path)))
+
+  handle(IPC.playersList, none, () => deps.players.list())
+  handle(IPC.playersSetDefault, PlayerIdRequest, ({ id }) => deps.players.setDefault(id))
+  handle(IPC.playersRemove, PlayerIdRequest, ({ id }) => deps.players.remove(id))
+  handle(IPC.playersAddCustom, none, async () => {
+    const win = deps.getWindow()
+    const options = { title: 'Choose a media player', properties: ['openFile' as const], filters: [{ name: 'Programs', extensions: ['exe'] }] }
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+    const exe = result.canceled ? null : (result.filePaths[0] ?? null)
+    return exe ? deps.players.addCustom(exe) : null
+  })
+  handle(IPC.playersPlay, PlayRequest, ({ fileId, playerId }) => deps.players.play(fileId, playerId))
 
   handle(IPC.serviceStatus, none, () => deps.currentStatus())
   handle(IPC.serviceStart, none, () => deps.runService('start'))

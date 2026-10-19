@@ -2,21 +2,26 @@
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { mdiArrowLeft, mdiCloudOffOutline, mdiDotsVertical, mdiPlay, mdiStar } from '@mdi/js'
+import { mdiArrowLeft, mdiCheckCircle, mdiCheckCircleOutline, mdiCloudOffOutline, mdiDotsVertical, mdiEye, mdiStar } from '@mdi/js'
+import { z } from 'zod'
 import { TitleDetail, type EpisodeInfo, type EpisodeStatus, type MediaFile } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
 import AddToCollectionMenu from '@/components/collections/AddToCollectionMenu.vue'
 import FileFacts from '@/components/titles/FileFacts.vue'
+import RenameDialog from '@/components/files/RenameDialog.vue'
 import IdentifyDialog from '@/components/titles/IdentifyDialog.vue'
+import PlayButton from '@/components/titles/PlayButton.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
+import { usePlayersStore } from '@/stores/players'
 import { episodeCode, formatBytes, formatDuration, resolutionLabel } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
 const connection = useConnectionStore()
 const metadataStore = useMetadataStore()
+const players = usePlayersStore()
 const { t, locale } = useI18n()
 
 const detail = ref<TitleDetail | null>(null)
@@ -73,8 +78,55 @@ const ratingText = computed(() => {
   return t('match.rating', { source: r.source.toUpperCase(), value: r.value.toFixed(1), votes: new Intl.NumberFormat(locale.value).format(r.votes) })
 })
 
+// --- playing and watching -----------------------------------------------------
+const playable = (f: MediaFile): boolean => f.state === 'available'
+
+/** What the big Play button starts: a film's best file, a series' next episode (or the first one once all are watched). */
+const playTarget = computed<{ fileId: number | null; label: string; reason: string | null }>(() => {
+  const s = summary.value
+  if (!s) return { fileId: null, label: t('detail.play'), reason: null }
+  const offlineReason = t('play.unavailable')
+  if (s.kind === 'series') {
+    const next = detail.value?.playback.next
+    if (next) {
+      const f = files.value.find((x) => x.id === next.fileId)
+      return { fileId: next.fileId, label: t('play.next', { label: next.label }), reason: f && playable(f) ? null : offlineReason }
+    }
+    const first = [...files.value].filter((f) => f.kind === 'episode' && f.season !== 0).sort((a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0))[0]
+    const label = s.watchState === 'all' ? t('play.again') : t('detail.play')
+    return first ? { fileId: first.id, label, reason: playable(first) ? null : offlineReason } : { fileId: null, label, reason: offlineReason }
+  }
+  const best = files.value.find(playable) ?? files.value[0]
+  const label = s.watchState === 'all' ? t('play.again') : t('detail.play')
+  return best ? { fileId: best.id, label, reason: playable(best) ? null : offlineReason } : { fileId: null, label, reason: offlineReason }
+})
+const blockedReason = computed(() => (players.canPlay ? playTarget.value.reason : t('play.needsApp')))
+
+const playNotice = ref<string | null>(null)
+function onPlayed(ok: boolean): void {
+  if (ok) return
+  const failure = players.lastFailure
+  playNotice.value = failure?.message ?? t(failure?.code === 'no_player' ? 'play.noPlayer' : 'play.failed')
+}
+
+const Changed = z.object({ changed: z.number().int() })
+async function setWatched(path: string, body: unknown): Promise<void> {
+  if (!connection.client) return
+  try {
+    await connection.client.put(path, body, Changed)
+    await load()
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : String(err)
+  }
+}
+const setFileWatched = (f: MediaFile, watched: boolean): Promise<void> => setWatched(`/playback/files/${f.id}`, { watched })
+const setTitleWatched = (watched: boolean, seasonNumber?: number): Promise<void> =>
+  setWatched('/playback/titles', { key: key.value, watched, ...(seasonNumber === undefined ? {} : { season: seasonNumber }) })
+const currentSeasonNumber = computed(() => (/^\d+$/.test(season.value) ? Number(season.value) : undefined))
+
 // --- identification ---------------------------------------------------
 const identifyOpen = ref(false)
+const renameOpen = ref(false)
 const working = ref(false)
 const actionError = ref<string | null>(null)
 
@@ -263,10 +315,27 @@ const metaChips = computed(() => {
           <v-alert v-if="offline" type="warning" variant="tonal" density="compact" :icon="mdiCloudOffOutline" class="mt-4">{{ $t('files.offlineHint') }}</v-alert>
 
           <div class="cta">
-            <!-- Honest placeholder: playback with external players is the next release; nothing pretends to play. -->
-            <v-btn color="primary" size="large" :prepend-icon="mdiPlay" disabled aria-describedby="play-note">{{ $t('detail.play') }}</v-btn>
-            <p id="play-note" class="th-muted text-caption">{{ $t('detail.playSoon') }}</p>
-            <AddToCollectionMenu :title-key="summary.key" :member-of="detail?.collections ?? []" @changed="load" />
+            <div class="cta__row">
+              <PlayButton :file-id="playTarget.fileId" :label="playTarget.label" :blocked-reason="blockedReason" @played="onPlayed" />
+              <v-menu location="bottom start">
+                <template #activator="{ props: menuProps }">
+                  <v-btn v-bind="menuProps" variant="tonal" :prepend-icon="mdiEye" data-test="watched-menu">{{ summary.watchState === 'all' ? $t('play.watched') : $t('play.watchedMenu') }}</v-btn>
+                </template>
+                <v-list density="compact">
+                  <v-list-item :title="$t('play.markAllWatched')" data-test="mark-all-watched" @click="setTitleWatched(true)" />
+                  <v-list-item :title="$t('play.markAllUnwatched')" @click="setTitleWatched(false)" />
+                  <template v-if="isSeries && currentSeasonNumber !== undefined">
+                    <v-divider />
+                    <v-list-item :title="$t('play.markSeasonWatched', { season: shownGroup?.label ?? '' })" @click="setTitleWatched(true, currentSeasonNumber)" />
+                    <v-list-item :title="$t('play.markSeasonUnwatched', { season: shownGroup?.label ?? '' })" @click="setTitleWatched(false, currentSeasonNumber)" />
+                  </template>
+                </v-list>
+              </v-menu>
+              <AddToCollectionMenu :title-key="summary.key" :member-of="detail?.collections ?? []" @changed="load" />
+              <v-btn v-if="summary.kind !== 'video'" variant="text" data-test="rename-files" @click="renameOpen = true">{{ $t('detail.renameFiles') }}</v-btn>
+            </div>
+            <p v-if="!players.canPlay" class="th-muted text-caption">{{ $t('play.needsAppHint') }}</p>
+            <p v-else-if="playTarget.reason" class="th-muted text-caption">{{ playTarget.reason }}</p>
           </div>
         </div>
       </section>
@@ -308,6 +377,8 @@ const metaChips = computed(() => {
         </v-menu>
         <v-alert v-if="actionError" type="error" variant="tonal" density="compact" class="mt-2">{{ actionError }}</v-alert>
       </section>
+
+      <RenameDialog v-if="summary.kind !== 'video'" v-model="renameOpen" :title-key="summary.key" :kind="summary.kind" @renamed="load" />
 
       <IdentifyDialog
         v-if="summary.kind !== 'video'"
@@ -352,7 +423,8 @@ const metaChips = computed(() => {
                 </span>
               </div>
             </li>
-            <li v-else class="ep" :class="{ 'ep--dim': r.file.state !== 'available' }">
+            <li v-else class="ep" :class="{ 'ep--dim': r.file.state !== 'available', 'ep--watched': r.file.watched }">
+              <div class="ep__line">
               <button type="button" class="ep__row" :aria-expanded="expanded === r.file.id" @click="expanded = expanded === r.file.id ? null : r.file.id">
                 <span class="ep__code th-mono">{{ r.code || '·' }}</span>
                 <span class="ep__name">
@@ -369,6 +441,28 @@ const metaChips = computed(() => {
                   <span class="th-muted num">{{ formatDuration(r.file.durationMs, locale) }}</span>
                 </span>
               </button>
+              <div class="ep__actions">
+                <v-btn
+                  icon
+                  size="small"
+                  variant="text"
+                  :aria-pressed="r.file.watched"
+                  :aria-label="r.file.watched ? $t('play.markUnwatched', { name: episodeName(r.file) }) : $t('play.markWatched', { name: episodeName(r.file) })"
+                  :title="r.file.watched ? $t('play.watched') : $t('play.markWatchedShort')"
+                  data-test="toggle-watched"
+                  @click="setFileWatched(r.file, !r.file.watched)"
+                >
+                  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path :d="r.file.watched ? mdiCheckCircle : mdiCheckCircleOutline" fill="currentColor" /></svg>
+                </v-btn>
+                <PlayButton
+                  icon
+                  :file-id="r.file.id"
+                  :label="$t('play.episode', { name: episodeName(r.file) })"
+                  :blocked-reason="players.canPlay ? (playable(r.file) ? null : $t('play.unavailable')) : $t('play.needsApp')"
+                  @played="onPlayed"
+                />
+              </div>
+              </div>
               <div v-if="expanded === r.file.id" class="ep__facts">
                 <div v-if="infoFor(r.file)?.overview || infoFor(r.file)?.stillUrl" class="ep__about">
                   <img v-if="infoFor(r.file)?.stillUrl" class="ep__still" :src="connection.assetUrl(infoFor(r.file)?.stillUrl) ?? ''" alt="" loading="lazy" decoding="async" />
@@ -392,10 +486,22 @@ const metaChips = computed(() => {
             <span class="th-mono file__name">{{ f.fileName }}</span>
             <v-chip v-if="f.state === 'source_offline'" size="x-small" color="warning" label variant="tonal">{{ $t('files.offline') }}</v-chip>
             <v-chip v-else-if="f.state === 'missing_unconfirmed'" size="x-small" color="error" label variant="tonal">{{ $t('files.missing') }}</v-chip>
+            <v-chip v-if="f.watched" size="x-small" label variant="tonal" color="success">{{ $t('play.watched') }}</v-chip>
+            <span class="file__spacer" />
+            <PlayButton
+              v-if="files.length > 1"
+              :file-id="f.id"
+              :label="$t('play.version', { name: f.fileName })"
+              :blocked-reason="players.canPlay ? (playable(f) ? null : $t('play.unavailable')) : $t('play.needsApp')"
+              icon
+              @played="onPlayed"
+            />
           </div>
           <FileFacts :file="f" />
         </div>
       </section>
+
+      <v-snackbar :model-value="playNotice !== null" :timeout="6000" color="error" role="alert" @update:model-value="playNotice = null">{{ playNotice }}</v-snackbar>
 
       <p v-if="meta" class="attribution th-muted">{{ $t('match.attribution') }}</p>
     </template>
@@ -569,11 +675,35 @@ const metaChips = computed(() => {
 .ep--dim .ep__code {
   opacity: 0.6;
 }
+.cta__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.ep__line {
+  display: flex;
+  align-items: center;
+}
+.ep__actions {
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+  flex: none;
+}
+.ep--watched .ep__title,
+.ep--watched .ep__code {
+  opacity: 0.55;
+}
+.file__spacer {
+  flex: 1;
+}
 .ep__row {
   display: flex;
   align-items: center;
   gap: 16px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 12px 16px;
   text-align: left;
   color: inherit;

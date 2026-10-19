@@ -18,9 +18,17 @@ A test (`schema-drift.test.ts`) fails if the Drizzle declarations and the migrat
 - `media_file.title_key` groups files into titles until Phase 4 matches them to real ones: `series:<normalised title>` (all episodes of a show), `movie:<normalised title>:<year>`, and one key per personal video / extra. *Normalised* = lower-case, accents removed (Greek tonos too), punctuation dropped, final sigma folded, so `X-Men '97`, `X-Men 97` and `x-men 97` are one series.
 - `media_file_fts` is a contentless FTS5 index (titles, episode titles, path words). Its text is **folded by the application, not by SQLite**, because SQLite's `remove_diacritics` does not touch Greek accents (found by test: `ταινια` did not match `Ταινία`). The repository maintains it on every insert/update; deletes (including cascades from removing a folder) are done by a SQL trigger; `ensureSearchIndex()` rebuilds it at startup if it ever disagrees with the table.
 
-## 2. Target model (Phases 4–6) — **Designed**
+### Metadata tables (migration 4) — **Built**
+- `title_match(title_key PK, kind, state matched|ambiguous|unmatched, provider, external_id, score, signals, candidates, decided_by auto|user, locked, attempts, attempted_at, updated_at)` — the decision. A locked row is only replaced by another decision from the user; clearing a match writes an `unmatched`, user-decided, locked row so Theama leaves the title alone.
+- `title_metadata(title_key PK, provider, external_id, language, title, original_title, year, tagline, overview, runtime_min, genres, rating, votes, poster_path/poster_file, backdrop_path/backdrop_file, cast_json, imdb_id, status, fetched_at)` — what the provider said. A rating is only ever displayed with its provider's name. `*_path` keeps the provider-relative image path so artwork that failed to download is fetched later; `*_file` is the cached file.
+- `episode_metadata(title_key, season, episode PK, name, overview, air_date, runtime_min, still_path, still_file)`.
+- Provider data never overwrites what the files say: the library list shows the provider's title when there is one, and falls back to the name guessed from the files when a match is cleared. Rows for titles that no longer have any file are removed at start-up unless the user locked them.
+- The full-text index gained a fourth column (`meta_text`: provider title and original title), so a title is found by its real name as well as by its file name, with the same accent- and case-folding. The migration recreates the (contentless) index empty and the server refills it on start.
+- Artwork lives in `<cache>/artwork/` as `poster-…`, `backdrop-…`, `still-…`, `thumb-…` files named after the provider path. File names are validated on write and on read; the API serves them with `Cache-Control: immutable`.
 
-`media_file` above is the first piece of this model; Phase 4 adds `media_title` and a link table without discarding those rows.
+## 2. Target model (Phases 5–6) — **Designed**
+
+`media_file` above is the first piece of this model. Phase 4 keeps matches keyed by `title_key` (see above); `media_title` and a link table can replace that key later without discarding rows.
 
 ```mermaid
 erDiagram

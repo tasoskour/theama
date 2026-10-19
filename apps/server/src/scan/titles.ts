@@ -1,6 +1,8 @@
 import type Database from 'better-sqlite3'
 import { z } from 'zod'
 import type { MediaKind, TitleDetail, TitleKind, TitlePage, TitleQuery, TitleSort, TitleSummary } from '@theama/contracts'
+import { artworkUrl } from '../metadata/artwork'
+import type { MetadataRepo } from '../metadata/store'
 import { ftsQuery } from './fts'
 import { toMediaFile, type ListRow } from './store'
 
@@ -18,6 +20,9 @@ interface GroupRow {
   available_count: number
   added_at: string
   size: number
+  poster_file: string | null
+  rating: number | null
+  match_state: 'matched' | 'ambiguous' | 'unmatched' | null
 }
 
 function toSummary(r: GroupRow): TitleSummary | null {
@@ -34,6 +39,9 @@ function toSummary(r: GroupRow): TitleSummary | null {
     availableCount: r.available_count,
     addedAt: r.added_at,
     size: r.size,
+    posterUrl: artworkUrl(r.poster_file),
+    rating: r.rating,
+    matchState: r.match_state,
   }
 }
 
@@ -55,18 +63,26 @@ function decodeCursor(raw: string | undefined): (string | number)[] | null {
 /** The grouped view of files: one entry per movie, per series, per personal video. */
 const GROUP_SELECT = `
   SELECT f.title_key AS key, f.kind AS kind,
-         MIN(f.guessed_title COLLATE BINARY) AS title,
-         MAX(f.guessed_year) AS year,
+         coalesce(MAX(d.title), MIN(f.guessed_title COLLATE BINARY)) AS title,
+         coalesce(MAX(d.year), MAX(f.guessed_year)) AS year,
          COUNT(*) AS file_count,
          COUNT(DISTINCT CASE WHEN f.episode IS NOT NULL THEN coalesce(f.season, -1) * 100000 + f.episode END) AS episode_count,
          COUNT(DISTINCT f.season) AS season_count,
          SUM(CASE WHEN s.availability <> 'offline' AND f.state = 'available' THEN 1 ELSE 0 END) AS available_count,
          MAX(f.first_seen_at) AS added_at,
-         SUM(f.size) AS size
-  FROM media_file f JOIN library_source s ON s.id = f.source_id`
+         SUM(f.size) AS size,
+         MAX(d.poster_file) AS poster_file,
+         MAX(d.rating) AS rating,
+         MAX(m.state) AS match_state
+  FROM media_file f JOIN library_source s ON s.id = f.source_id
+       LEFT JOIN title_metadata d ON d.title_key = f.title_key
+       LEFT JOIN title_match m ON m.title_key = f.title_key`
 
 export class TitleRepo {
-  constructor(private readonly raw: Database.Database) {}
+  constructor(
+    private readonly raw: Database.Database,
+    private readonly metadata?: MetadataRepo,
+  ) {}
 
   list(query: TitleQuery): TitlePage {
     const limit = Math.min(Math.max(Number(query.limit ?? 60), 1), 200)
@@ -146,6 +162,23 @@ export class TitleRepo {
          ORDER BY coalesce(f.season, -1), coalesce(f.episode, -1), lower(f.path)`,
       )
       .all(key) as ListRow[]
-    return { summary, files: rows.map(toMediaFile) }
+    const stored = this.metadata?.getMatch(key) ?? null
+    return {
+      summary,
+      files: rows.map(toMediaFile),
+      match: stored
+        ? {
+            state: stored.state,
+            decidedBy: stored.decidedBy,
+            locked: stored.locked,
+            score: stored.score,
+            provider: stored.provider,
+            externalId: stored.externalId,
+            candidates: stored.candidates,
+          }
+        : null,
+      metadata: this.metadata?.getMetadata(key) ?? null,
+      episodes: this.metadata?.episodes(key) ?? [],
+    }
   }
 }

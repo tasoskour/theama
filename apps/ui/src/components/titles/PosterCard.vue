@@ -3,10 +3,12 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { mdiCloudOffOutline } from '@mdi/js'
 import type { TitleSummary } from '@theama/contracts'
+import { useConnectionStore } from '@/stores/connection'
 import PosterArt from './PosterArt.vue'
 
 const props = defineProps<{ title: TitleSummary; tabindex?: number }>()
 const { t } = useI18n()
+const connection = useConnectionStore()
 
 const offline = computed(() => props.title.availableCount === 0)
 const partly = computed(() => props.title.availableCount > 0 && props.title.availableCount < props.title.fileCount)
@@ -24,7 +26,12 @@ const detail = computed(() => {
   return ''
 })
 
-const label = computed(() => [props.title.title, detail.value, offline.value ? t('files.offline') : ''].filter(Boolean).join(', '))
+/** Looked up but not settled: the person is the only one who can say what it is. */
+const needsId = computed(() => props.title.matchState === 'ambiguous' || props.title.matchState === 'unmatched')
+
+const label = computed(() =>
+  [props.title.title, detail.value, offline.value ? t('files.offline') : '', needsId.value ? t('match.notIdentified') : ''].filter(Boolean).join(', '),
+)
 </script>
 
 <template>
@@ -37,12 +44,19 @@ const label = computed(() => [props.title.title, detail.value, offline.value ? t
     :aria-label="label"
   >
     <div class="card__art">
-      <PosterArt :seed="title.key" :title="title.title" :year="title.kind === 'movie' ? title.year : null" :kind="title.kind" />
+      <PosterArt
+        :seed="title.key"
+        :title="title.title"
+        :year="title.kind === 'movie' ? title.year : null"
+        :kind="title.kind"
+        :image-url="connection.assetUrl(title.posterUrl)"
+      />
       <span v-if="offline" class="card__badge card__badge--offline" :title="$t('files.offlineHint')">
         <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path :d="mdiCloudOffOutline" fill="currentColor" /></svg>
         {{ $t('files.offline') }}
       </span>
       <span v-else-if="partly" class="card__badge" :title="$t('titles.partlyHint')">{{ title.availableCount }}/{{ title.fileCount }}</span>
+      <span v-if="needsId" class="card__badge card__badge--id" :title="$t('match.notIdentifiedHint')">?</span>
     </div>
     <div class="card__meta" aria-hidden="true">
       <div class="card__title">{{ title.title }}</div>
@@ -87,6 +101,15 @@ const label = computed(() => [props.title.title, detail.value, offline.value ? t
   background: rgba(15, 14, 12, 0.82);
   color: #efe8da;
   border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.card__badge--id {
+  left: auto;
+  right: 8px;
+  min-width: 22px;
+  justify-content: center;
+  font-weight: 700;
+  color: #dca94e;
+  border-color: rgba(220, 169, 78, 0.5);
 }
 .card__badge--offline {
   color: #dca94e;

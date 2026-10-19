@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text, index } from 'drizzle-orm/sqlite-core'
+import { integer, primaryKey, real, sqliteTable, text, index } from 'drizzle-orm/sqlite-core'
 
 /**
  * Key/value application settings. Values are JSON-encoded so the table never
@@ -108,4 +108,69 @@ export const mediaFile = sqliteTable(
     index('idx_media_file_state').on(t.sourceId, t.state),
     index('idx_media_file_title_key').on(t.kind, t.titleKey),
   ],
+)
+
+/** The real-world identity chosen for a group of files (see docs/07-metadata-matching.md). */
+export const titleMatch = sqliteTable(
+  'title_match',
+  {
+    titleKey: text('title_key').primaryKey(),
+    kind: text('kind', { enum: ['movie', 'series'] }).notNull(),
+    state: text('state', { enum: ['matched', 'ambiguous', 'unmatched'] }).notNull(),
+    provider: text('provider'),
+    externalId: text('external_id'),
+    score: real('score'),
+    /** JSON: how each signal scored. */
+    signals: text('signals'),
+    /** JSON: the best guesses, kept only while the match is ambiguous. */
+    candidates: text('candidates'),
+    decidedBy: text('decided_by', { enum: ['auto', 'user'] }).notNull(),
+    locked: integer('locked', { mode: 'boolean' }).notNull().default(false),
+    attempts: integer('attempts').notNull().default(0),
+    attemptedAt: text('attempted_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [index('idx_title_match_state').on(t.state)],
+)
+
+/** Provider data for a matched title; never mixed with what the user's files say. */
+export const titleMetadata = sqliteTable('title_metadata', {
+  titleKey: text('title_key').primaryKey(),
+  provider: text('provider').notNull(),
+  externalId: text('external_id').notNull(),
+  language: text('language').notNull(),
+  title: text('title').notNull(),
+  originalTitle: text('original_title'),
+  year: integer('year'),
+  tagline: text('tagline'),
+  overview: text('overview'),
+  runtimeMin: integer('runtime_min'),
+  genres: text('genres').notNull().default('[]'),
+  rating: real('rating'),
+  votes: integer('votes'),
+  /** Provider-relative image paths are kept so artwork that failed to download can be fetched later. */
+  posterPath: text('poster_path'),
+  posterFile: text('poster_file'),
+  backdropPath: text('backdrop_path'),
+  backdropFile: text('backdrop_file'),
+  castJson: text('cast_json').notNull().default('[]'),
+  imdbId: text('imdb_id'),
+  status: text('status'),
+  fetchedAt: text('fetched_at').notNull(),
+})
+
+export const episodeMetadata = sqliteTable(
+  'episode_metadata',
+  {
+    titleKey: text('title_key').notNull(),
+    season: integer('season').notNull(),
+    episode: integer('episode').notNull(),
+    name: text('name'),
+    overview: text('overview'),
+    airDate: text('air_date'),
+    runtimeMin: integer('runtime_min'),
+    stillPath: text('still_path'),
+    stillFile: text('still_file'),
+  },
+  (t) => [primaryKey({ columns: [t.titleKey, t.season, t.episode] })],
 )

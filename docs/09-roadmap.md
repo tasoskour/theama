@@ -20,7 +20,7 @@ flowchart LR
 | **Media folders** (pulled forward from Phase 2): add/remove folders with the native picker, type per folder (Movies/Series/My Videos/Auto), subfolders, enable/pause, per-folder online/offline status (volume-aware), duplicate detection; no scanning yet | ✅ |
 | UI shell: sidebar / bottom nav / app bar, 6 section pages with empty states, themes, EN/ΕΛ, settings, **Service page**, **Log history**, recovery screen | ✅ |
 | Logo + icons (SVG masters → PNG/ICO) | ✅ |
-| Tests: 277 unit/integration + 11 Electron e2e (Phases 1–3) | ✅ |
+| Tests: 329 unit/integration + 12 Electron e2e (Phases 1–4) | ✅ |
 
 **Acceptance (brief):** Theama opens as a desktop app, talks to the backend, shows a functional shell — ✅ (e2e). **Added:** service manageable from the UI, logs browsable, recovery when the service is down — ✅.
 
@@ -40,7 +40,11 @@ Original scope:
 `MediaPosterCard`, rails with keyboard model, details pages, FTS5 search + suggestions + recents, filters/sort in URL, navigation history with scroll/focus restoration, virtualised grids, locally generated thumbnails (FFmpeg frame grab) as artwork fallback, availability variant of cards.
 *Acceptance:* pleasant and fast on a few thousand titles using local artwork only. *Depends on:* 2.
 
-## Phase 4 — Metadata
+## Phase 4 — Metadata ✅ (first slice delivered)
+Delivered: provider interface + TMDB adapter with spacing, retry/backoff/jitter, circuit breaker; matcher with thresholds and margin; automatic background identification (key set, scan finished, language changed, periodic); artwork cache served by the backend; titles, overview, tagline, genres, cast, runtime, rating with provider name, episode names/overviews/stills; per-field English fallback; manual identification dialog with locking, refresh, clear, unlock; Settings → Metadata; Greek-aware search over provider titles. Verified with a fake TMDB server (automated) and the real service's error shape; **not yet run with a real key.**
+Not yet: local NFO provider, crew and person pages, runtime/sibling scoring signals, movie⇄series reclassification, collections metadata, refresh-all and scheduled refresh of old data.
+
+Original scope:
 Provider abstraction + TMDB adapter, matcher (07), artwork cache, cast/crew/genres/ratings with provenance, manual identification dialog, match locking, refresh. *Acceptance:* recognised titles are rich; unmatched files stay manageable. *Depends on:* 2 (3 for UI).
 
 ## Phase 5 — Series & collections

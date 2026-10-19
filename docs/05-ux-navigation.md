@@ -42,7 +42,7 @@ Implemented: sidebar, bottom navigation, app bar, settings layout, recovery scre
 
 **Collections** — official / sequel chain / universe / user, three orderings (release, story where curated, custom). Missing members shown as clearly labelled non-playable entries.
 
-**Settings** — General (language, theme, log retention) *built* · Library · Metadata · Playback · File organization (placeholders, clearly marked "coming in a later release") · **Advanced → Service / Log history / About** *built*.
+**Settings** — General (language, theme, log retention) *built* · Library *built* · **Metadata** *built* (TMDB key, language, progress, what is sent) · Playback · File organization (placeholders, clearly marked "coming in a later release") · **Advanced → Service / Log history / About** *built*.
 
 **Service & logs (built)** — Service: state chip, host kind, account, pid, API reachability, Start/Stop/Restart, Install/Repair/Uninstall with an account chooser and an elevation notice, start/stop/crash history. Logs: search, minimum level, source, time range, live tail switch, copy, open folder, virtualised list with entry detail dialog, "load older".
 
@@ -61,6 +61,8 @@ Global shortcuts (implemented in `useGlobalShortcuts`):
 | `Tab` / `Shift+Tab` | Standard focus order; every control has a visible focus ring (2 px bronze, offset) |
 
 Rails and grids (**built**): each rail or grid is one tab stop; `←/→` move within it, `↑/↓` move between rails keeping the column index, `Enter` opens, `Space` plays when a play action exists. Grids use `←/→/↑/↓`, `Home/End`, `PageUp/PageDown` (Down from a short last row lands on the last card). Returning with Back / Alt+←/ Esc restores the list, scroll position and focused card; opening a page fresh from the sidebar does not (the router tells us which it was). Esc/Backspace from a details page returns to the list. Down from the search box jumps into the first result.
+
+**Identification (built).** Cards show the provider's poster once a title is identified (the generated poster stays until the image has loaded, and if it never does). A small `?` marks titles Theama could not settle; the card's accessible name says *Not identified*. The title page shows a banner for *ambiguous* ("Which one is this?" → **Choose**) and *unmatched* titles, a quiet line for matched ones ("Identified automatically using TMDB", with a *Locked* chip after a manual choice), and an **Identification** menu: *Change match…*, *Refresh details*, *Clear match*, *Unlock*. The **Identify** dialog starts from the name found in the files, searches straight away, and lists poster, title, year, original title and a three-line description per candidate; choosing one locks it. Home shows a dismissible card inviting the user to add a TMDB key while none is set.
 
 Rules: overlays own `Esc`; focus moves into a dialog when it opens and returns to its trigger on close; live regions announce counts and status changes (`aria-live` on log count, empty states).
 

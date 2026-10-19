@@ -1,4 +1,22 @@
-# 07 · Metadata providers and matching (Phase 4) — **Designed**
+# 07 · Metadata providers and matching (Phase 4) — **Built (first slice)**
+
+## 0. What is built, and where it differs from the design below
+
+Built and tested: the provider interface and the **TMDB adapter**, shared request infrastructure (spacing, retry with exponential backoff and jitter, `Retry-After`, circuit breaker, cancel on shutdown), the **matcher**, the **artwork cache**, metadata with per-field English fallback, **manual identification with locking**, refresh, and the UI for all of it.
+
+Differences from the design, deliberately taken for the first slice:
+
+| Design | Built | Why / what is next |
+|---|---|---|
+| `media_title` table; matches attached to titles | Matches and provider data are keyed by `title_key` (the grouping key of Phase 3) in `title_match`, `title_metadata`, `episode_metadata` | The grouping already identifies "one card"; a `media_title` table can be introduced later by migrating these keys, without losing rows. |
+| Score uses title, year, kind, runtime, popularity, sibling consistency | Search-time signals only: **title (0.50), year (0.20), popularity (0.05)**; the sum is divided by the weight actually available, so a missing year does not punish a candidate | Search results carry no runtime, and kind is a hard filter of the search. Runtime and sibling signals can be added when details are fetched for the top candidates. |
+| Token-bucket rate limit | Minimum spacing of 40 ms between calls (≈ 25 req/s, under TMDB's limit) | Simpler and equally safe for one user. |
+| Credentials in DPAPI-backed storage | One file in the data folder's `secrets` directory (never in the database, never returned by the API, never logged) | Node has no built-in DPAPI; the file shares the trust boundary of the API token next to it. See `docs/11-risks.md`. |
+| Local NFO provider | Not built | Priority today: user edit/lock → provider → file name. |
+| "This is a series / movie" toggle in the dialog | Not built: the kind follows the files (episodes → series, otherwise movie) | Reclassifying changes the grouping key; planned with Phase 5. |
+| Expected-but-absent episode classification | Not built; episode names and details are shown for files that exist | Phase 5. |
+
+How an automatic decision is made (as built): search with the year; if the result is not a clear match and a year was given, search again without it and judge the combined list. **Matched** needs a score ≥ 0.85, a lead of ≥ 0.10 over the runner-up, and (when both sides have a year) a year within ±2. A score of 0.55–0.85, or a close runner-up, is **ambiguous** (the top five are stored with cached thumbnails and offered to the user). Below 0.55 is **unmatched**, retried after seven days. Personal videos are never looked up, and nothing but the guessed title text and year is sent to TMDB.
 
 ## 1. Provider abstraction
 

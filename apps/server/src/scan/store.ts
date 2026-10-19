@@ -124,7 +124,7 @@ export class MediaFileRepo {
     this.insertStmt = raw.prepare(
       `INSERT INTO media_file (${INSERT_COLUMNS.join(',')}) VALUES (${INSERT_COLUMNS.map(() => '?').join(',')})`,
     )
-    this.indexStmt = raw.prepare('INSERT INTO media_file_fts(rowid, guessed_title, episode_title, path_text) VALUES (?, ?, ?, ?)')
+    this.indexStmt = raw.prepare('INSERT INTO media_file_fts(rowid, guessed_title, episode_title, path_text, meta_text) VALUES (?, ?, ?, ?, ?)')
     this.unindexStmt = raw.prepare('DELETE FROM media_file_fts WHERE rowid = ?')
   }
 
@@ -133,11 +133,26 @@ export class MediaFileRepo {
 
   /** (Re)writes the search-index entry of one file from its current columns. Call inside a transaction. */
   private reindex(id: number): void {
-    const r = this.raw.prepare('SELECT guessed_title, episode_title, path FROM media_file WHERE id = ?').get(id) as
-      | { guessed_title: string; episode_title: string | null; path: string }
+    const r = this.raw
+      .prepare(
+        `SELECT f.guessed_title, f.episode_title, f.path, m.title AS meta_title, m.original_title AS meta_original
+         FROM media_file f LEFT JOIN title_metadata m ON m.title_key = f.title_key WHERE f.id = ?`,
+      )
+      .get(id) as
+      | { guessed_title: string; episode_title: string | null; path: string; meta_title: string | null; meta_original: string | null }
       | undefined
     this.unindexStmt.run(id)
-    if (r) this.indexStmt.run(id, normaliseTitle(r.guessed_title), normaliseTitle(r.episode_title ?? ''), normaliseTitle(r.path))
+    if (r) {
+      const meta = [r.meta_title, r.meta_original].filter(Boolean).join(' ')
+      this.indexStmt.run(id, normaliseTitle(r.guessed_title), normaliseTitle(r.episode_title ?? ''), normaliseTitle(r.path), normaliseTitle(meta))
+    }
+  }
+
+  /** Refreshes the search entries of every file of a title, e.g. after the provider's names arrive. */
+  reindexTitle(titleKey: string): void {
+    this.raw.transaction(() => {
+      for (const { id } of this.raw.prepare('SELECT id FROM media_file WHERE title_key = ?').all(titleKey) as { id: number }[]) this.reindex(id)
+    })()
   }
 
   /**
@@ -184,7 +199,7 @@ export class MediaFileRepo {
         if (keys.length === 0) continue
         const set = keys.map((k) => `${COLUMN_SQL[k]} = ?`).join(', ')
         this.raw.prepare(`UPDATE media_file SET ${set} WHERE id = ?`).run(...keys.map((k) => patch[k] ?? null), id)
-        if (keys.some((k) => k === 'guessedTitle' || k === 'episodeTitle' || k === 'path')) this.reindex(id)
+        if (keys.some((k) => k === 'guessedTitle' || k === 'episodeTitle' || k === 'path' || k === 'titleKey')) this.reindex(id)
       }
     })()
   }

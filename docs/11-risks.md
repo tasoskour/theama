@@ -19,6 +19,10 @@ No external player exposes resume position uniformly. VLC (HTTP/RC interface), m
 - **IMDb** has no unrestricted free API and forbids scraping; its datasets are licensed for personal, non-commercial use. Theama does not scrape, and does not show IMDb ratings unless sourced from a licensed product the user supplies. Ratings are always labelled by their real provider.
 - **TMDB** is free for non-commercial use with attribution; the API key is the user's own, rate limits are respected, and attribution appears in About. If Theama is ever distributed commercially, TMDB's commercial terms apply.
 - Provider outages, shutdowns or term changes are contained by the adapter interface and the offline cache.
+- **Attribution:** Settings → Metadata and every identified title page carry TMDB's required statement ("This product uses the TMDB API but is not endorsed or certified by TMDB."). TMDB's *logo* is not bundled (it is their asset and has usage rules); decide with the installer phase whether to add it per their guidelines.
+- **Key storage:** the key is a file in `<data>\secrets\tmdb.key`, readable by whoever can read the data folder (the service account and administrators), never in the database, never returned by the API, never logged (a test asserts it). It is not DPAPI-encrypted. A stolen key can only read public movie data, and the user can revoke it at themoviedb.org.
+- **Not yet exercised against the live service:** the adapter follows TMDB's documented v3 shapes and is covered by a faithful fake; the first run with a real key may surface a field we did not anticipate. Responses are parsed leniently and any unexpected shape is reported as "provider unavailable" rather than crashing or storing garbage.
+- **What leaves the PC:** only the guessed title text and year (and the id of an identified title) go to TMDB; images are fetched by the backend, so the UI never contacts TMDB's CDN directly. Personal videos are never sent.
 
 ## Scanning and FFprobe
 | Risk | Detail | Mitigation |

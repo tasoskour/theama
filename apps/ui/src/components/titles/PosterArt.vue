@@ -1,10 +1,21 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { mdiMovieOpenOutline, mdiTelevisionClassic, mdiVideoOutline } from '@mdi/js'
 import type { TitleKind } from '@theama/contracts'
 import { gradientFor, monogram, paletteFor, titleScale } from '@/utils/artwork'
 
-const props = defineProps<{ seed: string; title: string; year?: number | null; kind: TitleKind }>()
+const props = defineProps<{ seed: string; title: string; year?: number | null; kind: TitleKind; imageUrl?: string | null }>()
+
+/** Real artwork replaces the generated poster once it has loaded; until then (or if it fails) the generated one stays. */
+const loaded = ref(false)
+const failed = ref(false)
+watch(
+  () => props.imageUrl,
+  () => {
+    loaded.value = false
+    failed.value = false
+  },
+)
 
 const palette = computed(() => paletteFor(props.seed))
 const background = computed(() => gradientFor(props.seed))
@@ -16,9 +27,20 @@ const scale = computed(() => titleScale(props.title))
 <template>
   <!-- Decorative: the accessible name lives on the card or page that contains it. -->
   <div class="art" :style="{ background, '--accent': palette.accent, '--scale': scale }" aria-hidden="true">
-    <svg class="art__icon" viewBox="0 0 24 24" width="18" height="18"><path :d="icon" fill="currentColor" /></svg>
-    <div class="art__mono th-display">{{ letters }}</div>
-    <div class="art__text">
+    <img
+      v-if="imageUrl && !failed"
+      class="art__img"
+      :class="{ 'art__img--ready': loaded }"
+      :src="imageUrl"
+      alt=""
+      loading="lazy"
+      decoding="async"
+      @load="loaded = true"
+      @error="failed = true"
+    />
+    <svg v-show="!loaded" class="art__icon" viewBox="0 0 24 24" width="18" height="18"><path :d="icon" fill="currentColor" /></svg>
+    <div v-show="!loaded" class="art__mono th-display">{{ letters }}</div>
+    <div v-show="!loaded" class="art__text">
       <span class="art__rule" />
       <span class="art__title th-display">{{ title }}</span>
       <span v-if="year" class="art__year">{{ year }}</span>
@@ -52,6 +74,18 @@ const scale = computed(() => titleScale(props.title))
     radial-gradient(120% 80% at 20% 0%, rgba(255, 255, 255, 0.1), transparent 55%),
     linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent 55%);
   pointer-events: none;
+}
+.art__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--th-motion);
+}
+.art__img--ready {
+  opacity: 1;
 }
 .art__icon {
   position: absolute;

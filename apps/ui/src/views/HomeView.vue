@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { mdiHomeOutline } from '@mdi/js'
+import MetadataNudge from '@/components/MetadataNudge.vue'
 import SectionPage from '@/components/SectionPage.vue'
 import PosterRail from '@/components/titles/PosterRail.vue'
 import { useTitles } from '@/composables/useTitles'
@@ -17,6 +18,7 @@ const hasContent = computed(() => recent.total.value > 0)
 
 <template>
   <SectionPage section-key="home" :icon="mdiHomeOutline" title-key="nav.home" :has-content="hasContent">
+    <MetadataNudge />
     <PosterRail v-if="recent.items.value.length" :heading="$t('home.recent')" :titles="recent.items.value" />
     <PosterRail
       v-if="movies.total.value > 0"

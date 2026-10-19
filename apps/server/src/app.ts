@@ -1,3 +1,4 @@
+import { createReadStream, existsSync } from 'node:fs'
 import Fastify, { LogController } from 'fastify'
 import cors from '@fastify/cors'
 import websocket from '@fastify/websocket'
@@ -7,6 +8,10 @@ import {
   API_PREFIX,
   AppSettingsPatch,
   CreateSourceRequest,
+  IdentifyRequest,
+  MetadataSearchQuery,
+  SetCredentialsRequest,
+  TitleKeyRequest,
   LogQuery,
   MediaFileQuery,
   TitleQuery,
@@ -14,6 +19,8 @@ import {
   type LibrarySource,
   type LibrarySourceList,
   type LibraryStatus,
+  type MetadataSearchResult,
+  type MetadataStatus,
   type MediaFilePage,
   type TitleDetail,
   type TitlePage,
@@ -32,6 +39,10 @@ import type { LogHub } from './log/hub'
 import type { SettingsRepo } from './repo/settings'
 import type { ServiceEventRepo } from './repo/service-events'
 import type { EventsHub } from './events-hub'
+import { ARTWORK_FILE, artworkContentType, type ArtworkCache } from './metadata/artwork'
+import type { CredentialStore } from './metadata/credentials'
+import { MetadataProblem, type MetadataManager } from './metadata/manager'
+import { ProviderError, type MetadataProvider } from './metadata/provider'
 import type { AutoScanner } from './scan/auto'
 import type { ScanManager } from './scan/manager'
 import type { MediaFileRepo, ScanJobRepo } from './scan/store'
@@ -52,6 +63,10 @@ export interface AppDeps {
   jobs: ScanJobRepo
   scans: ScanManager
   auto: AutoScanner
+  metadata: MetadataManager
+  credentials: CredentialStore
+  provider: MetadataProvider
+  artwork: ArtworkCache
   events: EventsHub
   token: string
   startedAt: Date
@@ -63,7 +78,7 @@ function apiError(code: string, message: string, details?: unknown): ApiError {
 }
 
 export async function buildApp(deps: AppDeps) {
-  const { config, logger, logHub, settings, serviceEvents, library, files, titles, jobs, scans, auto, events, token, startedAt } = deps
+  const { config, logger, logHub, settings, serviceEvents, library, files, titles, jobs, scans, auto, metadata, credentials, provider, artwork, events, token, startedAt } = deps
   const app = Fastify({
     loggerInstance: logger,
     logController: new LogController({ disableRequestLogging: true }),
@@ -132,6 +147,8 @@ export async function buildApp(deps: AppDeps) {
     const patch = AppSettingsPatch.parse(req.body ?? {})
     const updated = settings.update(patch)
     if (patch.logRetentionDays !== undefined) pruneLogs(config.logsDir, updated.logRetentionDays)
+    // Titles fetched in another language are refreshed in the background.
+    if (patch.metadataLanguage !== undefined) metadata.kick()
     events.broadcast({ type: 'settings.changed', settings: updated })
     return updated
   })
@@ -215,6 +232,115 @@ export async function buildApp(deps: AppDeps) {
     const detail = titles.detail(key)
     if (!detail) throw new ApiProblem('not_found', 'No such title', 404)
     return detail
+  })
+
+  // --- metadata ----------------------------------------------------------
+
+  /** Maps the manager's failures to HTTP; a rejected provider key is a 400, never 401 (that means our own API token). */
+  function metadataFailure(err: unknown): never {
+    if (err instanceof MetadataProblem) {
+      const status = { not_found: 404, invalid_key: 400, no_key: 409, unavailable: 503 }[err.code]
+      const code = err.code === 'unavailable' ? 'provider_unavailable' : err.code
+      throw new ApiProblem(code, err.message, status)
+    }
+    throw err
+  }
+
+  const findTitle = (key: string, kind: 'movie' | 'series') => {
+    const detail = titles.detail(key)
+    if (!detail) throw new ApiProblem('not_found', 'No such title', 404)
+    if (detail.summary.kind !== kind) {
+      throw new ApiProblem('wrong_kind', `This title is a ${detail.summary.kind === 'video' ? 'personal video' : detail.summary.kind}`, 400)
+    }
+    return detail
+  }
+
+  app.get(`${API_PREFIX}/metadata/status`, async (): Promise<MetadataStatus> => metadata.status())
+
+  app.put(`${API_PREFIX}/metadata/credentials`, async (req): Promise<MetadataStatus> => {
+    const { tmdbApiKey } = SetCredentialsRequest.parse(req.body ?? {})
+    const previous = credentials.get()
+    credentials.set(tmdbApiKey)
+    if (tmdbApiKey !== null) {
+      provider.reset()
+      try {
+        await provider.validate()
+      } catch (err) {
+        if (err instanceof ProviderError && err.kind === 'auth') {
+          credentials.set(previous) // keep what worked
+          throw new ApiProblem('invalid_key', 'TMDB did not accept this key', 400)
+        }
+        // Offline or TMDB down: keep the key and let the background pass report the state.
+        logger.warn({ err }, 'Could not check the TMDB key right now; saved it anyway')
+      }
+    }
+    logger.info({ configured: tmdbApiKey !== null }, 'Metadata credentials changed')
+    metadata.credentialsChanged()
+    return metadata.status()
+  })
+
+  app.post(`${API_PREFIX}/metadata/retry`, async (): Promise<MetadataStatus> => {
+    metadata.retryNow()
+    return metadata.status()
+  })
+
+  app.get(`${API_PREFIX}/metadata/search`, async (req): Promise<MetadataSearchResult> => {
+    const q = MetadataSearchQuery.parse(req.query)
+    try {
+      return { items: await metadata.search(q.kind, q.q, q.year) }
+    } catch (err) {
+      return metadataFailure(err)
+    }
+  })
+
+  app.post(`${API_PREFIX}/library/title/identify`, async (req) => {
+    const body = IdentifyRequest.parse(req.body ?? {})
+    findTitle(body.key, body.kind)
+    try {
+      await metadata.identify(body.key, body.kind, body.externalId)
+    } catch (err) {
+      return metadataFailure(err)
+    }
+    logger.info({ key: body.key, externalId: body.externalId }, 'Title identified by the user')
+    return titles.detail(body.key)
+  })
+
+  app.post(`${API_PREFIX}/library/title/refresh`, async (req) => {
+    const { key } = TitleKeyRequest.parse(req.body ?? {})
+    if (!titles.detail(key)) throw new ApiProblem('not_found', 'No such title', 404)
+    try {
+      await metadata.refresh(key)
+    } catch (err) {
+      return metadataFailure(err)
+    }
+    return titles.detail(key)
+  })
+
+  app.post(`${API_PREFIX}/library/title/clear-match`, async (req) => {
+    const { key } = TitleKeyRequest.parse(req.body ?? {})
+    const detail = titles.detail(key)
+    if (!detail) throw new ApiProblem('not_found', 'No such title', 404)
+    if (detail.summary.kind === 'video') throw new ApiProblem('wrong_kind', 'Personal videos are never identified', 400)
+    metadata.clearMatch(key, detail.summary.kind)
+    return titles.detail(key)
+  })
+
+  app.post(`${API_PREFIX}/library/title/unlock`, async (req) => {
+    const { key } = TitleKeyRequest.parse(req.body ?? {})
+    if (!titles.detail(key)) throw new ApiProblem('not_found', 'No such title', 404)
+    metadata.unlock(key)
+    return titles.detail(key)
+  })
+
+  app.get(`${API_PREFIX}/artwork/:file`, async (req, reply) => {
+    const { file } = z.object({ file: z.string().regex(ARTWORK_FILE) }).parse(req.params)
+    const path = artwork.pathOf(file)
+    if (!path || !existsSync(path)) throw new ApiProblem('not_found', 'No such image', 404)
+    return reply
+      .header('Cache-Control', 'private, max-age=31536000, immutable')
+      .header('X-Content-Type-Options', 'nosniff')
+      .type(artworkContentType(file))
+      .send(createReadStream(path))
   })
 
   app.get(`${API_PREFIX}/library/status`, async (): Promise<LibraryStatus> => scans.status())

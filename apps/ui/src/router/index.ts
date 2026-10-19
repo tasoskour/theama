@@ -37,8 +37,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'metadata',
         name: 'settings-metadata',
-        component: () => import('@/views/settings/PlaceholderSettings.vue'),
-        props: { sectionKey: 'metadata' },
+        component: () => import('@/views/settings/MetadataSettings.vue'),
       },
       {
         path: 'playback',

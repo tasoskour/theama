@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { z } from 'zod'
 import { HostMode } from '@theama/contracts'
 import { defaultDataDir, resolveDataPaths } from '@theama/logs'
@@ -9,6 +10,9 @@ const EnvSchema = z.object({
   THEAMA_LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
   /** Extra browser origins allowed to call the API (dev servers). Comma separated. */
   THEAMA_EXTRA_ORIGINS: z.string().optional(),
+  /** Point the metadata provider somewhere else (tests, a local mirror). Defaults to TMDB itself. */
+  THEAMA_TMDB_API_BASE: z.string().url().optional(),
+  THEAMA_TMDB_IMAGE_BASE: z.string().url().optional(),
 })
 
 export interface ServerConfig {
@@ -17,6 +21,10 @@ export interface ServerConfig {
   cacheDir: string
   logsDir: string
   secretsDir: string
+  artworkDir: string
+  tmdbKeyFile: string
+  tmdbApiBase?: string
+  tmdbImageBase?: string
   tokenFile: string
   runtimeFile: string
   port: number
@@ -37,6 +45,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     .filter(Boolean)
   return {
     ...paths,
+    artworkDir: join(paths.cacheDir, 'artwork'),
+    tmdbKeyFile: join(paths.secretsDir, 'tmdb.key'),
+    ...(parsed.THEAMA_TMDB_API_BASE ? { tmdbApiBase: parsed.THEAMA_TMDB_API_BASE } : {}),
+    ...(parsed.THEAMA_TMDB_IMAGE_BASE ? { tmdbImageBase: parsed.THEAMA_TMDB_IMAGE_BASE } : {}),
     port: parsed.THEAMA_PORT,
     hostMode: parsed.THEAMA_HOST_MODE,
     logLevel: parsed.THEAMA_LOG_LEVEL,

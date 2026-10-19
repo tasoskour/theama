@@ -1,6 +1,6 @@
 # ADR-0009 — Provider abstraction; TMDB primary; no IMDb scraping
 
-**Status:** accepted · 2026-10-19 (implemented in Phase 4)
+**Status:** accepted · 2026-10-19 · implemented 2026-10-20 (first slice; see `docs/07-metadata-matching.md` §0 for what differs from the design)
 
 **Context.** IMDb has no unrestricted free API and prohibits scraping; ratings from one provider must not be presented as another's; the app must work offline.
 

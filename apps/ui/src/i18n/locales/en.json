@@ -28,7 +28,9 @@
     "all": "All",
     "yes": "Yes",
     "no": "No",
-    "comingSoon": "Coming in a later release"
+    "comingSoon": "Coming in a later release",
+    "save": "Save",
+    "search": "Search"
   },
   "connection": {
     "connected": "Connected",
@@ -250,7 +252,6 @@
       "saved": "Settings saved"
     },
     "placeholder": {
-      "metadata": "Metadata providers, preferred language, artwork and cache controls will be configured here.",
       "playback": "Default player, external players and subtitle preferences will be configured here.",
       "files": "Filename templates and bulk rename previews will be configured here."
     },
@@ -382,5 +383,92 @@
     "generic": "Something went wrong.",
     "network": "Could not reach the Theama backend.",
     "unauthorized": "The backend rejected this app's credentials."
+  },
+  "match": {
+    "notIdentified": "Not identified",
+    "notIdentifiedHint": "Theama could not settle what this is. Open it to choose.",
+    "section": "Identification",
+    "ambiguous": "Which one is this?",
+    "ambiguousHint": "Theama found possible matches but was not sure enough to pick one for you.",
+    "choose": "Choose",
+    "unmatched": "Not identified",
+    "unmatchedHint": "Nothing close enough was found. You can search by another name.",
+    "clearedHint": "You cleared the match. Theama will leave this title alone until you pick something.",
+    "search": "Search…",
+    "byYou": "Identified by you using {source}",
+    "automatic": "Identified automatically using {source}",
+    "locked": "Locked",
+    "noKey": "Add a free TMDB key to get posters, summaries and cast.",
+    "openSettings": "Open metadata settings",
+    "pending": "Waiting to be looked up…",
+    "manage": "Identification",
+    "change": "Change match…",
+    "refresh": "Refresh details",
+    "clear": "Clear match",
+    "unlock": "Unlock",
+    "unlockHint": "Let Theama reconsider this automatically",
+    "cast": "Cast",
+    "aired": "First aired {date}",
+    "rating": "{source} {value} · {votes} votes",
+    "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
+    "errors": {
+      "no_key": "Add a TMDB key in Settings first.",
+      "invalid_key": "TMDB rejected the saved key.",
+      "provider_unavailable": "TMDB cannot be reached right now. Try again in a moment."
+    },
+    "dialog": {
+      "title": "Identify this title",
+      "subtitle": "Theama read “{name}” from your files.",
+      "searchSeries": "Search series",
+      "searchMovie": "Search movies",
+      "none": "No results. Try a shorter or different name.",
+      "results": "Search results",
+      "noOverview": "No description available.",
+      "pick": "This one",
+      "choose": "Use {name} {year}",
+      "lockNote": "Your choice is locked: rescans and refreshes will not change it."
+    }
+  },
+  "metadata": {
+    "intro": "Theama can fetch posters, summaries, cast and episode names from TMDB. It works without this; titles then show the generated artwork and what is in the file names.",
+    "tmdb": "TMDB",
+    "state": {
+      "no_key": "No key",
+      "idle": "Ready",
+      "working": "Looking up titles…",
+      "unavailable": "Not reachable",
+      "invalid_key": "Key rejected"
+    },
+    "keyLabel": "TMDB API key or read access token",
+    "keyHint": "Either kind works. It is checked with TMDB before it is kept.",
+    "howToGet": "To get one for free: create an account at themoviedb.org, then open Settings → API in your account.",
+    "keySaved": "A key is saved. It is stored on this PC only and is never shown again.",
+    "replace": "Replace",
+    "remove": "Remove",
+    "saved": "Key saved",
+    "removed": "Key removed",
+    "keyRejected": "TMDB did not accept this key.",
+    "unavailable": "TMDB cannot be reached. Your library keeps working; Theama will try again.",
+    "retry": "Try now",
+    "rejected": "TMDB rejected the saved key. Replace it to continue.",
+    "progress": "Progress",
+    "lookingUp": "Looking up “{title}”",
+    "counts": {
+      "matched": "Identified",
+      "ambiguous": "Need your choice",
+      "unmatched": "Not found",
+      "pending": "Waiting"
+    },
+    "countsHint": "Personal videos are never looked up.",
+    "language": "Metadata language",
+    "languageHint": "Titles, summaries and genres are requested in this language. Anything TMDB has no translation for is shown in English. This is separate from the language of the app.",
+    "privacy": "What is sent to TMDB",
+    "privacyText": "Only the title text and year Theama guessed (for example “Severance”, 2022) and the id of a title you identified. File names, folder paths and anything about personal videos stay on this PC.",
+    "nudge": {
+      "title": "Make your library look the part",
+      "body": "Add a free TMDB key to get posters, summaries and cast.",
+      "action": "Set up",
+      "dismiss": "Not now"
+    }
   }
 }

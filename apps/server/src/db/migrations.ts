@@ -103,6 +103,77 @@ export const MIGRATIONS: readonly string[] = [
     DELETE FROM media_file_fts WHERE rowid = old.id;
   END;
   `,
+  /* 4 — metadata: matches, provider data, episode details; search also covers the provider's titles */
+  `
+  -- Which real-world title a group of files (title_key) is, and how sure we are. Keyed by title_key so it
+  -- survives rescans, renames and a missing drive; a locked row is never replaced automatically.
+  CREATE TABLE title_match (
+    title_key    TEXT PRIMARY KEY,
+    kind         TEXT NOT NULL CHECK (kind IN ('movie','series')),
+    state        TEXT NOT NULL CHECK (state IN ('matched','ambiguous','unmatched')),
+    provider     TEXT,
+    external_id  TEXT,
+    score        REAL,
+    signals      TEXT,
+    candidates   TEXT,
+    decided_by   TEXT NOT NULL CHECK (decided_by IN ('auto','user')),
+    locked       INTEGER NOT NULL DEFAULT 0,
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    attempted_at TEXT NOT NULL,
+    updated_at   TEXT NOT NULL
+  );
+  CREATE INDEX idx_title_match_state ON title_match(state);
+
+  -- What the provider told us, kept apart from the user's files. Ratings keep their source.
+  CREATE TABLE title_metadata (
+    title_key      TEXT PRIMARY KEY,
+    provider       TEXT NOT NULL,
+    external_id    TEXT NOT NULL,
+    language       TEXT NOT NULL,
+    title          TEXT NOT NULL,
+    original_title TEXT,
+    year           INTEGER,
+    tagline        TEXT,
+    overview       TEXT,
+    runtime_min    INTEGER,
+    genres         TEXT NOT NULL DEFAULT '[]',
+    rating         REAL,
+    votes          INTEGER,
+    poster_path    TEXT,
+    poster_file    TEXT,
+    backdrop_path  TEXT,
+    backdrop_file  TEXT,
+    cast_json      TEXT NOT NULL DEFAULT '[]',
+    imdb_id        TEXT,
+    status         TEXT,
+    fetched_at     TEXT NOT NULL
+  );
+
+  CREATE TABLE episode_metadata (
+    title_key   TEXT NOT NULL,
+    season      INTEGER NOT NULL,
+    episode     INTEGER NOT NULL,
+    name        TEXT,
+    overview    TEXT,
+    air_date    TEXT,
+    runtime_min INTEGER,
+    still_path  TEXT,
+    still_file  TEXT,
+    PRIMARY KEY (title_key, season, episode)
+  );
+
+  -- The search index gains the provider's titles (translated and original). Recreated empty; the server
+  -- notices the row-count mismatch on start and refills it.
+  DROP TRIGGER media_file_fts_delete;
+  DROP TABLE media_file_fts;
+  CREATE VIRTUAL TABLE media_file_fts USING fts5(
+    guessed_title, episode_title, path_text, meta_text,
+    content='', contentless_delete=1, tokenize='unicode61 remove_diacritics 2'
+  );
+  CREATE TRIGGER media_file_fts_delete AFTER DELETE ON media_file BEGIN
+    DELETE FROM media_file_fts WHERE rowid = old.id;
+  END;
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

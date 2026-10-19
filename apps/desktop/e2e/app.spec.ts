@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { rename, rm } from 'node:fs/promises'
+import { readdir, rename, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { GOOD_KEY, startFakeTmdb, type FakeTmdb } from '../../../tools/fake-tmdb/server.mjs'
 
 /**
  * Smoke test of the whole stack: Electron shell -> app:// UI -> auth header
@@ -15,8 +16,11 @@ let dataDir: string
 let userDataDir: string
 let mediaRoot: string
 let mediaFolder: string
+let fake: FakeTmdb
 
 test.beforeAll(async () => {
+  // TMDB is replaced by a local stand-in, so the test needs no key, no network and cannot hit the real service.
+  fake = await startFakeTmdb()
   dataDir = mkdtempSync(join(tmpdir(), 'theama-e2e-'))
   // Own Chromium profile: isolates the test from a Theama the developer may have open (single-instance lock, caches).
   userDataDir = mkdtempSync(join(tmpdir(), 'theama-e2e-profile-'))
@@ -26,7 +30,7 @@ test.beforeAll(async () => {
   mkdirSync(mediaFolder)
   writeFileSync(join(mediaFolder, 'Interstellar (2014).mkv'), 'x')
   // VS Code (and some CI shells) export ELECTRON_RUN_AS_NODE, which turns electron.exe into plain Node.
-  const env: NodeJS.ProcessEnv = { ...process.env, THEAMA_DATA_DIR: dataDir, THEAMA_PORT: '0', THEAMA_CONTROLLER: 'dev', THEAMA_TEST_PICK_FOLDER: mediaFolder, THEAMA_FFPROBE: 'none' }
+  const env: NodeJS.ProcessEnv = { ...process.env, THEAMA_DATA_DIR: dataDir, THEAMA_PORT: '0', THEAMA_CONTROLLER: 'dev', THEAMA_TEST_PICK_FOLDER: mediaFolder, THEAMA_FFPROBE: 'none', THEAMA_TMDB_API_BASE: fake.url, THEAMA_TMDB_IMAGE_BASE: fake.imageUrl }
   delete env.ELECTRON_RUN_AS_NODE
   app = await electron.launch({
     args: ['.', `--user-data-dir=${userDataDir}`],
@@ -39,6 +43,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await app.close()
+  await fake.close()
   rmSync(dataDir, { recursive: true, force: true })
   await rm(userDataDir, { recursive: true, force: true }).catch(() => undefined)
   await rm(mediaRoot, { recursive: true, force: true }).catch(() => undefined)
@@ -171,6 +176,82 @@ test('adds a media folder (Greek name), shows it online, changes its type and re
   } finally {
     // mediaRoot is removed in afterAll
   }
+})
+
+test('identifies titles with TMDB: key set-up, posters, details, and choosing between look-alikes', async () => {
+  // The previous test removed the folder from Theama, not from disk: start again with different files.
+  for (const f of await readdir(mediaFolder)) await rm(join(mediaFolder, f), { force: true })
+  for (const f of ['Interstellar (2014).mkv', 'Doctor.Who.S01E01.mkv', 'Severance.S01E01.mkv']) writeFileSync(join(mediaFolder, f), 'x')
+
+  const here = page.url().split('#')[0]
+  await page.goto(here + '#/settings/library')
+  await page.getByRole('button', { name: 'Add folder' }).first().click()
+  const add = page.getByRole('dialog', { name: 'Add a media folder' })
+  await add.getByRole('button', { name: 'Auto-detect' }).click()
+  await add.getByRole('button', { name: 'Add folder' }).click()
+  await expect(page.getByText('Folder added', { exact: true })).toBeVisible()
+
+  // Without a key nothing is looked up, and Home says how to improve things.
+  await nav('Home').click()
+  await expect(page.getByText('Make your library look the part')).toBeVisible({ timeout: 30_000 })
+  expect(fake.requests).toHaveLength(0)
+
+  // Settings -> Metadata: a wrong key is refused, the right one is accepted and never shown again.
+  await page.goto(here + '#/settings/metadata')
+  await expect(page.getByRole('heading', { name: 'Metadata', level: 2 })).toBeVisible()
+  const keyBox = page.getByLabel('TMDB API key or read access token')
+  await keyBox.fill('this-is-not-a-valid-key-0000000000')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByText('TMDB did not accept this key.')).toBeVisible()
+  await keyBox.fill(GOOD_KEY)
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByText('A key is saved.')).toBeVisible()
+  await expect(page.getByText(GOOD_KEY)).toHaveCount(0)
+  await expect(page.locator('[data-test="metadata-counts"] > div', { hasText: 'Identified' })).toContainText('2', { timeout: 30_000 })
+  await expect(page.locator('[data-test="metadata-counts"] > div', { hasText: 'Need your choice' })).toContainText('1')
+
+  // The movie card now shows real artwork served by the backend (the shell adds the token to the request).
+  await nav('Movies').click()
+  const film = page.getByRole('link', { name: 'Interstellar, 2014' })
+  await expect(film).toBeVisible()
+  await expect
+    .poll(() => film.locator('img').evaluate((el: HTMLImageElement) => (el.complete ? el.naturalWidth : 0)), { timeout: 30_000 })
+    .toBeGreaterThan(0)
+  await film.click()
+  await expect(page.getByText('A team of explorers travel through a wormhole in space.')).toBeVisible()
+  await expect(page.getByText('TMDB 8.4 · 35,000 votes')).toBeVisible()
+  await expect(page.getByText('Identified automatically using TMDB')).toBeVisible()
+  await expect(page.getByText('Matthew McConaughey')).toBeVisible()
+
+  // A series: provider episode names replace the guess from the file name.
+  await nav('Series').click()
+  await page.getByRole('link', { name: /^Severance/ }).click()
+  await expect(page.getByRole('heading', { name: 'Severance', level: 1 })).toBeVisible()
+  await expect(page.getByText('Good News About Hell').first()).toBeVisible()
+  await expect(page.getByText('Mark leads a team of office workers')).toBeVisible()
+
+  // Two different shows share a name: Theama asks instead of guessing, and the answer is locked.
+  await nav('Series').click()
+  const who = page.getByRole('link', { name: /^Doctor Who.*Not identified/ })
+  await expect(who).toBeVisible()
+  await who.click()
+  await expect(page.getByText('Which one is this?')).toBeVisible()
+  await page.getByRole('button', { name: 'Choose' }).click()
+  const identify = page.getByRole('dialog', { name: 'Identify this title' })
+  await expect(identify.getByRole('listitem')).toHaveCount(2)
+  await identify.getByRole('button', { name: 'Use Doctor Who 2005' }).click()
+  await expect(identify).toBeHidden()
+  await expect(page.getByText('The revived series.')).toBeVisible()
+  await expect(page.getByText('Identified by you using TMDB')).toBeVisible()
+  await expect(page.getByText('Locked', { exact: true })).toBeVisible()
+  await expect(page.getByText('Rose').first()).toBeVisible()
+
+  // Tidy up so the following tests start from an empty library.
+  await page.goto(here + '#/settings/library')
+  const row = page.locator('li.source', { hasText: mediaFolder })
+  await row.getByRole('button', { name: new RegExp('^Remove: ') }).click()
+  await page.getByRole('dialog', { name: 'Remove this folder from Theama?' }).getByRole('button', { name: 'Remove folder' }).click()
+  await expect(page.getByText('No folders yet.')).toBeVisible()
 })
 
 test('keyboard: "/" opens search', async () => {

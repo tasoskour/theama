@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ sectionKey: 'metadata' | 'playback' | 'files' }>()
+defineProps<{ sectionKey: 'playback' | 'files' }>()
 </script>
 
 <template>

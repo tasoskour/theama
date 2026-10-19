@@ -23,6 +23,7 @@ export const useConnectionStore = defineStore('connection', () => {
   const client = shallowRef<ApiClient | null>(null)
   const desktop = ref(getBridge() !== null)
   const everConnected = ref(false)
+  const apiBase = ref<string | null>(null)
   const listeners = new Set<(event: ServerEvent) => void>()
 
   let wsUrl: string | null = null
@@ -62,6 +63,7 @@ export const useConnectionStore = defineStore('connection', () => {
       const endpoint = await resolveEndpoint()
       if (!endpoint.apiBase) throw new Error('No backend endpoint is known yet')
       client.value = new ApiClient(endpoint.apiBase, endpoint.token)
+      apiBase.value = endpoint.apiBase
       wsUrl = endpoint.wsUrl
       await client.value.get('/health', HealthResponse)
     } catch {
@@ -106,5 +108,13 @@ export const useConnectionStore = defineStore('connection', () => {
     void connect()
   }
 
-  return { phase, client, desktop, everConnected, isConnected, start, retryNow, onEvent }
+  /**
+   * Absolute URL for a backend-served file such as cached artwork. The desktop shell attaches the API
+   * token to these requests, so the images need no credentials in the URL.
+   */
+  function assetUrl(path: string | null | undefined): string | null {
+    return path && apiBase.value ? `${apiBase.value}${path}` : null
+  }
+
+  return { phase, client, desktop, everConnected, isConnected, apiBase, assetUrl, start, retryNow, onEvent }
 })

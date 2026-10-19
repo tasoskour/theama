@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { IsoDate } from './common'
 import { MediaFile } from './media'
+import { EpisodeInfo, MatchState, TitleMatch, TitleMetadata } from './metadata'
 
 /** What a card in the library represents. A series is one card for all of its episodes. */
 export const TitleKind = z.enum(['movie', 'series', 'video'])
@@ -24,6 +25,12 @@ export const TitleSummary = z.object({
   /** When the newest file of this title was first seen. */
   addedAt: IsoDate,
   size: z.number(),
+  /** Cached artwork served by the backend; null until the title is identified. */
+  posterUrl: z.string().nullable(),
+  /** Rating from the metadata provider (0–10), if known. Shown labelled by provider, never as IMDb. */
+  rating: z.number().nullable(),
+  /** null for personal videos, which are never identified. */
+  matchState: MatchState.nullable(),
 })
 export type TitleSummary = z.infer<typeof TitleSummary>
 
@@ -49,5 +56,9 @@ export const TitleDetail = z.object({
   summary: TitleSummary,
   /** Every file of the title, episodes ordered by season then episode. */
   files: z.array(MediaFile),
+  match: TitleMatch.nullable(),
+  metadata: TitleMetadata.nullable(),
+  /** Episode names and details from the provider; empty until the series is identified. */
+  episodes: z.array(EpisodeInfo),
 })
 export type TitleDetail = z.infer<typeof TitleDetail>

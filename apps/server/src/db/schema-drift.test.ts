@@ -31,10 +31,12 @@ describe('drizzle schema matches the migrated database', () => {
       }[]
       const byName = new Map(info.map((c) => [c.name, c]))
       expect([...byName.keys()].sort()).toEqual(config.columns.map((c) => c.name).sort())
+      const compositeKey = new Set(config.primaryKeys.flatMap((k) => k.columns.map((c) => c.name)))
       for (const col of config.columns) {
         const dbCol = byName.get(col.name)!
-        expect(Boolean(dbCol.pk), `${config.name}.${col.name} primary key`).toBe(col.primary)
-        if (!col.primary) expect(Boolean(dbCol.notnull), `${config.name}.${col.name} not null`).toBe(col.notNull)
+        const isKey = col.primary || compositeKey.has(col.name)
+        expect(Boolean(dbCol.pk), `${config.name}.${col.name} primary key`).toBe(isKey)
+        if (!isKey) expect(Boolean(dbCol.notnull), `${config.name}.${col.name} not null`).toBe(col.notNull)
       }
     })
   }

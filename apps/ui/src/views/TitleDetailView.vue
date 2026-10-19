@@ -2,17 +2,20 @@
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { mdiArrowLeft, mdiCloudOffOutline, mdiPlay } from '@mdi/js'
-import { TitleDetail, type MediaFile } from '@theama/contracts'
+import { mdiArrowLeft, mdiCloudOffOutline, mdiDotsVertical, mdiPlay, mdiStar } from '@mdi/js'
+import { TitleDetail, type EpisodeInfo, type MediaFile } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
 import FileFacts from '@/components/titles/FileFacts.vue'
+import IdentifyDialog from '@/components/titles/IdentifyDialog.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { useConnectionStore } from '@/stores/connection'
+import { useMetadataStore } from '@/stores/metadata'
 import { episodeCode, formatBytes, formatDuration, resolutionLabel } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
 const connection = useConnectionStore()
+const metadataStore = useMetadataStore()
 const { t, locale } = useI18n()
 
 const detail = ref<TitleDetail | null>(null)
@@ -53,6 +56,56 @@ const files = computed(() => detail.value?.files ?? [])
 const isSeries = computed(() => summary.value?.kind === 'series')
 const offline = computed(() => summary.value !== null && summary.value.availableCount === 0)
 
+const meta = computed(() => detail.value?.metadata ?? null)
+const match = computed(() => detail.value?.match ?? null)
+const canIdentify = computed(() => summary.value !== null && summary.value.kind !== 'video')
+const posterSrc = computed(() => connection.assetUrl(meta.value?.posterUrl ?? summary.value?.posterUrl))
+const heroStyle = computed(() => {
+  const backdrop = connection.assetUrl(meta.value?.backdropUrl)
+  if (!backdrop) return {}
+  const veil = 'linear-gradient(90deg, rgba(var(--v-theme-surface), 0.96), rgba(var(--v-theme-surface), 0.72))'
+  return { backgroundImage: `${veil}, url("${backdrop}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+})
+const ratingText = computed(() => {
+  const r = meta.value?.rating
+  if (!r) return ''
+  return t('match.rating', { source: r.source.toUpperCase(), value: r.value.toFixed(1), votes: new Intl.NumberFormat(locale.value).format(r.votes) })
+})
+
+// --- identification ---------------------------------------------------
+const identifyOpen = ref(false)
+const working = ref(false)
+const actionError = ref<string | null>(null)
+
+async function act(path: string): Promise<void> {
+  if (!connection.client || working.value) return
+  working.value = true
+  actionError.value = null
+  try {
+    detail.value = await connection.client.post(path, { key: key.value }, TitleDetail)
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    working.value = false
+  }
+}
+const refreshDetails = () => act('/library/title/refresh')
+const clearMatch = () => act('/library/title/clear-match')
+const unlockMatch = () => act('/library/title/unlock')
+function onIdentified(d: TitleDetail): void {
+  detail.value = d
+  actionError.value = null
+}
+
+/** Provider details by episode, so each file row can show its real name and description. */
+const episodeInfo = computed(() => new Map<string, EpisodeInfo>((detail.value?.episodes ?? []).map((e) => [`${e.season}:${e.episode}`, e])))
+function infoFor(f: MediaFile): EpisodeInfo | null {
+  return f.season !== null && f.episode !== null ? (episodeInfo.value.get(`${f.season}:${f.episode}`) ?? null) : null
+}
+function episodeName(f: MediaFile): string {
+  return infoFor(f)?.name || f.episodeTitle || f.fileName
+}
+
 /** Season tabs: numbered seasons ascending (0 = Specials), then episodes with no season. */
 interface SeasonGroup { id: string; label: string; episodes: MediaFile[] }
 const seasons = computed<SeasonGroup[]>(() => {
@@ -87,6 +140,7 @@ const metaChips = computed(() => {
   } else {
     const best = files.value.find((f) => f.durationMs !== null)
     if (best?.durationMs) chips.push(formatDuration(best.durationMs, locale.value))
+    else if (meta.value?.runtimeMinutes) chips.push(formatDuration(meta.value.runtimeMinutes * 60_000, locale.value))
     const res = files.value.map((f) => resolutionLabel(f.width, f.height)).find(Boolean)
     if (res) chips.push(res)
     if (s.fileCount > 1) chips.push(t('detail.versions', s.fileCount))
@@ -107,14 +161,21 @@ const metaChips = computed(() => {
     </section>
 
     <template v-if="summary">
-      <section class="hero">
-        <div class="hero__poster"><PosterArt :seed="summary.key" :title="summary.title" :year="summary.kind === 'movie' ? summary.year : null" :kind="summary.kind" /></div>
+      <section class="hero" :style="heroStyle">
+        <div class="hero__poster"><PosterArt :seed="summary.key" :title="summary.title" :year="summary.kind === 'movie' ? summary.year : null" :kind="summary.kind" :image-url="posterSrc" /></div>
         <div class="hero__info">
           <p class="th-eyebrow">{{ kindLabel }}</p>
           <h1 ref="heading" tabindex="-1" class="th-display hero__title">{{ summary.title }}</h1>
+          <p v-if="meta?.originalTitle && meta.originalTitle !== summary.title" class="th-muted original">{{ meta.originalTitle }}</p>
+          <p v-if="meta?.tagline" class="tagline">{{ meta.tagline }}</p>
           <ul class="chips" :aria-label="$t('detail.summary')">
             <li v-for="c in metaChips" :key="c"><v-chip size="small" label variant="tonal">{{ c }}</v-chip></li>
+            <li v-if="ratingText">
+              <v-chip size="small" label variant="tonal" color="primary" :prepend-icon="mdiStar" data-test="rating">{{ ratingText }}</v-chip>
+            </li>
+            <li v-for="g in meta?.genres ?? []" :key="g"><v-chip size="small" label variant="outlined">{{ g }}</v-chip></li>
           </ul>
+          <p v-if="meta?.overview" class="overview" data-test="overview">{{ meta.overview }}</p>
 
           <v-alert v-if="offline" type="warning" variant="tonal" density="compact" :icon="mdiCloudOffOutline" class="mt-4">{{ $t('files.offlineHint') }}</v-alert>
 
@@ -124,6 +185,59 @@ const metaChips = computed(() => {
             <p id="play-note" class="th-muted text-caption">{{ $t('detail.playSoon') }}</p>
           </div>
         </div>
+      </section>
+
+      <!-- Identification: what Theama thinks this is, and the ways to put it right. -->
+      <section v-if="canIdentify" class="match" :aria-label="$t('match.section')" data-test="match">
+        <v-alert v-if="match?.state === 'ambiguous'" type="info" variant="tonal" density="comfortable" :title="$t('match.ambiguous')">
+          {{ $t('match.ambiguousHint') }}
+          <template #append><v-btn variant="flat" color="primary" @click="identifyOpen = true">{{ $t('match.choose') }}</v-btn></template>
+        </v-alert>
+        <v-alert v-else-if="match?.state === 'unmatched'" type="info" variant="tonal" density="comfortable" :title="$t('match.unmatched')">
+          {{ $t(match.decidedBy === 'user' ? 'match.clearedHint' : 'match.unmatchedHint') }}
+          <template #append><v-btn variant="flat" color="primary" @click="identifyOpen = true">{{ $t('match.search') }}</v-btn></template>
+        </v-alert>
+        <div v-else-if="match?.state === 'matched'" class="match__line">
+          <span class="th-muted">{{ $t(match.decidedBy === 'user' ? 'match.byYou' : 'match.automatic', { source: 'TMDB' }) }}</span>
+          <v-chip v-if="match.locked" size="x-small" label variant="outlined">{{ $t('match.locked') }}</v-chip>
+        </div>
+        <div v-else-if="!metadataStore.status?.configured" class="match__line th-muted">
+          {{ $t('match.noKey') }} <router-link to="/settings/metadata">{{ $t('match.openSettings') }}</router-link>
+        </div>
+        <div v-else class="match__line th-muted">{{ $t('match.pending') }}</div>
+
+        <v-menu v-if="match" location="bottom end">
+          <template #activator="{ props: menuProps }">
+            <v-btn v-bind="menuProps" variant="text" size="small" :prepend-icon="mdiDotsVertical" :loading="working" data-test="match-menu">{{ $t('match.manage') }}</v-btn>
+          </template>
+          <v-list density="compact">
+            <v-list-item :title="$t(match.state === 'matched' ? 'match.change' : 'match.search')" @click="identifyOpen = true" />
+            <v-list-item v-if="match.state === 'matched'" :title="$t('match.refresh')" @click="refreshDetails" />
+            <v-list-item v-if="match.state === 'matched'" :title="$t('match.clear')" @click="clearMatch" />
+            <v-list-item v-if="match.locked" :title="$t('match.unlock')" :subtitle="$t('match.unlockHint')" @click="unlockMatch" />
+          </v-list>
+        </v-menu>
+        <v-alert v-if="actionError" type="error" variant="tonal" density="compact" class="mt-2">{{ actionError }}</v-alert>
+      </section>
+
+      <IdentifyDialog
+        v-if="summary.kind !== 'video'"
+        v-model="identifyOpen"
+        :title-key="summary.key"
+        :kind="summary.kind"
+        :initial-query="meta?.title ?? summary.title"
+        :initial-year="summary.year"
+        @identified="onIdentified"
+      />
+
+      <section v-if="meta && meta.cast.length" class="cast" :aria-label="$t('match.cast')">
+        <h2 class="th-display files__title">{{ $t('match.cast') }}</h2>
+        <ul class="cast__list" role="list">
+          <li v-for="c in meta.cast" :key="`${c.name}-${c.character}`" class="cast__item">
+            <span class="cast__name">{{ c.name }}</span>
+            <span v-if="c.character" class="th-muted cast__role">{{ c.character }}</span>
+          </li>
+        </ul>
       </section>
 
       <!-- Series: season tabs and the episode list -->
@@ -136,8 +250,8 @@ const metaChips = computed(() => {
             <button type="button" class="ep__row" :aria-expanded="expanded === f.id" @click="expanded = expanded === f.id ? null : f.id">
               <span class="ep__code th-mono">{{ episodeCode(f.season, f.episode, f.episodeEnd) || '·' }}</span>
               <span class="ep__name">
-                <span class="ep__title">{{ f.episodeTitle || f.fileName }}</span>
-                <span v-if="f.episodeTitle" class="ep__file th-muted">{{ f.fileName }}</span>
+                <span class="ep__title">{{ episodeName(f) }}</span>
+                <span v-if="episodeName(f) !== f.fileName" class="ep__file th-muted">{{ f.fileName }}</span>
               </span>
               <span class="ep__meta">
                 <v-chip v-if="f.state === 'source_offline'" size="x-small" color="warning" label variant="tonal">{{ $t('files.offline') }}</v-chip>
@@ -147,7 +261,16 @@ const metaChips = computed(() => {
                 <span class="th-muted num">{{ formatDuration(f.durationMs, locale) }}</span>
               </span>
             </button>
-            <div v-if="expanded === f.id" class="ep__facts"><FileFacts :file="f" /></div>
+            <div v-if="expanded === f.id" class="ep__facts">
+              <div v-if="infoFor(f)?.overview || infoFor(f)?.stillUrl" class="ep__about">
+                <img v-if="infoFor(f)?.stillUrl" class="ep__still" :src="connection.assetUrl(infoFor(f)?.stillUrl) ?? ''" alt="" loading="lazy" decoding="async" />
+                <div>
+                  <p v-if="infoFor(f)?.overview" class="ep__overview">{{ infoFor(f)?.overview }}</p>
+                  <p v-if="infoFor(f)?.airDate" class="th-muted text-caption">{{ $t('match.aired', { date: infoFor(f)?.airDate }) }}</p>
+                </div>
+              </div>
+              <FileFacts :file="f" />
+            </div>
           </li>
         </ul>
       </section>
@@ -164,6 +287,8 @@ const metaChips = computed(() => {
           <FileFacts :file="f" />
         </div>
       </section>
+
+      <p v-if="meta" class="attribution th-muted">{{ $t('match.attribution') }}</p>
     </template>
   </div>
 </template>
@@ -198,6 +323,76 @@ const metaChips = computed(() => {
   gap: 8px;
   margin: 0;
   padding: 0;
+}
+.original {
+  margin: -8px 0 12px;
+}
+.tagline {
+  font-style: italic;
+  margin: -4px 0 12px;
+  opacity: 0.85;
+}
+.overview {
+  max-width: 68ch;
+  margin: 16px 0 0;
+  line-height: 1.55;
+}
+.match {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.match > :first-child {
+  flex: 1 1 360px;
+}
+.match__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+}
+.cast {
+  margin-top: 32px;
+}
+.cast__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 24px;
+}
+.cast__item {
+  display: grid;
+}
+.cast__name {
+  font-weight: 600;
+}
+.cast__role {
+  font-size: 0.85rem;
+}
+.ep__about {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.ep__still {
+  flex: none;
+  width: 160px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.ep__overview {
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+.attribution {
+  margin: 32px 0 0;
+  font-size: 0.78rem;
 }
 .cta {
   margin-top: 24px;

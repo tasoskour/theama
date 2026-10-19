@@ -8,7 +8,7 @@ import { ServiceEventRepo, recordCrashIfUncleanShutdown } from '../repo/service-
 describe('migrations', () => {
   it('applies from an empty database and is idempotent', () => {
     const db = new Database(':memory:')
-    expect(migrate(db)).toEqual([1, 2, 3])
+    expect(migrate(db)).toEqual([1, 2, 3, 4])
     expect(db.pragma('user_version', { simple: true })).toBe(LATEST_SCHEMA_VERSION)
     expect(migrate(db)).toEqual([])
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]
@@ -36,7 +36,7 @@ describe('SettingsRepo', () => {
   it('returns defaults, persists patches and ignores corrupt values', () => {
     const { db, raw } = openDatabase(':memory:')
     const repo = new SettingsRepo(db)
-    expect(repo.get()).toEqual({ language: 'en', theme: 'system', logRetentionDays: 14 })
+    expect(repo.get()).toEqual({ language: 'en', theme: 'system', logRetentionDays: 14, metadataLanguage: 'en' })
     expect(repo.update({ language: 'el', theme: 'dark' })).toMatchObject({ language: 'el', theme: 'dark' })
     raw.prepare("UPDATE application_setting SET value = '\"klingon\"' WHERE key = 'language'").run()
     expect(repo.get()).toMatchObject({ language: 'en', theme: 'dark' })

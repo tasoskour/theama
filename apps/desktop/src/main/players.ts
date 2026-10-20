@@ -4,6 +4,7 @@ import { existsSync, statSync } from 'node:fs'
 import { win32 } from 'node:path'
 import { LaunchInfo, type PlayerInfo, type PlayerKind, type PlayResult } from '@theama/contracts'
 import { assertSafeUserPath, UnsafePathError } from './path-safety'
+import { planTracking, TRACKED_KINDS, type TrackingPlan, type TrackJob } from './position-tracking'
 
 export interface CustomPlayer {
   id: string
@@ -22,6 +23,10 @@ export interface LaunchOptions {
   subtitle: string | null
   /** Preferred subtitle languages (ISO 639-1), most wanted first. */
   languages: string[]
+  /** Where to carry on (seconds); omitted or null to start at the beginning. */
+  resumeSeconds?: number | null
+  /** The local interface the player is asked to open so Theama can see how far it has got. */
+  tracking?: TrackingPlan | null
 }
 
 interface Definition {
@@ -38,6 +43,16 @@ interface Definition {
 const programFiles = (env: NodeJS.ProcessEnv): string[] =>
   [env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramW6432].filter((p): p is string => Boolean(p))
 
+/** MPC-HC and MPC-BE share their switches: `/sub`, `/start <ms>` and `/webport` (which also opens the web interface). */
+function mpcArgs({ path, subtitle, resumeSeconds, tracking }: LaunchOptions): string[] {
+  return [
+    path,
+    ...(subtitle ? ['/sub', subtitle] : []),
+    ...(resumeSeconds ? ['/start', String(resumeSeconds * 1000)] : []),
+    ...(tracking?.kind === 'mpc' ? ['/webport', String(tracking.port)] : []),
+  ]
+}
+
 /**
  * The players Theama knows how to start with a subtitle. Switches are the documented ones: VLC `--sub-file`,
  * mpv `--sub-file` / `--slang` (and `--` so a file name can never be read as an option), MPC-HC/BE `/sub`.
@@ -50,7 +65,15 @@ const DEFINITIONS: Definition[] = [
     locations: (env) => programFiles(env).map((p) => win32.join(p, 'VideoLAN', 'VLC', 'vlc.exe')),
     onPath: ['vlc.exe'],
     externalSubtitle: true,
-    args: ({ path, subtitle }) => [...(subtitle ? [`--sub-file=${subtitle}`] : []), path],
+    args: ({ path, subtitle, resumeSeconds, tracking }) => [
+      ...(subtitle ? [`--sub-file=${subtitle}`] : []),
+      ...(resumeSeconds ? [`--start-time=${resumeSeconds}`] : []),
+      // A separate instance per start, or a running VLC would take the file and never open our interface.
+      ...(tracking?.kind === 'vlc'
+        ? ['--no-one-instance', '--extraintf=http', '--http-host=127.0.0.1', `--http-port=${tracking.port}`, `--http-password=${tracking.password}`]
+        : []),
+      path,
+    ],
   },
   {
     kind: 'mpc-hc',
@@ -58,7 +81,7 @@ const DEFINITIONS: Definition[] = [
     locations: (env) => programFiles(env).flatMap((p) => [win32.join(p, 'MPC-HC', 'mpc-hc64.exe'), win32.join(p, 'MPC-HC', 'mpc-hc.exe'), win32.join(p, 'K-Lite Codec Pack', 'MPC-HC64', 'mpc-hc64.exe')]),
     onPath: ['mpc-hc64.exe', 'mpc-hc.exe'],
     externalSubtitle: true,
-    args: ({ path, subtitle }) => [path, ...(subtitle ? ['/sub', subtitle] : [])],
+    args: mpcArgs,
   },
   {
     kind: 'mpv',
@@ -70,9 +93,11 @@ const DEFINITIONS: Definition[] = [
     ],
     onPath: ['mpv.exe'],
     externalSubtitle: true,
-    args: ({ path, subtitle, languages }) => [
+    args: ({ path, subtitle, languages, resumeSeconds, tracking }) => [
       ...(subtitle ? [`--sub-file=${subtitle}`] : []),
       ...(languages.length > 0 ? [`--slang=${languages.join(',')}`] : []),
+      ...(resumeSeconds ? [`--start=${resumeSeconds}`] : []),
+      ...(tracking?.kind === 'mpv' ? [`--input-ipc-server=${tracking.pipe}`] : []),
       '--',
       path,
     ],
@@ -83,7 +108,7 @@ const DEFINITIONS: Definition[] = [
     locations: (env) => programFiles(env).flatMap((p) => [win32.join(p, 'MPC-BE x64', 'mpc-be64.exe'), win32.join(p, 'MPC-BE', 'mpc-be.exe')]),
     onPath: ['mpc-be64.exe', 'mpc-be.exe'],
     externalSubtitle: true,
-    args: ({ path, subtitle }) => [path, ...(subtitle ? ['/sub', subtitle] : [])],
+    args: mpcArgs,
   },
   {
     kind: 'potplayer',
@@ -151,6 +176,11 @@ export interface PlayerDeps {
   fetchLaunchInfo(fileId: number): Promise<{ ok: true; info: LaunchInfo } | { ok: false; message: string; code: 'unavailable' | 'unreachable' }>
   /** Tells the backend a player was started. */
   reportLaunched(fileId: number): Promise<void>
+  /**
+   * Starts watching a player that was started with a tracking interface. Absent when position tracking is
+   * not wired (tests, the end-to-end fake player): then players are started without the extra switches.
+   */
+  track?(job: TrackJob): void
 }
 
 /** The real "start a program": detached, no shell, no console window handling beyond the player's own. */
@@ -174,13 +204,17 @@ export class PlayerManager {
     return this.deps.host ?? realEnv
   }
 
+  private canTrack(kind: PlayerKind): boolean {
+    return this.deps.track !== undefined && TRACKED_KINDS.has(kind)
+  }
+
   list(): PlayerInfo[] {
     const prefs = this.deps.getPrefs()
     const detected = detectInstalled(this.host)
     const players: Omit<PlayerInfo, 'isDefault'>[] = [
-      ...detected.map((d) => ({ id: d.kind, name: d.name, kind: d.kind, available: true, exe: d.exe, removable: false, externalSubtitle: d.externalSubtitle })),
-      ...prefs.custom.map((c) => ({ id: c.id, name: c.name, kind: 'custom' as const, available: this.host.exists(c.exe), exe: c.exe, removable: true, externalSubtitle: false })),
-      { id: SYSTEM_PLAYER_ID, name: 'System default', kind: 'system', available: true, exe: null, removable: false, externalSubtitle: false },
+      ...detected.map((d) => ({ id: d.kind, name: d.name, kind: d.kind, available: true, exe: d.exe, removable: false, externalSubtitle: d.externalSubtitle, tracksPosition: this.canTrack(d.kind) })),
+      ...prefs.custom.map((c) => ({ id: c.id, name: c.name, kind: 'custom' as const, available: this.host.exists(c.exe), exe: c.exe, removable: true, externalSubtitle: false, tracksPosition: false })),
+      { id: SYSTEM_PLAYER_ID, name: 'System default', kind: 'system', available: true, exe: null, removable: false, externalSubtitle: false, tracksPosition: false },
     ]
     const wanted = players.find((p) => p.id === prefs.defaultId && p.available)
     const fallback =
@@ -213,7 +247,7 @@ export class PlayerManager {
   }
 
   /** Starts a player on a library file. The path comes from the backend, never from the caller. */
-  async play(fileId: number, playerId?: string): Promise<PlayResult> {
+  async play(fileId: number, playerId?: string, fromStart = false): Promise<PlayResult> {
     const fail = (code: NonNullable<PlayResult['code']>, message: string, playerName: string | null = null): PlayResult => ({ ok: false, code, message, playerName })
 
     const players = this.list()
@@ -226,6 +260,7 @@ export class PlayerManager {
 
     let path: string
     let subtitle: string | null = null
+    let tracking: TrackingPlan | null = null
     try {
       path = assertSafeUserPath(info.path)
       if (info.subtitle && player.externalSubtitle) {
@@ -244,12 +279,15 @@ export class PlayerManager {
         const error = await this.deps.openWithSystem(path)
         if (error) return fail('launch_failed', error, player.name)
       } else {
-        await this.deps.launch(player.exe!, buildArgs(player.kind, { path, subtitle, languages: info.subtitleLanguages }))
+        tracking = this.canTrack(player.kind) ? await planTracking(player.kind) : null
+        const resumeSeconds = fromStart ? null : info.resumeSeconds
+        await this.deps.launch(player.exe!, buildArgs(player.kind, { path, subtitle, languages: info.subtitleLanguages, resumeSeconds, tracking }))
       }
     } catch (err) {
       return fail('launch_failed', err instanceof Error ? err.message : 'The player could not be started', player.name)
     }
     await this.deps.reportLaunched(fileId).catch(() => undefined)
+    if (tracking) this.deps.track?.({ fileId, fileName: info.fileName, plan: tracking })
     return { ok: true, code: null, message: null, playerName: player.name }
   }
 }

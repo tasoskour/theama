@@ -6,6 +6,8 @@ export interface EpisodeFile {
   season: number | null
   episode: number | null
   watched: boolean
+  /** Where playback stopped last time (seconds), if it was worth remembering. */
+  positionSeconds: number | null
   /** Its folder is online and the file is present. */
   available: boolean
 }
@@ -37,7 +39,8 @@ export function nextEpisode(files: readonly EpisodeFile[]): NextEpisode | null {
   const next = ordered.slice(lastWatched + 1).find((g) => !g.watched)
   if (!next) return null
   const file = next.files.find((f) => f.available) ?? next.files[0]!
-  return { fileId: file.id, season: next.season, episode: next.episode, label: episodeLabel(next.season, next.episode) }
+  const resumeSeconds = file.positionSeconds ?? next.files.find((f) => f.positionSeconds !== null)?.positionSeconds ?? null
+  return { fileId: file.id, season: next.season, episode: next.episode, label: episodeLabel(next.season, next.episode), resumeSeconds }
 }
 
 /** The columns the rule reads from the database, as one row. */
@@ -46,6 +49,7 @@ export interface EpisodeFileRow {
   season: number | null
   episode: number | null
   watched: number | null
+  position_seconds?: number | null
   state: 'available' | 'missing_unconfirmed'
   availability: 'online' | 'offline' | 'unknown'
 }
@@ -55,6 +59,7 @@ export const toEpisodeFile = (r: EpisodeFileRow): EpisodeFile => ({
   season: r.season,
   episode: r.episode,
   watched: r.watched === 1,
+  positionSeconds: r.watched === 1 ? null : (r.position_seconds ?? null),
   available: r.state === 'available' && r.availability !== 'offline',
 })
 

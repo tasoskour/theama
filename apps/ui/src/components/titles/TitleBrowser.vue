@@ -19,15 +19,18 @@ const { genres: genreItems } = useGenres(() => props.kind)
 const SORTS: TitleSort[] = ['title', 'added', 'year']
 const sortItems = computed(() => SORTS.map((s) => ({ value: s, title: t(`titles.sort.${s}`) })))
 watch(items, (next, previous) => {
-  // Appending an infinite-scroll page should not remount the existing grid or steal its keyboard position.
-  if (next.length <= previous.length || next[0]?.key !== previous[0]?.key) resultsVersion.value++
+  // Only a different result set animates. Appending an infinite-scroll page, refreshing to the same
+  // titles, or the first data arriving (the page's own fade covers it) must not remount the grid.
+  if (previous.length === 0 && next.length > 0) return
+  const sameLead = previous.every((t, i) => next[i]?.key === t.key)
+  if (!sameLead) resultsVersion.value++
 })
 
 </script>
 
 <template>
   <section>
-    <div class="toolbar th-filter-panel" role="search">
+    <div class="toolbar th-filter-panel th-filter-panel--flat" role="search">
       <SearchField
         v-model="q"
         :label="$t('titles.filter')"
@@ -36,7 +39,7 @@ watch(items, (next, previous) => {
         :loading="loading && !loaded"
       />
       <GenreFilter v-model="genres" v-model:mode="genreMode" :items="genreItems" class="genres" />
-      <v-select v-model="sort" :items="sortItems" :label="$t('titles.sortBy')" density="compact" variant="solo-filled" bg-color="surface-bright" hide-details class="sort" />
+      <v-select v-model="sort" :items="sortItems" :label="$t('titles.sortBy')" density="compact" variant="solo-filled" flat bg-color="surface-bright" hide-details class="sort th-search-control" />
       <v-switch v-model="hideUnavailable" :label="$t('files.hideUnavailable')" color="primary" density="compact" hide-details inset class="availability" />
       <span class="count" aria-live="polite">{{ $t('titles.count', total) }}</span>
       <v-progress-linear v-if="loading && loaded" indeterminate color="primary" height="2" class="toolbar__progress" />
@@ -68,14 +71,28 @@ watch(items, (next, previous) => {
 }
 .availability {
   flex: 0 0 auto;
+  margin-inline: 4px;
+}
+/* The default inset switch has an off-state track that vanishes into the dark surface; give it an outline. */
+.availability :deep(.v-selection-control:not(.v-selection-control--dirty) .v-switch__track) {
+  background: rgba(var(--v-theme-on-surface), 0.1);
+  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-hairline), 0.95);
+  opacity: 1;
+}
+.availability :deep(.v-selection-control:not(.v-selection-control--dirty) .v-switch__thumb) {
+  background: rgb(var(--v-theme-on-surface-variant));
+}
+.availability :deep(.v-label) {
+  opacity: 1;
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 0.9rem;
+  letter-spacing: 0;
 }
 .count {
   margin-left: auto;
-  padding: 6px 10px;
-  border-radius: 999px;
+  padding-inline: 4px;
   color: rgb(var(--v-theme-on-surface-variant));
-  background: rgb(var(--v-theme-surface-light));
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

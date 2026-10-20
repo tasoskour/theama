@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { episodeCode, formatBytes, formatDuration, resolutionLabel } from './format'
+import { episodeCode, formatBytes, formatClock, formatDuration, resolutionLabel } from './format'
+
+describe('formatClock', () => {
+  it('shows minutes and seconds, adding hours from the first hour', () => {
+    expect(formatClock(0)).toBe('0:00')
+    expect(formatClock(754)).toBe('12:34')
+    expect(formatClock(3723.9)).toBe('1:02:03')
+  })
+  it('returns nothing for nonsense', () => {
+    expect(formatClock(null)).toBe('')
+    expect(formatClock(-3)).toBe('')
+    expect(formatClock(NaN)).toBe('')
+  })
+})
 
 describe('formatBytes', () => {
   it('picks a sensible unit', () => {

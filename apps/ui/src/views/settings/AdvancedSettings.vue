@@ -13,7 +13,11 @@ const TABS = [
     <v-tabs color="primary" class="mb-6" :aria-label="$t('settings.sections.advanced')">
       <v-tab v-for="tab in TABS" :key="tab.key" :to="tab.to" :value="tab.to">{{ $t(`settings.advancedTabs.${tab.key}`) }}</v-tab>
     </v-tabs>
-    <router-view />
+    <router-view v-slot="{ Component, route }">
+      <transition name="th-fade" mode="out-in">
+        <component :is="Component" :key="route.path" />
+      </transition>
+    </router-view>
   </section>
 </template>
 

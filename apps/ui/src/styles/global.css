@@ -3,7 +3,10 @@
   --th-font-ui: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
   --th-radius: 10px;
   --th-radius-lg: 16px;
-  --th-motion: 160ms cubic-bezier(0.2, 0, 0, 1);
+  --th-control-h: 40px;
+  --th-border: 1px solid rgba(var(--v-theme-hairline), 0.78);
+  --th-ease: cubic-bezier(0.2, 0, 0, 1);
+  --th-motion: 160ms var(--th-ease);
   --th-content-reading: 72ch;
 }
 
@@ -115,6 +118,39 @@ body {
   animation: th-filter-enter 280ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
+/* A quieter filter bar for the library lists: no box, just a hairline underneath. */
+.th-filter-panel--flat {
+  padding: 0 0 16px;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Quiet secondary action: hairline outline, muted text, wakes up on hover. */
+.v-btn.th-btn-quiet {
+  height: 44px;
+  padding-inline: 16px;
+  border: var(--th-border);
+  border-radius: var(--th-radius);
+  background: transparent;
+  color: rgb(var(--v-theme-on-surface-variant));
+  letter-spacing: 0;
+  transition:
+    background-color var(--th-motion),
+    color var(--th-motion),
+    border-color var(--th-motion);
+}
+.v-btn.th-btn-quiet:hover {
+  background: rgb(var(--v-theme-surface-light));
+  color: rgb(var(--v-theme-on-surface));
+}
+.v-btn.th-btn-quiet .v-btn__overlay {
+  display: none;
+}
+.v-btn.th-btn-quiet--text {
+  border-color: transparent;
+}
+
 /* The field container carries the focus state; the inner <input> never draws its own ring
    (the global :focus-visible outline would otherwise float a second box inside the field). */
 .th-search-control .v-field {
@@ -213,12 +249,19 @@ body {
   }
 }
 
-/* Page transition: a short fade, removed for reduced motion. */
-.th-fade-enter-active,
-.th-fade-leave-active {
-  transition: opacity var(--th-motion);
+/* Page transition: a quick fade out, then a slightly longer fade-and-rise in. Removed for reduced motion. */
+.th-fade-enter-active {
+  transition:
+    opacity 220ms var(--th-ease),
+    transform 220ms var(--th-ease);
 }
-.th-fade-enter-from,
+.th-fade-leave-active {
+  transition: opacity 90ms ease-out;
+}
+.th-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
 .th-fade-leave-to {
   opacity: 0;
 }

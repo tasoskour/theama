@@ -1,6 +1,6 @@
 # ADR-0011 — Players are started by the desktop shell; renames go through a journal
 
-**Status:** accepted · 2026-10-20
+**Status:** accepted · 2026-10-20 · the "no resume, no automatic watched" part is amended by ADR-0013
 
 **Context.** Phase 6 lets Theama start external players and rename a person's files. The first can run a program on the person's PC; the second can destroy data. The backend may run as a Windows service in another session and account, and the UI is a renderer we want to keep unable to do either on its own.
 

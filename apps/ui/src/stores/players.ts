@@ -47,7 +47,7 @@ export const usePlayersStore = defineStore('players', () => {
   const remove = (id: string): Promise<void> => wrap(() => bridge!.players.remove(id))
 
   /** Starts a player on a file. Resolves to the shell's answer; a failure is also kept in `lastFailure`. */
-  async function play(fileId: number, playerId?: string): Promise<PlayResult> {
+  async function play(fileId: number, playerId?: string, fromStart = false): Promise<PlayResult> {
     if (!bridge) {
       const result: PlayResult = { ok: false, code: 'no_player', message: null, playerName: null }
       lastFailure.value = result
@@ -55,7 +55,7 @@ export const usePlayersStore = defineStore('players', () => {
     }
     starting.value = true
     try {
-      const result = await bridge.players.play({ fileId, playerId })
+      const result = await bridge.players.play({ fileId, playerId, ...(fromStart ? { fromStart } : {}) })
       lastFailure.value = result.ok ? null : result
       return result
     } catch (err) {

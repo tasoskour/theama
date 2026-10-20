@@ -357,7 +357,7 @@ export class TitleRepo {
     if (!group || !summary) return null
     const rows = this.raw
       .prepare(
-        `SELECT f.*, s.availability AS source_availability, p.watched AS watched, p.last_played_at AS last_played_at
+        `SELECT f.*, s.availability AS source_availability, p.watched AS watched, p.last_played_at AS last_played_at, p.position_seconds AS position_seconds
          FROM media_file f JOIN library_source s ON s.id = f.source_id LEFT JOIN playback_state p ON p.file_id = f.id
          WHERE f.excluded = 0 AND f.title_key = ?
          ORDER BY coalesce(f.season, -1), coalesce(f.episode, -1), lower(f.path)`,
@@ -367,7 +367,7 @@ export class TitleRepo {
     const lastPlayedAt = rows.reduce<string | null>((latest, r) => (r.last_played_at && (!latest || r.last_played_at > latest) ? r.last_played_at : latest), null)
     const next =
       summary.kind === 'series'
-        ? nextEpisode(rows.filter((r) => r.kind === 'episode').map((r) => toEpisodeFile({ id: r.id, season: r.season, episode: r.episode, watched: r.watched, state: r.state, availability: r.source_availability })))
+        ? nextEpisode(rows.filter((r) => r.kind === 'episode').map((r) => toEpisodeFile({ id: r.id, season: r.season, episode: r.episode, watched: r.watched, position_seconds: r.position_seconds, state: r.state, availability: r.source_availability })))
         : null
     const providerEpisodes = summary.kind === 'series' ? (this.metadata?.episodes(key) ?? []) : []
     const covered =

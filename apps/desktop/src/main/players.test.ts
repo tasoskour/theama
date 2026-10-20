@@ -53,6 +53,29 @@ describe('buildArgs', () => {
   })
 })
 
+describe('buildArgs with resuming and tracking', () => {
+  const base = { path: 'D:\\Media\\Film.mkv', subtitle: null, languages: [] as string[] }
+  it('starts at the remembered second', () => {
+    expect(buildArgs('vlc', { ...base, resumeSeconds: 754 })).toEqual(['--start-time=754', base.path])
+    expect(buildArgs('mpv', { ...base, resumeSeconds: 754 })).toEqual(['--start=754', '--', base.path])
+    expect(buildArgs('mpc-hc', { ...base, resumeSeconds: 754 })).toEqual([base.path, '/start', '754000'])
+    expect(buildArgs('mpc-be', { ...base, resumeSeconds: 754 })).toEqual([base.path, '/start', '754000'])
+    // No remembered position (or one at 0): nothing is added.
+    expect(buildArgs('vlc', { ...base, resumeSeconds: null })).toEqual([base.path])
+    expect(buildArgs('mpv', { ...base, resumeSeconds: 0 })).toEqual(['--', base.path])
+  })
+  it('opens a local-only interface for the player that will be watched', () => {
+    expect(buildArgs('vlc', { ...base, tracking: { kind: 'vlc', port: 5555, password: 'pw' } })).toEqual([
+      '--no-one-instance', '--extraintf=http', '--http-host=127.0.0.1', '--http-port=5555', '--http-password=pw', base.path,
+    ])
+    expect(buildArgs('mpv', { ...base, tracking: { kind: 'mpv', pipe: 'theama-pipe' } })).toEqual(['--input-ipc-server=theama-pipe', '--', base.path])
+    expect(buildArgs('mpc-hc', { ...base, tracking: { kind: 'mpc', port: 6666 } })).toEqual([base.path, '/webport', '6666'])
+  })
+  it('never adds tracking switches for a plan that belongs to another player', () => {
+    expect(buildArgs('potplayer', { ...base, resumeSeconds: 60, tracking: { kind: 'mpc', port: 1 } })).toEqual([base.path])
+  })
+})
+
 describe('validateCustomExe', () => {
   it('accepts an existing program and refuses everything else', () => {
     expect(validateCustomExe(process.execPath)).toBe(process.execPath)
@@ -73,7 +96,7 @@ describe('PlayerManager', () => {
 
   const launchInfo = (over: Partial<LaunchInfo> = {}): LaunchInfo => ({
     fileId: 7, path: video, fileName: 'x.mkv', title: 'Film', kind: 'movie',
-    subtitle: { path: subtitle, language: 'el' }, subtitleLanguages: ['el', 'en'], ...over,
+    subtitle: { path: subtitle, language: 'el' }, subtitleLanguages: ['el', 'en'], resumeSeconds: null, ...over,
   })
 
   function manager(host = installed(`${PF}\\VideoLAN\\VLC\\vlc.exe`, `${PF}\\mpv\\mpv.exe`, process.execPath)): PlayerManager {
@@ -131,6 +154,66 @@ describe('PlayerManager', () => {
     expect(result).toEqual({ ok: true, code: null, message: null, playerName: 'VLC media player' })
     expect(launched).toEqual([{ exe: `${PF}\\VideoLAN\\VLC\\vlc.exe`, args: [`--sub-file=${subtitle}`, video] }])
     expect(reported).toEqual([7])
+  })
+
+  describe('with position tracking', () => {
+    let tracked: { fileId: number; fileName: string; kind: string }[]
+    const trackingManager = (): PlayerManager =>
+      new PlayerManager({
+        host: installed(`${PF}\\VideoLAN\\VLC\\vlc.exe`, `${PF}\\mpv\\mpv.exe`, process.execPath),
+        getPrefs: () => prefs,
+        setPrefs: (p) => void (prefs = p),
+        launch: async (exe, args) => void launched.push({ exe, args }),
+        openWithSystem: async (path) => {
+          opened.push(path)
+          return ''
+        },
+        fetchLaunchInfo: async () => info,
+        reportLaunched: async (id) => void reported.push(id),
+        track: (job) => void tracked.push({ fileId: job.fileId, fileName: job.fileName, kind: job.plan.kind }),
+      })
+    beforeEach(() => {
+      tracked = []
+    })
+
+    it('says which players can be watched, and only when tracking is wired', () => {
+      expect(trackingManager().list().map((p) => [p.id, p.tracksPosition])).toEqual([['vlc', true], ['mpv', true], ['system', false]])
+      expect(manager().list().every((p) => !p.tracksPosition)).toBe(true)
+    })
+
+    it('starts the player at the remembered second with a local interface, then watches it', async () => {
+      info = { ok: true, info: launchInfo({ resumeSeconds: 754, fileName: 'x.mkv' }) }
+      expect(await trackingManager().play(7, 'vlc')).toMatchObject({ ok: true })
+      const args = launched[0]!.args
+      expect(args).toContain('--start-time=754')
+      expect(args).toContain('--extraintf=http')
+      expect(args.find((a) => a.startsWith('--http-host='))).toBe('--http-host=127.0.0.1')
+      expect(args.find((a) => a.startsWith('--http-port='))).toMatch(/^--http-port=\d+$/)
+      expect(args.find((a) => a.startsWith('--http-password='))?.length).toBeGreaterThan(20)
+      expect(args[args.length - 1]).toBe(video)
+      expect(tracked).toEqual([{ fileId: 7, fileName: 'x.mkv', kind: 'vlc' }])
+    })
+
+    it('uses an IPC pipe for mpv', async () => {
+      await trackingManager().play(7, 'mpv')
+      expect(launched[0]!.args.some((a) => a.startsWith('--input-ipc-server='))).toBe(true)
+      expect(tracked.map((t) => t.kind)).toEqual(['mpv'])
+    })
+
+    it('"from the start" ignores the remembered position but is still watched', async () => {
+      info = { ok: true, info: launchInfo({ resumeSeconds: 754 }) }
+      await trackingManager().play(7, 'vlc', true)
+      expect(launched[0]!.args.some((a) => a.startsWith('--start-time'))).toBe(false)
+      expect(tracked).toHaveLength(1)
+    })
+
+    it('does not watch a player that was not started, or one that cannot be watched', async () => {
+      info = { ok: false, code: 'unavailable', message: 'gone' }
+      await trackingManager().play(7, 'vlc')
+      info = { ok: true, info: launchInfo() }
+      await trackingManager().play(7, 'system')
+      expect(tracked).toEqual([])
+    })
   })
 
   it('uses the player the person picked for this one file', async () => {

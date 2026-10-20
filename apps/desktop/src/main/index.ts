@@ -8,6 +8,7 @@ import { registerIpc } from './ipc'
 import { menuStrings } from './menu-strings'
 import { originOf } from './origin'
 import { launchDetached, PlayerManager } from './players'
+import { trackPlayback } from './position-tracking'
 import { PrefsStore } from './prefs'
 import { restoreWindowState } from './window-state'
 import { shouldHideOnClose, shouldStartHidden } from './behaviour'
@@ -355,6 +356,20 @@ async function main(): Promise<void> {
       if (!conn) return
       await fetch(`${conn.base}/api/v1/playback/files/${fileId}/launched`, { method: 'POST', headers: { Authorization: `Bearer ${conn.token}` } })
     },
+    // The end-to-end tests use a pretend player, so they never open a tracking interface.
+    track: testPlayerLog
+      ? undefined
+      : (job) => {
+          trackPlayback(job, async (fileId, sample, final) => {
+            const conn = connection()
+            if (!conn) return
+            await fetch(`${conn.base}/api/v1/playback/files/${fileId}/progress`, {
+              method: 'PUT',
+              headers: { Authorization: `Bearer ${conn.token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ positionSeconds: sample.positionSeconds, durationSeconds: sample.durationSeconds, final }),
+            })
+          })
+        },
   })
   registerIpc({
     players,

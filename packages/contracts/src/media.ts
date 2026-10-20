@@ -61,6 +61,8 @@ export const MediaFile = z.object({
   subtitleTracks: z.array(SubtitleTrack),
   watched: z.boolean(),
   lastPlayedAt: IsoDate.nullable(),
+  /** Where playback stopped (seconds) if it was worth remembering and the file is not watched; null otherwise. */
+  positionSeconds: z.number().int().nullable(),
   probeError: z.string().nullable(),
   firstSeenAt: IsoDate,
 })

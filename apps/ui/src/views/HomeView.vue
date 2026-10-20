@@ -7,6 +7,7 @@ import SectionPage from '@/components/SectionPage.vue'
 import PosterRail from '@/components/titles/PosterRail.vue'
 import { useTitles } from '@/composables/useTitles'
 import { useContinueWatching } from '@/composables/useContinueWatching'
+import { formatClock } from '@/utils/format'
 import CollectionRail from '@/components/collections/CollectionRail.vue'
 import { useCollections } from '@/composables/useCollections'
 
@@ -21,13 +22,19 @@ const videos = useTitles({ kind: () => 'video', sort: 'added', limit: RAIL })
 const resume = useContinueWatching()
 const collections = useCollections()
 const resumeTitles = computed(() => resume.items.value.map((i) => i.summary))
-const resumeCaptions = computed(() => Object.fromEntries(resume.items.value.map((i) => [i.summary.key, i.label ? `${i18n.t('play.upNext')} ${i.label}` : i18n.t('play.resume')])))
+const resumeCaption = (i: (typeof resume.items.value)[number]): string => {
+  const time = formatClock(i.resumeSeconds)
+  if (i.label) return i.resumeSeconds !== null ? i18n.t('play.resumeLabel', { label: i.label, time }) : `${i18n.t('play.upNext')} ${i.label}`
+  return i.resumeSeconds !== null ? i18n.t('play.resumeFilm', { time }) : i18n.t('play.resume')
+}
+const resumeCaptions = computed(() => Object.fromEntries(resume.items.value.map((i) => [i.summary.key, resumeCaption(i)])))
 
 const hasContent = computed(() => recent.total.value > 0)
+const loading = computed(() => !recent.loaded.value && recent.error.value === null)
 </script>
 
 <template>
-  <SectionPage section-key="home" :icon="mdiHomeOutline" title-key="nav.home" :has-content="hasContent">
+  <SectionPage section-key="home" :icon="mdiHomeOutline" title-key="nav.home" :has-content="hasContent" :loading="loading">
     <MetadataNudge />
     <PosterRail v-if="resumeTitles.length" :heading="$t('home.continue')" :titles="resumeTitles" :captions="resumeCaptions" data-test="continue-rail" />
     <PosterRail v-if="recent.items.value.length" :heading="$t('home.recent')" :titles="recent.items.value" />

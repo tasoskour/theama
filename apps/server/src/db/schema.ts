@@ -247,6 +247,8 @@ export const playbackState = sqliteTable(
     lastPlayedAt: text('last_played_at'),
     playCount: integer('play_count').notNull().default(0),
     source: text('source').notNull().default('manual'),
+    positionSeconds: integer('position_seconds'),
+    durationSeconds: integer('duration_seconds'),
   },
   (t) => [index('idx_playback_last').on(t.lastPlayedAt)],
 )

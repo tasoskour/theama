@@ -115,7 +115,7 @@ export function registerIpc(deps: IpcDeps): void {
     const exe = result.canceled ? null : (result.filePaths[0] ?? null)
     return exe ? deps.players.addCustom(exe) : null
   })
-  handle(IPC.playersPlay, PlayRequest, ({ fileId, playerId }) => deps.players.play(fileId, playerId))
+  handle(IPC.playersPlay, PlayRequest, ({ fileId, playerId, fromStart }) => deps.players.play(fileId, playerId, fromStart))
 
   handle(IPC.serviceStatus, none, () => deps.currentStatus())
   handle(IPC.serviceStart, none, () => deps.runService('start'))

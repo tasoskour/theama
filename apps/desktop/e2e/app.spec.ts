@@ -484,6 +484,35 @@ test('starts a player on a video with the right subtitle, remembers what was wat
   await expect.poll(() => launches().length).toBe(2)
   expect(launches()[1]!.args).toEqual([`--sub-file=${join(mediaFolder, 'Show.S01E01.el.srt')}`, '--slang=el,en', '--', join(mediaFolder, 'Show.S01E01.mkv')])
 
+  // A player that can report its position (the desktop shell forwards it): under five minutes is not remembered,
+  // after that the button resumes from the minute, and from 90 % the episode counts as watched on its own.
+  const api = (method: string, path: string, body?: unknown) =>
+    page.evaluate(
+      async ({ method, path, body }) => {
+        const info = (await (window as unknown as { theama: { appInfo(): Promise<{ apiBase: string }> } }).theama.appInfo())
+        const res = await fetch(`${info.apiBase}/api/v1${path}`, {
+          method,
+          headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        })
+        return (await res.json()) as unknown
+      },
+      { method, path, body },
+    )
+  const firstEpisode = ((await api('GET', '/library/files?kind=episode&limit=50')) as { items: { id: number; episode: number }[] }).items.find((f) => f.episode === 1)!
+  expect(await api('PUT', `/playback/files/${firstEpisode.id}/progress`, { positionSeconds: 120, durationSeconds: 2700, final: true })).toEqual({ outcome: 'ignored' })
+  await expect(page.locator('[data-test="play"]')).toHaveText(/Play S01E01/)
+  expect(await api('PUT', `/playback/files/${firstEpisode.id}/progress`, { positionSeconds: 754, durationSeconds: 2700, final: true })).toEqual({ outcome: 'saved' })
+  await expect(page.locator('[data-test="play"]')).toHaveText(/Resume S01E01 · 12:34/)
+  await expect(page.locator('[data-test="stopped-at"]')).toHaveText(/Stopped at 12:34/)
+  await page.locator('[data-test="play-with"]').click()
+  await expect(page.locator('.v-overlay-container [data-test="play-from-start"]')).toBeVisible()
+  await page.keyboard.press('Escape')
+  expect(await api('PUT', `/playback/files/${firstEpisode.id}/progress`, { positionSeconds: 2430, durationSeconds: 2700, final: true })).toEqual({ outcome: 'watched' })
+  await expect(page.locator('[data-test="play"]')).toHaveText(/Play S01E02/)
+  await api('PUT', `/playback/files/${firstEpisode.id}`, { watched: false })
+  await expect(page.locator('[data-test="play"]')).toHaveText(/Play S01E01/)
+
   // Mark the first episode watched: the big button moves on, and Home offers to continue.
   await page.locator('[data-test="toggle-watched"]').first().click()
   await expect(page.locator('[data-test="play"]')).toHaveText(/Play S01E02/)

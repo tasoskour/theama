@@ -629,6 +629,10 @@
     "again": "Play again",
     "upNext": "Next:",
     "resume": "Not finished",
+    "resumeLabel": "Resume {label} · {time}",
+    "resumeFilm": "Resume · {time}",
+    "stoppedAt": "Stopped at {time}",
+    "fromStart": "Play from start",
     "with": "Play with…",
     "default": "Default player",
     "unavailable": "Not available right now: the drive is offline or the file has moved.",
@@ -667,7 +671,9 @@
     "noLanguages": "No preference: the player decides.",
     "subtitleHint": "When you play something, Theama looks next to the video (and in Subs or Subtitles folders) for a subtitle file in the first of these languages and hands it to the player. Forced-only subtitles are never chosen.",
     "tracking": "What Theama knows about watching",
-    "trackingText": "Theama cannot see inside an external player, so it does not know how far you got. Starting a video is remembered, and \"Watched\" is something you mark (per episode, season or title). Continue watching offers the next episode you have not marked."
+    "trackingText": "With VLC, mpv, MPC-HC and MPC-BE, Theama sees how far you got. Stop after at least 5 minutes and it remembers the minute and carries on from there next time; from 90% of the runtime the episode or film counts as watched and Continue watching moves on to the next episode. Other players are only remembered as started: mark those as watched yourself (per episode, season or title).",
+    "tracked": "Resumes and marks watched",
+    "trackedHint": "Theama can see how far you got in this player"
   },
   "rename": {
     "title": "Rename files",

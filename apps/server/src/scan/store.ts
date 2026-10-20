@@ -73,6 +73,7 @@ export interface ListRow {
   tracks: string | null
   watched: number | null
   last_played_at: string | null
+  position_seconds: number | null
 }
 
 export function parseTracks(raw: string | null): Pick<MediaFile, 'audioTracks' | 'subtitleTracks'> {
@@ -90,6 +91,7 @@ export function toMediaFile(r: ListRow): MediaFile {
     ...parseTracks(r.tracks),
     watched: r.watched === 1,
     lastPlayedAt: r.last_played_at,
+    positionSeconds: r.watched === 1 ? null : r.position_seconds,
     id: r.id,
     sourceId: r.source_id,
     path: r.path,
@@ -299,7 +301,7 @@ export class MediaFileRepo {
     }
     const rows = this.raw
       .prepare(
-        `SELECT f.*, s.availability AS source_availability, p.watched AS watched, p.last_played_at AS last_played_at ${from}
+        `SELECT f.*, s.availability AS source_availability, p.watched AS watched, p.last_played_at AS last_played_at, p.position_seconds AS position_seconds ${from}
          ${pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : ''}
          ORDER BY ${SORT_EXPR} LIMIT ?`,
       )

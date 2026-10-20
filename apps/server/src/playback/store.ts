@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3'
-import type { ContinueItem, MediaKind, SubtitleTrack } from '@theama/contracts'
+import { MIN_TRACKED_SECONDS, WATCHED_FRACTION, type ContinueItem, type MediaKind, type ProgressResult, type SubtitleTrack } from '@theama/contracts'
 import { parseTracks } from '../scan/store'
 import type { TitleRepo } from '../scan/titles'
 import { nextEpisode, toEpisodeFile, type EpisodeFile } from './next'
@@ -29,6 +29,7 @@ interface FileRow {
   season: number | null
   episode: number | null
   watched: number | null
+  position_seconds: number | null
   state: 'available' | 'missing_unconfirmed'
   availability: 'online' | 'offline' | 'unknown'
 }
@@ -50,7 +51,7 @@ export class PlaybackRepo {
     const exists = this.raw.prepare('SELECT 1 FROM media_file WHERE id = ?')
     const upsert = this.raw.prepare(
       `INSERT INTO playback_state (file_id, watched, watched_at, source) VALUES (@id, @watched, @at, 'manual')
-       ON CONFLICT(file_id) DO UPDATE SET watched = @watched, watched_at = @at, source = 'manual'`,
+       ON CONFLICT(file_id) DO UPDATE SET watched = @watched, watched_at = @at, source = 'manual', position_seconds = NULL, duration_seconds = NULL`,
     )
     let changed = 0
     this.raw.transaction(() => {
@@ -86,6 +87,44 @@ export class PlaybackRepo {
       .run(fileId, now)
   }
 
+  /**
+   * A player reported how far it has got. Under five minutes nothing is kept (a quick look is not "watching");
+   * from 90 % of the runtime on the file counts as watched, which is what moves "next episode" along; in between
+   * the position is remembered so the next start can carry on. A file already watched is left alone unless this
+   * viewing reaches the end again.
+   */
+  recordProgress(fileId: number, positionSeconds: number, durationSeconds: number | null, now: string): ProgressResult['outcome'] {
+    const exists = this.raw.prepare('SELECT 1 FROM media_file WHERE id = ?').get(fileId)
+    if (!exists) throw new PlaybackProblem('not_found', 'No such file')
+    if (positionSeconds < MIN_TRACKED_SECONDS) return 'ignored'
+    const finished = durationSeconds !== null && durationSeconds > 0 && positionSeconds >= durationSeconds * WATCHED_FRACTION
+    const row = this.raw.prepare('SELECT watched FROM playback_state WHERE file_id = ?').get(fileId) as { watched: number } | undefined
+    if (finished) {
+      this.raw
+        .prepare(
+          `INSERT INTO playback_state (file_id, watched, watched_at, last_played_at, source) VALUES (@id, 1, @now, @now, 'player')
+           ON CONFLICT(file_id) DO UPDATE SET watched = 1, watched_at = coalesce(CASE WHEN watched = 1 THEN watched_at END, @now),
+             last_played_at = @now, position_seconds = NULL, duration_seconds = NULL`,
+        )
+        .run({ id: fileId, now })
+      return row?.watched === 1 ? 'ignored' : 'watched'
+    }
+    if (row?.watched === 1) return 'ignored'
+    this.raw
+      .prepare(
+        `INSERT INTO playback_state (file_id, last_played_at, source, position_seconds, duration_seconds) VALUES (@id, @now, 'player', @pos, @dur)
+         ON CONFLICT(file_id) DO UPDATE SET last_played_at = @now, position_seconds = @pos, duration_seconds = @dur`,
+      )
+      .run({ id: fileId, now, pos: Math.floor(positionSeconds), dur: durationSeconds === null ? null : Math.floor(durationSeconds) })
+    return 'saved'
+  }
+
+  /** Where a player should start on this file, or null to start from the beginning. */
+  resumeSeconds(fileId: number): number | null {
+    const r = this.raw.prepare('SELECT watched, position_seconds AS pos FROM playback_state WHERE file_id = ?').get(fileId) as { watched: number; pos: number | null } | undefined
+    return r && r.watched !== 1 ? r.pos : null
+  }
+
   /** The file a player would be started on, with whether that is possible right now. */
   fileForLaunch(fileId: number): LaunchFile | null {
     const r = this.raw
@@ -108,7 +147,7 @@ export class PlaybackRepo {
   private episodeFiles(key: string): EpisodeFile[] {
     const rows = this.raw
       .prepare(
-        `SELECT f.id, f.season, f.episode, p.watched AS watched, f.state, s.availability
+        `SELECT f.id, f.season, f.episode, p.watched AS watched, p.position_seconds AS position_seconds, f.state, s.availability
            FROM media_file f JOIN library_source s ON s.id = f.source_id LEFT JOIN playback_state p ON p.file_id = f.id
           WHERE f.title_key = ? AND f.kind = 'episode'`,
       )
@@ -128,31 +167,31 @@ export class PlaybackRepo {
       )
       .all(limit * 3) as { key: string; kind: MediaKind; activity: string }[]
 
-    const picked: { key: string; fileId: number; label: string | null; activity: string }[] = []
+    const picked: { key: string; fileId: number; label: string | null; resumeSeconds: number | null; activity: string }[] = []
     for (const c of candidates) {
       if (picked.length >= limit) break
       if (c.kind === 'episode') {
         const next = nextEpisode(this.episodeFiles(c.key))
-        if (next) picked.push({ key: c.key, fileId: next.fileId, label: next.label, activity: c.activity })
+        if (next) picked.push({ key: c.key, fileId: next.fileId, label: next.label, resumeSeconds: next.resumeSeconds, activity: c.activity })
         continue
       }
       // A film or personal video: continue it unless it has been marked watched.
       const files = this.raw
         .prepare(
-          `SELECT f.id, f.season, f.episode, p.watched AS watched, f.state, s.availability, p.last_played_at AS played
+          `SELECT f.id, f.season, f.episode, p.watched AS watched, p.position_seconds AS position_seconds, f.state, s.availability, p.last_played_at AS played
              FROM media_file f JOIN library_source s ON s.id = f.source_id LEFT JOIN playback_state p ON p.file_id = f.id
             WHERE f.title_key = ? AND f.kind = ? ORDER BY p.last_played_at DESC`,
         )
         .all(c.key, c.kind) as (FileRow & { played: string | null })[]
       if (files.length === 0 || files.some((f) => f.watched === 1)) continue
       const best = files.find((f) => toEpisodeFile(f).available) ?? files[0]!
-      picked.push({ key: c.key, fileId: best.id, label: null, activity: c.activity })
+      picked.push({ key: c.key, fileId: best.id, label: null, resumeSeconds: best.position_seconds, activity: c.activity })
     }
 
     const summaries = this.titles.summaries(picked.map((p) => p.key))
     return picked.flatMap((p) => {
       const summary = summaries.get(p.key)
-      return summary ? [{ summary, fileId: p.fileId, label: p.label, lastActivityAt: p.activity }] : []
+      return summary ? [{ summary, fileId: p.fileId, label: p.label, resumeSeconds: p.resumeSeconds, lastActivityAt: p.activity }] : []
     })
   }
 }

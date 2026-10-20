@@ -15,7 +15,7 @@ import PosterArt from '@/components/titles/PosterArt.vue'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
 import { usePlayersStore } from '@/stores/players'
-import { episodeCode, formatBytes, formatDuration, resolutionLabel } from '@/utils/format'
+import { episodeCode, formatBytes, formatClock, formatDuration, resolutionLabel } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -87,23 +87,26 @@ const ratingText = computed(() => {
 const playable = (f: MediaFile): boolean => f.state === 'available'
 
 /** What the big Play button starts: a film's best file, a series' next episode (or the first one once all are watched). */
-const playTarget = computed<{ fileId: number | null; label: string; reason: string | null }>(() => {
+const playTarget = computed<{ fileId: number | null; label: string; reason: string | null; resumable: boolean }>(() => {
   const s = summary.value
-  if (!s) return { fileId: null, label: t('detail.play'), reason: null }
+  if (!s) return { fileId: null, label: t('detail.play'), reason: null, resumable: false }
   const offlineReason = t('play.unavailable')
   if (s.kind === 'series') {
     const next = detail.value?.playback.next
     if (next) {
       const f = files.value.find((x) => x.id === next.fileId)
-      return { fileId: next.fileId, label: t('play.next', { label: next.label }), reason: f && playable(f) ? null : offlineReason }
+      const resumable = next.resumeSeconds !== null
+      const label = resumable ? t('play.resumeLabel', { label: next.label, time: formatClock(next.resumeSeconds) }) : t('play.next', { label: next.label })
+      return { fileId: next.fileId, label, reason: f && playable(f) ? null : offlineReason, resumable }
     }
     const first = [...files.value].filter((f) => f.kind === 'episode' && f.season !== 0).sort((a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0))[0]
     const label = s.watchState === 'all' ? t('play.again') : t('detail.play')
-    return first ? { fileId: first.id, label, reason: playable(first) ? null : offlineReason } : { fileId: null, label, reason: offlineReason }
+    return first ? { fileId: first.id, label, reason: playable(first) ? null : offlineReason, resumable: false } : { fileId: null, label, reason: offlineReason, resumable: false }
   }
-  const best = files.value.find(playable) ?? files.value[0]
-  const label = s.watchState === 'all' ? t('play.again') : t('detail.play')
-  return best ? { fileId: best.id, label, reason: playable(best) ? null : offlineReason } : { fileId: null, label, reason: offlineReason }
+  const best = files.value.find((x) => playable(x) && x.positionSeconds !== null) ?? files.value.find(playable) ?? files.value[0]
+  const resumable = best?.positionSeconds != null
+  const label = resumable ? t('play.resumeFilm', { time: formatClock(best!.positionSeconds) }) : s.watchState === 'all' ? t('play.again') : t('detail.play')
+  return best ? { fileId: best.id, label, reason: playable(best) ? null : offlineReason, resumable } : { fileId: null, label, reason: offlineReason, resumable: false }
 })
 const blockedReason = computed(() => (players.canPlay ? playTarget.value.reason : t('play.needsApp')))
 
@@ -321,10 +324,10 @@ const metaChips = computed(() => {
 
           <div class="cta">
             <div class="cta__row">
-              <PlayButton :file-id="playTarget.fileId" :label="playTarget.label" :blocked-reason="blockedReason" @played="onPlayed" />
+              <PlayButton :file-id="playTarget.fileId" :label="playTarget.label" :blocked-reason="blockedReason" :resumable="playTarget.resumable" @played="onPlayed" />
               <v-menu location="bottom start">
                 <template #activator="{ props: menuProps }">
-                  <v-btn v-bind="menuProps" variant="tonal" :prepend-icon="mdiEye" data-test="watched-menu">{{ summary.watchState === 'all' ? $t('play.watched') : $t('play.watchedMenu') }}</v-btn>
+                  <v-btn v-bind="menuProps" variant="outlined" class="th-btn-quiet" :prepend-icon="mdiEye" data-test="watched-menu">{{ summary.watchState === 'all' ? $t('play.watched') : $t('play.watchedMenu') }}</v-btn>
                 </template>
                 <v-list density="compact">
                   <v-list-item :title="$t('play.markAllWatched')" data-test="mark-all-watched" @click="setTitleWatched(true)" />
@@ -337,7 +340,7 @@ const metaChips = computed(() => {
                 </v-list>
               </v-menu>
               <AddToCollectionMenu :title-key="summary.key" :member-of="detail?.collections ?? []" @changed="load" />
-              <v-btn v-if="summary.kind !== 'video'" variant="text" data-test="rename-files" @click="renameOpen = true">{{ $t('detail.renameFiles') }}</v-btn>
+              <v-btn v-if="summary.kind !== 'video'" variant="text" class="th-btn-quiet th-btn-quiet--text cta__rename" data-test="rename-files" @click="renameOpen = true">{{ $t('detail.renameFiles') }}</v-btn>
             </div>
             <p v-if="!players.canPlay" class="th-muted text-caption">{{ $t('play.needsAppHint') }}</p>
             <p v-else-if="playTarget.reason" class="th-muted text-caption">{{ playTarget.reason }}</p>
@@ -443,6 +446,7 @@ const metaChips = computed(() => {
                   <v-chip v-else-if="r.file.state === 'missing_unconfirmed'" size="x-small" color="error" label variant="tonal">{{ $t('files.missing') }}</v-chip>
                   <v-chip v-if="r.file.probeError" size="x-small" color="error" label variant="outlined" :title="r.file.probeError">{{ $t('files.unreadable') }}</v-chip>
                   <v-chip v-else-if="resolutionLabel(r.file.width, r.file.height)" size="x-small" label variant="outlined">{{ resolutionLabel(r.file.width, r.file.height) }}</v-chip>
+                  <v-chip v-if="r.file.positionSeconds !== null" size="x-small" label variant="tonal" color="primary" data-test="stopped-at">{{ $t('play.stoppedAt', { time: formatClock(r.file.positionSeconds) }) }}</v-chip>
                   <span class="th-muted num">{{ formatDuration(r.file.durationMs, locale) }}</span>
                 </span>
               </button>
@@ -492,6 +496,7 @@ const metaChips = computed(() => {
             <v-chip v-if="f.state === 'source_offline'" size="x-small" color="warning" label variant="tonal">{{ $t('files.offline') }}</v-chip>
             <v-chip v-else-if="f.state === 'missing_unconfirmed'" size="x-small" color="error" label variant="tonal">{{ $t('files.missing') }}</v-chip>
             <v-chip v-if="f.watched" size="x-small" label variant="tonal" color="success">{{ $t('play.watched') }}</v-chip>
+            <v-chip v-else-if="f.positionSeconds !== null" size="x-small" label variant="tonal" color="primary" data-test="stopped-at">{{ $t('play.stoppedAt', { time: formatClock(f.positionSeconds) }) }}</v-chip>
             <span class="file__spacer" />
             <PlayButton
               v-if="files.length > 1"
@@ -671,12 +676,12 @@ const metaChips = computed(() => {
   font-size: 0.78rem;
 }
 .cta {
-  margin-top: 24px;
-  padding-top: 20px;
+  margin-top: 28px;
+  padding-top: 24px;
   border-top: 1px solid rgba(var(--v-theme-hairline), 0.72);
   display: grid;
-  gap: 8px;
-  justify-items: start;
+  gap: 10px;
+  justify-items: stretch;
 }
 .cta p {
   margin: 0;
@@ -711,8 +716,26 @@ const metaChips = computed(() => {
 .cta__row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+}
+/* The least-used action sits apart, at the far end, so the row reads Play first. */
+.cta__rename {
+  margin-inline-start: auto;
+}
+@media (max-width: 600px) {
+  .cta__row > :first-child {
+    flex: 1 1 100%;
+  }
+  .cta__row :deep(.play) {
+    width: 100%;
+  }
+  .cta__row :deep(.play__main) {
+    flex: 1 1 auto;
+  }
+  .cta__rename {
+    margin-inline-start: 0;
+  }
 }
 .ep__line {
   display: flex;

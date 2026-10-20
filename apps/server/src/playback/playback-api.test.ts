@@ -127,6 +127,61 @@ describe('watched state', () => {
   })
 })
 
+describe('where playback stopped', () => {
+  const report = (id: number, positionSeconds: number, durationSeconds: number | null, final = false) =>
+    send('PUT', `/playback/files/${id}/progress`, { positionSeconds, durationSeconds, final }).then(async (r) => ({ status: r.status, ...((await r.json()) as { outcome: string }) }))
+  const resume = async (id: number) => LaunchInfo.parse(await get(`/playback/files/${id}/launch`)).resumeSeconds
+
+  it('ignores anything under five minutes', async () => {
+    const id = await episodeId(1)
+    expect(await report(id, 299, 2700)).toMatchObject({ status: 200, outcome: 'ignored' })
+    expect(await resume(id)).toBeNull()
+    expect((await detail((await byTitle('Show')).key)).playback.next).toMatchObject({ label: 'S01E01', resumeSeconds: null })
+  })
+
+  it('remembers the minute after five, and offers it to the player, the next-episode button and the continue rail', async () => {
+    const id = await episodeId(1)
+    expect(await report(id, 754, 2700)).toMatchObject({ outcome: 'saved' })
+    expect(await resume(id)).toBe(754)
+    const d = await detail((await byTitle('Show')).key)
+    expect(d.playback.next).toMatchObject({ label: 'S01E01', resumeSeconds: 754 })
+    expect(d.files.find((f) => f.id === id)).toMatchObject({ positionSeconds: 754, watched: false })
+    const items = ContinueList.parse(await get('/playback/continue')).items
+    expect(items.find((i) => i.summary.title === 'Show')).toMatchObject({ label: 'S01E01', resumeSeconds: 754 })
+    // A later short look does not erase it.
+    expect(await report(id, 30, 2700)).toMatchObject({ outcome: 'ignored' })
+    expect(await resume(id)).toBe(754)
+  })
+
+  it('counts the file as watched from 90 %, which moves the next episode on and clears the position', async () => {
+    const id = await episodeId(1)
+    expect(await report(id, 2430, 2700, true)).toMatchObject({ outcome: 'watched' })
+    expect(await resume(id)).toBeNull()
+    const d = await detail((await byTitle('Show')).key)
+    expect(d.files.find((f) => f.id === id)).toMatchObject({ watched: true, positionSeconds: null })
+    expect(d.playback.next).toMatchObject({ label: 'S01E02', resumeSeconds: null })
+    // Rewatching a watched file part-way changes nothing.
+    expect(await report(id, 600, 2700)).toMatchObject({ outcome: 'ignored' })
+    expect((await detail((await byTitle('Show')).key)).playback.next).toMatchObject({ label: 'S01E02' })
+  })
+
+  it('without a known length it keeps the position but never decides "watched"', async () => {
+    const id = await episodeId(2)
+    expect(await report(id, 5000, null)).toMatchObject({ outcome: 'saved' })
+    expect(await resume(id)).toBe(5000)
+  })
+
+  it('marking unwatched starts fresh, and bad input is refused', async () => {
+    const id = await episodeId(2)
+    await send('PUT', `/playback/files/${id}`, { watched: false })
+    expect(await resume(id)).toBeNull()
+    expect((await report(99999, 600, 2700)).status).toBe(404)
+    expect((await send('PUT', `/playback/files/${id}/progress`, { positionSeconds: -5 })).status).toBe(400)
+    await send('PUT', '/playback/titles', { key: (await byTitle('Show')).key, watched: false })
+    expect((await byTitle('Show')).watchState).toBe('none')
+  })
+})
+
 describe('starting a player', () => {
   it('gives the shell the path and the subtitle that fits the language preferences (Greek first by default)', async () => {
     const info = LaunchInfo.parse(await get(`/playback/files/${await episodeId(1)}/launch`))

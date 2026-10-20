@@ -38,7 +38,11 @@ const SECTIONS = [
         </v-list>
       </nav>
       <main class="content">
-        <router-view />
+        <router-view v-slot="{ Component, route }">
+          <transition name="th-fade" mode="out-in">
+            <component :is="Component" :key="route.matched[1]?.path ?? route.path" />
+          </transition>
+        </router-view>
       </main>
     </div>
   </div>
@@ -64,6 +68,8 @@ const SECTIONS = [
 }
 .content {
   min-width: 0;
+  /* Keeps the page from collapsing and re-growing while one section fades out and the next fades in. */
+  min-height: 50vh;
 }
 .content > :deep(section) {
   min-width: 0;

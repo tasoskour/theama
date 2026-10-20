@@ -30,6 +30,17 @@ export function formatDuration(ms: number | null, locale: string): string {
   return hours > 0 ? (minutes > 0 ? `${unit(hours, 'hour')} ${unit(minutes, 'minute')}` : unit(hours, 'hour')) : unit(minutes, 'minute')
 }
 
+/** A position in a video as a clock: "12:34", or "1:02:03" from an hour on. */
+export function formatClock(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return ''
+  const total = Math.floor(seconds)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const two = (n: number): string => String(n).padStart(2, '0')
+  return h > 0 ? `${h}:${two(m)}:${two(s)}` : `${m}:${two(s)}`
+}
+
 /** "4K", "1080p", "720p"... from the video height (width as a hint for cropped widescreen). */
 export function resolutionLabel(width: number | null, height: number | null): string {
   if (!height && !width) return ''

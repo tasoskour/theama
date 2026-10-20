@@ -16,6 +16,7 @@ import {
   ReclassifyTitleRequest,
   SetTitleWatchedRequest,
   SetWatchedRequest,
+  ProgressRequest,
   CollectionDetailQuery,
   CollectionListQuery,
   CreateCollectionRequest,
@@ -44,6 +45,7 @@ import {
   type RenameApplyResult,
   type RenamePreview,
   type ContinueList,
+  type ProgressResult,
   type GenreList,
   type FileSubtitles,
   type LaunchInfo,
@@ -589,6 +591,7 @@ export async function buildApp(deps: AppDeps) {
       kind: file.kind,
       subtitle: chosen ? { path: chosen.path, language: chosen.language } : null,
       subtitleLanguages: preferred,
+      resumeSeconds: playback.resumeSeconds(id),
     }
   })
 
@@ -597,6 +600,16 @@ export async function buildApp(deps: AppDeps) {
     playbackCall(() => playback.launched(id, nowIso()))
     events.broadcast({ type: 'library.changed' })
     return { ok: true }
+  })
+
+  /** Forwarded by the desktop shell while a player that can tell us its position is open. */
+  app.put(`${API_PREFIX}/playback/files/:id/progress`, async (req): Promise<ProgressResult> => {
+    const { id } = IdParams.parse(req.params)
+    const body = ProgressRequest.parse(req.body ?? {})
+    const outcome = playbackCall(() => playback.recordProgress(id, body.positionSeconds, body.durationSeconds, nowIso()))
+    // Periodic saves stay quiet; lists refresh when the file turns watched or the viewing ends.
+    if (outcome === 'watched' || (body.final && outcome !== 'ignored')) events.broadcast({ type: 'library.changed' })
+    return { outcome }
   })
 
   app.get(`${API_PREFIX}/library/files/:id/subtitles`, async (req): Promise<FileSubtitles> => {

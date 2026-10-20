@@ -280,6 +280,11 @@ export const MIGRATIONS: readonly string[] = [
     CHECK (kind_override IS NULL OR kind_override IN ('movie','episode','video'));
   CREATE INDEX idx_media_file_kind_override ON media_file(kind_override);
   `,
+  /* 10 — where playback stopped, reported by players that can tell us */
+  `
+  ALTER TABLE playback_state ADD COLUMN position_seconds INTEGER;
+  ALTER TABLE playback_state ADD COLUMN duration_seconds INTEGER;
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

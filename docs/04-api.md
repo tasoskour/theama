@@ -36,9 +36,10 @@ Base: `http://127.0.0.1:<port>/api/v1` (default port 47890, falls back to a free
 | PUT | `/collections/:id/order` | `CollectionDetail` | `{ keys }` — the custom order; unnamed members follow in their old order; a stranger or a repeated key is `400 bad_order` and nothing changes. |
 | PUT | `/playback/files/:id` | `{ changed }` | `{ watched }` — mark one file watched or not. |
 | PUT | `/playback/titles` | `{ changed }` | `{ key, watched, season? }` — a whole title or one season (0 = specials). `404` for an unknown title. |
-| GET | `/playback/continue?limit=` | `{ items: ContinueItem[] }` | `{ summary, fileId, label ("S02E03" or null), lastActivityAt }`. |
-| GET | `/playback/files/:id/launch` | `LaunchInfo { path, fileName, title, kind, subtitle, subtitleLanguages }` | What the **desktop shell** needs to start a player. `409 unavailable` if the drive is offline or the file moved. The subtitle is the first external file matching the language preferences (forced-only never). |
+| GET | `/playback/continue?limit=` | `{ items: ContinueItem[] }` | `{ summary, fileId, label ("S02E03" or null), resumeSeconds, lastActivityAt }`. |
+| GET | `/playback/files/:id/launch` | `LaunchInfo { path, fileName, title, kind, subtitle, subtitleLanguages, resumeSeconds }` | What the **desktop shell** needs to start a player. `409 unavailable` if the drive is offline or the file moved. The subtitle is the first external file matching the language preferences (forced-only never). |
 | POST | `/playback/files/:id/launched` | `{ ok }` | Recorded by the shell after a player started. Does not mark anything watched. |
+| PUT | `/playback/files/:id/progress` | `{ outcome: ignored \| saved \| watched }` | `{ positionSeconds, durationSeconds, final }`, forwarded by the shell while VLC, mpv or MPC-HC/BE is open. Under 5 minutes is `ignored`; from 90 % of the length the file becomes `watched`; otherwise the position is `saved`. `library.changed` is broadcast only when the file turns watched or `final` is true. |
 | GET | `/library/files/:id/subtitles` | `FileSubtitles { embedded, external[], chosen, preferred }` | External files beside the video (and in `Subs`/`Subtitles`), with language, forced and SDH flags. |
 | POST | `/files/rename/preview` | `RenamePreview { items[], counts }` | `{ keys, movieTemplate?, episodeTemplate? }`. Nothing is touched. Item statuses: `ok`, `unchanged`, `collision_exists`, `collision_batch`, `too_long`, `unavailable`, `missing`, `skipped`. `400 invalid_template`, `400 not_renamable` (personal videos), `404`. |
 | POST | `/files/rename/apply` | `{ batch, changed }` | The same request plus `approved: [{from, to}]`. The plan is rebuilt and only approved pairs that **still match it exactly** are renamed; the rest count in `changed`. Each rename is journalled first. |
@@ -89,7 +90,7 @@ Defined in `packages/contracts/src/ipc.ts`; each channel has a Zod request schem
 | Titles | `GET /movies`, `GET /series`, `GET /videos` (filters: genre, year, rating, watched, resolution, language, tags, collection, `availability`), `GET /movies/:id`, `GET /series/:id/seasons`, `GET /episodes/:id` | 2–5 |
 | Search | `GET /search?q=` (grouped by category) + `GET /search/suggest` | 3 |
 | Collections | `GET/POST /collections`, membership endpoints, ordering (`release` / `story` / `custom`) | 5 |
-| Playback | progress positions and per-player integrations (VLC web interface, mpv IPC) | later |
+| Playback | progress for PotPlayer and other players that expose no interface | later |
 | Subtitles | `PUT /subtitles/associate` (pick a file by hand) | later |
 
 As built, the desktop IPC (`window.theama.players`) is `list`, `setDefault`, `addCustom` (a native file picker), `remove` and `play({ fileId, playerId? })`; the UI never supplies a path, only a file id. Anything that launches a process or opens Explorer is **not** an API endpoint: it goes through the desktop shell, because the service may live in another Windows session and because it keeps the "arbitrary website can trigger it" attack surface at zero.

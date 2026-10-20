@@ -36,13 +36,13 @@ Single-user, single-machine. A secured LAN/mobile mode is explicitly future work
 | Metadata | TMDB adapter, matching with confidence + manual correction + locking, artwork cache, Greek preferred | Designed (Phase 4) |
 | Series | Seasons/episodes, multi-episode files, missing-episode detection | **Built** (needs a TMDB key for the episode list); next-episode and continue-watching are built on the watched marks (Phase 6) |
 | Collections | Official collections, sequels, universes, user collections, never-fabricated orders | **Built** for official (TMDB) and user collections in release / custom order; sequel chains and universes are not built (they need curated data) |
-| Playback | External players (VLC, MPC-HC/BE, mpv, PotPlayer, default), open folder, copy path, watched state | **Built** — started by the desktop shell with argument arrays; watched is marked by hand (Theama cannot see inside an external player); resume position is not tracked |
+| Playback | External players (VLC, MPC-HC/BE, mpv, PotPlayer, default), open folder, copy path, watched state | **Built** — started by the desktop shell with argument arrays; with VLC, mpv and MPC-HC/BE Theama sees the position (remembered after 5 minutes, resumed next time, watched from 90 %, ADR-0013); other players are only remembered as started and watched is marked by hand |
 | Subtitles | Embedded/external detection, language, association, default selection | **Built** for detection (embedded streams from FFprobe; external files beside the video, with language), language preferences and default selection at launch; picking a file by hand to associate is not built |
 | File organisation | Rename templates, preview, collision detection, journal, rollback | **Built** for in-place renames of films and episodes (with their subtitles); moving into folders is not built |
 | Packaging | Installer, updates, backup/restore | **Built, with gaps:** the installer builds and the packaged app passes a smoke test, but the installer itself has not been run on a clean machine (it needs an administrator's approval); backup/restore **built**; updates are by running a newer installer over the old one (a feed for automatic updates needs a place to host it) |
 
 ### Post-MVP
-Embedded player (codec/container limits must be evaluated first) · player-specific resume-position integrations · NFO import/export · smart collections beyond the basics · metadata refresh scheduling · additional providers via adapters.
+Embedded player (codec/container limits must be evaluated first) · resume-position integrations for PotPlayer and other players · NFO import/export · smart collections beyond the basics · metadata refresh scheduling · additional providers via adapters.
 
 ### Optional / future
 Secured LAN/mobile access (separate, explicitly enabled feature with its own security model) · subtitle provider adapters · additional languages.

@@ -65,7 +65,8 @@ async function addLanguage(code: string | null): Promise<void> {
             <v-radio :value="p.id" :disabled="!p.available" :label="p.name" />
             <span class="th-muted th-mono player__exe">{{ p.exe ?? $t('playback.systemHint') }}</span>
             <v-chip v-if="!p.available" size="x-small" label variant="outlined" color="warning">{{ $t('playback.notFound') }}</v-chip>
-            <v-chip v-else-if="!p.externalSubtitle && p.kind !== 'system'" size="x-small" label variant="outlined" :title="$t('playback.noSubtitleHint')">{{ $t('playback.noSubtitle') }}</v-chip>
+            <v-chip v-else-if="p.tracksPosition" size="x-small" label variant="tonal" color="success" :title="$t('playback.trackedHint')" data-test="tracks-position">{{ $t('playback.tracked') }}</v-chip>
+            <v-chip v-if="p.available && !p.externalSubtitle && p.kind !== 'system'" size="x-small" label variant="outlined" :title="$t('playback.noSubtitleHint')">{{ $t('playback.noSubtitle') }}</v-chip>
             <v-btn v-if="p.removable" size="x-small" variant="text" color="error" @click="players.remove(p.id)">{{ $t('playback.remove') }}</v-btn>
           </div>
         </v-radio-group>

@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { nextEpisode, type EpisodeFile } from './next'
 
 let id = 0
-const ep = (season: number | null, episode: number | null, watched = false, available = true): EpisodeFile => ({ id: ++id, season, episode, watched, available })
+const ep = (season: number | null, episode: number | null, watched = false, available = true, positionSeconds: number | null = null): EpisodeFile => ({ id: ++id, season, episode, watched, positionSeconds, available })
 
 describe('nextEpisode', () => {
+  it('carries where playback stopped, so the next play can resume', () => {
+    expect(nextEpisode([ep(1, 1, true), ep(1, 2, false, true, 754), ep(1, 3)])).toMatchObject({ label: 'S01E02', resumeSeconds: 754 })
+    expect(nextEpisode([ep(1, 1), ep(1, 2)])).toMatchObject({ label: 'S01E01', resumeSeconds: null })
+  })
+
   it('starts at the first episode when nothing has been watched', () => {
     const files = [ep(1, 2), ep(1, 1), ep(1, 3)]
     expect(nextEpisode(files)).toMatchObject({ season: 1, episode: 1, label: 'S01E01' })

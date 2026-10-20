@@ -7,6 +7,8 @@ export const NextEpisode = z.object({
   episode: z.number().int(),
   /** `S02E03`. */
   label: z.string(),
+  /** Where playback stopped last time (seconds), when it is worth resuming; null otherwise. */
+  resumeSeconds: z.number().int().nullable(),
 })
 export type NextEpisode = z.infer<typeof NextEpisode>
 

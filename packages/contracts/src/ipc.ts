@@ -81,11 +81,18 @@ export const PlayerInfo = z.object({
   removable: z.boolean(),
   /** Whether Theama can start it with a chosen external subtitle file. */
   externalSubtitle: z.boolean(),
+  /** Whether Theama can see how far this player has got (to resume and to mark episodes watched). */
+  tracksPosition: z.boolean(),
 })
 export type PlayerInfo = z.infer<typeof PlayerInfo>
 
 export const PlayerIdRequest = z.object({ id: z.string().min(1).max(200) })
-export const PlayRequest = z.object({ fileId: z.number().int().positive(), playerId: z.string().min(1).max(200).optional() })
+export const PlayRequest = z.object({
+  fileId: z.number().int().positive(),
+  playerId: z.string().min(1).max(200).optional(),
+  /** Ignore the remembered position and start from the beginning. */
+  fromStart: z.boolean().optional(),
+})
 export type PlayRequest = z.infer<typeof PlayRequest>
 
 export const PlayResult = z.object({

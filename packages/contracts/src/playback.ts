@@ -14,6 +14,8 @@ export const LaunchInfo = z.object({
   subtitle: z.object({ path: z.string(), language: z.string().nullable() }).nullable(),
   /** The preferred subtitle languages, most wanted first (ISO 639-1). */
   subtitleLanguages: z.array(z.string()),
+  /** Where to start (seconds) so the person carries on where they stopped; null to start from the beginning. */
+  resumeSeconds: z.number().int().nullable(),
 })
 export type LaunchInfo = z.infer<typeof LaunchInfo>
 
@@ -50,12 +52,34 @@ export const SetTitleWatchedRequest = z.object({
 })
 export type SetTitleWatchedRequest = z.infer<typeof SetTitleWatchedRequest>
 
+/**
+ * What a player reports while it plays, forwarded by the desktop shell. The server decides what it means:
+ * nothing is kept below `MIN_TRACKED_SECONDS`, and near the end the file counts as watched.
+ */
+export const ProgressRequest = z.object({
+  positionSeconds: z.number().min(0).max(1_000_000).transform((n) => Math.floor(n)),
+  durationSeconds: z.number().positive().max(1_000_000).transform((n) => Math.floor(n)).nullable().default(null),
+  /** The player has closed: the last report of this viewing. */
+  final: z.boolean().default(false),
+})
+export type ProgressRequest = z.input<typeof ProgressRequest>
+
+export const ProgressResult = z.object({ outcome: z.enum(['ignored', 'saved', 'watched']) })
+export type ProgressResult = z.infer<typeof ProgressResult>
+
+/** Playback shorter than this is not remembered. */
+export const MIN_TRACKED_SECONDS = 5 * 60
+/** From this share of the runtime on, a file counts as watched. */
+export const WATCHED_FRACTION = 0.9
+
 export const ContinueItem = z.object({
   summary: TitleSummary,
   /** The file to play now. */
   fileId: z.number().int(),
   /** `S02E03` for a series; null for a film. */
   label: z.string().nullable(),
+  /** Where playback stopped last time (seconds), if it is worth resuming. */
+  resumeSeconds: z.number().int().nullable(),
   lastActivityAt: IsoDate,
 })
 export type ContinueItem = z.infer<typeof ContinueItem>

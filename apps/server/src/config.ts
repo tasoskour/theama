@@ -22,6 +22,10 @@ export interface ServerConfig {
   logsDir: string
   secretsDir: string
   artworkDir: string
+  /** Where backups of the database are kept. */
+  backupsDir: string
+  /** Where a restore waits for the next start. */
+  restoreDir: string
   tmdbKeyFile: string
   tmdbApiBase?: string
   tmdbImageBase?: string
@@ -30,6 +34,8 @@ export interface ServerConfig {
   port: number
   hostMode: HostMode
   logLevel: 'trace' | 'debug' | 'info' | 'warn' | 'error'
+  /** The level was set explicitly in the environment, so the saved "log detail" setting does not override it. */
+  logLevelPinned: boolean
   allowedOrigins: string[]
 }
 
@@ -46,12 +52,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   return {
     ...paths,
     artworkDir: join(paths.cacheDir, 'artwork'),
+    backupsDir: join(paths.dataDir, 'backups'),
+    restoreDir: join(paths.dataDir, 'restore'),
     tmdbKeyFile: join(paths.secretsDir, 'tmdb.key'),
     ...(parsed.THEAMA_TMDB_API_BASE ? { tmdbApiBase: parsed.THEAMA_TMDB_API_BASE } : {}),
     ...(parsed.THEAMA_TMDB_IMAGE_BASE ? { tmdbImageBase: parsed.THEAMA_TMDB_IMAGE_BASE } : {}),
     port: parsed.THEAMA_PORT,
     hostMode: parsed.THEAMA_HOST_MODE,
     logLevel: parsed.THEAMA_LOG_LEVEL,
+    logLevelPinned: env.THEAMA_LOG_LEVEL !== undefined,
     allowedOrigins: [...BASE_ALLOWED_ORIGINS, ...extra],
   }
 }

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ThemePreference, UiLanguage } from '@theama/contracts'
+import type { DesktopSettings, LogDetail, ThemePreference, UiLanguage } from '@theama/contracts'
+import { getBridge } from '@/api/bridge'
 import { SUPPORTED_LANGUAGES } from '@/i18n'
 import { useConnectionStore } from '@/stores/connection'
 import { useSettingsStore } from '@/stores/settings'
@@ -10,6 +11,21 @@ const { t } = useI18n()
 const store = useSettingsStore()
 const connection = useConnectionStore()
 const snackbar = ref(false)
+const bridge = getBridge()
+
+const logDetails: LogDetail[] = ['error', 'warn', 'info', 'debug']
+const logDetailItems = computed(() => logDetails.map((d) => ({ value: d, title: t(`settings.general.logDetails.${d}`) })))
+
+// What the desktop app does around its window is kept by the desktop app itself, not by the service.
+const desktop = ref<DesktopSettings | null>(null)
+onMounted(async () => {
+  desktop.value = (await bridge?.desktop.get().catch(() => null)) ?? null
+})
+async function setDesktop(patch: { closeToTray?: boolean; startWithWindows?: boolean }): Promise<void> {
+  if (!bridge) return
+  desktop.value = await bridge.desktop.set(patch)
+  snackbar.value = true
+}
 
 const themes: ThemePreference[] = ['system', 'dark', 'light']
 const retentionChoices = [7, 14, 30, 90]
@@ -66,11 +82,48 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
       <v-select
         :model-value="store.settings.logRetentionDays"
         :items="retentionItems"
+        :aria-label="$t('settings.general.logRetention')"
         :disabled="!connection.isConnected"
         style="max-width: 220px"
         @update:model-value="(v: number) => save({ logRetentionDays: v })"
       />
       <p class="th-muted hint">{{ $t('settings.general.logRetentionHint') }}</p>
+    </div>
+
+    <div class="field">
+      <span class="label">{{ $t('settings.general.logDetail') }}</span>
+      <v-select
+        :model-value="store.settings.logDetail"
+        :items="logDetailItems"
+        :aria-label="$t('settings.general.logDetail')"
+        :disabled="!connection.isConnected"
+        style="max-width: 280px"
+        @update:model-value="(v: LogDetail) => save({ logDetail: v })"
+      />
+      <p class="th-muted hint">{{ $t('settings.general.logDetailHint') }}</p>
+    </div>
+
+    <div v-if="desktop" class="field" data-test="desktop-behaviour">
+      <span class="label">{{ $t('settings.desktop.title') }}</span>
+      <v-switch
+        :model-value="desktop.closeToTray"
+        :label="$t('settings.desktop.closeToTray')"
+        color="primary"
+        hide-details
+        data-test="close-to-tray"
+        @update:model-value="(v: boolean | null) => setDesktop({ closeToTray: v === true })"
+      />
+      <p class="th-muted hint">{{ $t('settings.desktop.closeToTrayHint') }}</p>
+      <v-switch
+        :model-value="desktop.startWithWindows"
+        :label="$t('settings.desktop.startWithWindows')"
+        :disabled="!desktop.startWithWindowsSupported"
+        color="primary"
+        hide-details
+        data-test="start-with-windows"
+        @update:model-value="(v: boolean | null) => setDesktop({ startWithWindows: v === true })"
+      />
+      <p class="th-muted hint">{{ $t(desktop.startWithWindowsSupported ? 'settings.desktop.startWithWindowsHint' : 'settings.desktop.startWithWindowsDev') }}</p>
     </div>
 
     <v-alert v-if="store.error" type="error" variant="tonal" density="compact" class="mt-4">{{ store.error }}</v-alert>

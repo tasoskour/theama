@@ -17,6 +17,11 @@ const VERSION = '9.0.2'
 const URL_ZIP = `https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-${VERSION}-essentials_build.zip`
 const SHA256 = '60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
 const ENTRY = `ffmpeg-${VERSION}-essentials_build/bin/ffprobe.exe`
+// The licence text and readme of that build, kept beside ffprobe.exe and shipped with the installer.
+const EXTRAS = [
+  [`ffmpeg-${VERSION}-essentials_build/LICENSE`, 'LICENSE-ffmpeg.txt'],
+  [`ffmpeg-${VERSION}-essentials_build/README.txt`, 'README-ffmpeg.txt'],
+]
 
 const here = dirname(fileURLToPath(import.meta.url))
 const target = join(here, 'bin', 'ffprobe.exe')
@@ -67,6 +72,10 @@ try {
     `  $entry = $zip.GetEntry('${ENTRY}')`,
     `  if (-not $entry) { throw 'ffprobe.exe was not found in the archive' }`,
     `  [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, '${target}', $true)`,
+    ...EXTRAS.flatMap(([entry, name]) => [
+      `  $e = $zip.GetEntry('${entry}')`,
+      `  if ($e) { [System.IO.Compression.ZipFileExtensions]::ExtractToFile($e, '${join(dirname(target), name)}', $true) }`,
+    ]),
     '} finally { $zip.Dispose() }',
   ].join('\n')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { stdio: 'inherit' })

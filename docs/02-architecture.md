@@ -73,6 +73,20 @@ Interactive actions (launch VLC, open Explorer, folder picker) are done by the *
 - `NssmServiceController` — production; `sc.exe queryex/qc/start/stop`, plus the elevated admin script.
 - `DevProcessController` — development/e2e; runs the server as a child process with the same start/stop/status semantics (graceful stop via a stdin message).
 
+### Packaged layout (Phase 7)
+`yarn dist` stages everything under `build/stage` (`tools/package/stage.mjs`) and electron-builder makes `build/installer/Theama-Setup-<version>.exe` (NSIS, per-machine, not signed). Installed, next to `Theama.exe`:
+
+```
+resources/app.asar          the desktop shell (main + preload bundles; no node_modules)
+resources/ui/               the built interface (served over app://theama)
+resources/server/server.cjs the backend bundle + server/node_modules/better-sqlite3 (JS + the win32-x64 prebuilt binary)
+resources/node/node.exe     the Node.js that runs the service (the one the build ran with; VERSION.txt records it)
+resources/nssm/             nssm.exe, service-admin.ps1 (install/repair/uninstall), installer-helper.ps1 (stop/start for upgrades)
+resources/ffprobe/          ffprobe.exe + FFmpeg's licence and readme
+resources/THIRD-PARTY-NOTICES.txt, icon.ico
+```
+User data stays in `%ProgramData%\Theama` (database, backups, logs, secrets, artwork cache), so upgrades and uninstalls never touch it unless the person asks. `THEAMA_CONTROLLER=process` runs the packaged Node + server as a plain child of the app (no Windows service); it is what the packaged smoke test uses.
+
 ## 4. Local trust model
 
 Threats considered: a malicious **web page** calling `http://127.0.0.1:<port>`; **DNS rebinding**; another **local process under the same user**; another **Windows user** on the machine.

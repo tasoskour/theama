@@ -42,6 +42,15 @@ A test (`schema-drift.test.ts`) fails if the Drizzle declarations and the migrat
 - `file_operation(id, batch_id, seq, kind video|subtitle, file_id, from_path, to_path, status pending|done|failed|rolled_back|rollback_failed, error, created_at, finished_at)` — the rename journal. No foreign key to `media_file`: a record outlives the file row it describes.
 - Subtitle files are **not** stored: they are read from disk when asked (`GET /library/files/:id/subtitles`, and at launch), so one added or renamed since the last scan is seen and an offline drive simply yields none.
 
+### Backups, restore and indexes (Phase 7) — **Built**
+- Data folder gained `backups/` (database copies named `theama-<kind>-<yyyymmdd-hhmmss>-v<layout>.db`; kinds `manual`, `daily`, `pre-migration`, `pre-restore`) and `restore/` (a staged restore waiting for the next start).
+- A backup is `VACUUM INTO` a new file: consistent while Theama runs, compacted, and it includes anything still in the write-ahead log. It holds the database only: the TMDB key and API token live in `secrets/`, artwork in `cache/`, so neither is in a backup.
+- Retention: 7 daily, 5 pre-migration, 3 pre-restore; manual backups are never deleted automatically. A daily backup is made at start and every 6 hours if none exists from the last 24.
+- **Before a migration** that will change an existing database, its current state is copied as `pre-migration` (`-v<old layout>`).
+- **Restore** is two steps because the database is open: the API checks the file (opens read-only, `quick_check`, required tables, layout not newer than this Theama) and sets it aside in `restore/`; at the next start, before anything opens the database, the current one is saved as `pre-restore`, then replaced. A staged file that no longer checks out is dropped and nothing changes. Older layouts are migrated forward on open.
+- Migration 7: `idx_media_file_title_episode(title_key, season, episode)` and `idx_title_match_external(provider, external_id)`. Without the first, the missing-episode check scanned every file for every episode (a 5,000-title library took minutes to list).
+- Listing is two-phase: a light grouped query picks the page (name, year, date added), and only the titles on it are described (counts, availability, watched, missing episodes). A title's counts therefore describe the whole title, also when a search matched only some of its files.
+
 ## 2. Target model (Phases 5–6) — **Designed** (the parts above are built; the rest is still design)
 
 `media_file` above is the first piece of this model. Phase 4 keeps matches keyed by `title_key` (see above); `media_title` and a link table can replace that key later without discarding rows.

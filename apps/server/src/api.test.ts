@@ -91,7 +91,7 @@ describe('system and settings', () => {
     const info = SystemInfo.parse(await (await fetch(`${base}/system/info`, { headers: auth() })).json())
     expect(info.hostMode).toBe('service')
     expect(info.paths.dataDir).toBe(dir)
-    expect(info.schemaVersion).toBe(6)
+    expect(info.schemaVersion).toBe(7)
   })
 
   it('writes runtime.json while running', () => {

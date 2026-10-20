@@ -16,7 +16,7 @@ const detail = computed(() =>
     ? t('collections.inLibrary', { local: props.collection.localCount, total: props.collection.memberCount })
     : t('collections.titles', props.collection.memberCount),
 )
-const label = computed(() => `${props.collection.name}, ${detail.value}`)
+const label = computed(() => [props.collection.kind === 'user' ? t('collections.mine') : '', props.collection.name, detail.value].filter(Boolean).join(', '))
 </script>
 
 <template>
@@ -24,10 +24,9 @@ const label = computed(() => `${props.collection.name}, ${detail.value}`)
     <div class="card__art">
       <PosterArt :seed="`collection:${collection.id}`" :title="collection.name" kind="movie" :image-url="image" />
       <span v-if="collection.kind === 'user'" class="card__badge">{{ $t('collections.mine') }}</span>
-    </div>
+    </div>{{ ' ' }}
     <div class="card__meta" aria-hidden="true">
-      <div class="card__title">{{ collection.name }}</div>
-      <div class="card__detail th-muted">{{ detail }}</div>
+      <span class="card__title">{{ collection.name }}</span>{{ ' ' }}<span class="card__detail th-muted">{{ detail }}</span>
     </div>
   </router-link>
 </template>
@@ -66,11 +65,13 @@ const label = computed(() => `${props.collection.name}, ${detail.value}`)
   padding: 10px 2px 0;
 }
 .card__title {
+  display: block;
   font-weight: 600;
   font-size: 0.92rem;
   line-height: 1.25;
 }
 .card__detail {
+  display: block;
   font-size: 0.8rem;
   margin-top: 2px;
 }

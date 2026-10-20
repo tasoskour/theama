@@ -39,11 +39,11 @@ const scale = computed(() => titleScale(props.title))
       @error="failed = true"
     />
     <svg v-show="!loaded" class="art__icon" viewBox="0 0 24 24" width="18" height="18"><path :d="icon" fill="currentColor" /></svg>
-    <div v-show="!loaded" class="art__mono th-display">{{ letters }}</div>
+    <div v-show="!loaded" class="art__mono th-display" :data-text="letters" />
     <div v-show="!loaded" class="art__text">
       <span class="art__rule" />
-      <span class="art__title th-display">{{ title }}</span>
-      <span v-if="year" class="art__year">{{ year }}</span>
+      <span class="art__title th-display" :data-text="title" />
+      <span v-if="year" class="art__year" :data-text="String(year)" />
     </div>
   </div>
 </template>
@@ -108,6 +108,12 @@ const scale = computed(() => titleScale(props.title))
   position: relative;
   display: grid;
   gap: 4cqw;
+}
+/* The words are painted from data-text, so they are not part of the page's text (the card's own label is). */
+.art__mono::before,
+.art__title::before,
+.art__year::before {
+  content: attr(data-text);
 }
 .art__rule {
   width: 14cqw;

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   IPC,
   LocalLogsRequest,
+  DesktopSettingsPatch,
   PathRequest,
   PickFolderRequest,
   PlayerIdRequest,
@@ -11,6 +12,7 @@ import {
   ServiceInstallRequest,
   SetLanguageRequest,
   type AppInfo,
+  type DesktopSettings,
   type ServiceActionResult,
   type ServiceStatus,
 } from '@theama/contracts'
@@ -38,6 +40,8 @@ export interface IpcDeps {
   runService(action: 'start' | 'stop' | 'restart' | 'install' | 'repair' | 'uninstall', account?: 'current-user' | 'local-system'): Promise<ServiceActionResult>
   currentStatus(): Promise<ServiceStatus>
   players: PlayerManager
+  desktopSettings(): DesktopSettings
+  setDesktopSettings(patch: DesktopSettingsPatch): DesktopSettings
 }
 
 function isTrusted(event: IpcMainInvokeEvent, trusted: string[]): boolean {
@@ -81,12 +85,22 @@ export function registerIpc(deps: IpcDeps): void {
     return result.canceled ? null : (result.filePaths[0] ?? null)
   })
 
+  handle(IPC.pickBackupFile, none, async () => {
+    const win = deps.getWindow()
+    const options = { title: 'Choose a Theama backup', properties: ['openFile' as const], filters: [{ name: 'Theama backup', extensions: ['db'] }] }
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+    return result.canceled ? null : (result.filePaths[0] ?? null)
+  })
+
   handle(IPC.openPath, PathRequest, async ({ path }) => {
     const error = await shell.openPath(assertSafeUserPath(path))
     if (error) throw new Error(error)
   })
 
   handle(IPC.showItemInFolder, PathRequest, ({ path }) => shell.showItemInFolder(assertSafeUserPath(path)))
+
+  handle(IPC.desktopGet, none, () => deps.desktopSettings())
+  handle(IPC.desktopSet, DesktopSettingsPatch, (patch) => deps.setDesktopSettings(patch))
 
   handle(IPC.playersList, none, () => deps.players.list())
   handle(IPC.playersSetDefault, PlayerIdRequest, ({ id }) => deps.players.setDefault(id))

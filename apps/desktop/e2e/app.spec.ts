@@ -241,7 +241,7 @@ test('identifies titles with TMDB: key set-up, posters, details, and choosing be
   await page.getByRole('button', { name: 'Choose' }).click()
   const identify = page.getByRole('dialog', { name: 'Identify this title' })
   await expect(identify.getByRole('listitem')).toHaveCount(2)
-  await identify.getByRole('button', { name: 'Use Doctor Who 2005' }).click()
+  await identify.getByRole('button', { name: 'This one: Doctor Who 2005' }).click()
   await expect(identify).toBeHidden()
   await expect(page.getByText('The revived series.')).toBeVisible()
   await expect(page.getByText('Identified by you using TMDB')).toBeVisible()
@@ -321,6 +321,23 @@ test('shows what a series is missing, and builds collections (official and your 
   const rename = page.getByRole('dialog', { name: 'Rename' })
   await rename.getByLabel('Name').fill('Movie night')
   await rename.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('heading', { name: 'Movie night', level: 1 })).toBeVisible()
+
+  // Collections turn up where people look: on Home, in search, and the arrow keys move between them.
+  await nav('Home').click()
+  await expect(page.locator('[data-test="collection-rail"]').getByRole('link', { name: /Movie night/ })).toBeVisible()
+  await nav('Search').click()
+  await page.getByRole('textbox', { name: 'Search your library' }).fill('movie nig')
+  await expect(page.locator('[data-test="collection-results"]').getByRole('link', { name: /Movie night/ })).toBeVisible()
+  await nav('Collections').click()
+  await expect(page.getByRole('heading', { name: 'Collections', level: 1 })).toBeVisible() // the search page has left
+  const firstCard = page.locator('[data-collection-id]').first()
+  await firstCard.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.locator('[data-collection-id]').nth(1)).toBeFocused()
+  await page.keyboard.press('Home')
+  await expect(firstCard).toBeFocused()
+  await page.getByRole('link', { name: /Movie night/ }).click()
   await expect(page.getByRole('heading', { name: 'Movie night', level: 1 })).toBeVisible()
 
   // Deleting the collection never touches the title.
@@ -507,8 +524,38 @@ test('stopping the service shows the recovery screen, starting it recovers', asy
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 })
 })
 
+test('can keep running in the notification area: closing the window hides it, and it comes back', async () => {
+  const here = page.url().split('#')[0]
+  await page.goto(here + '#/settings/general')
+  const toggle = page.locator('[data-test="close-to-tray"] input')
+  await expect(toggle).not.toBeChecked()
+  // A development build cannot register itself to start with Windows, and says so.
+  await expect(page.locator('[data-test="start-with-windows"] input')).toBeDisabled()
+  await expect(page.getByText('Only the installed app can start with Windows.')).toBeVisible()
+
+  await toggle.check({ force: true })
+  await expect(toggle).toBeChecked()
+  const windowState = () => app.evaluate(({ BrowserWindow }) => ({ count: BrowserWindow.getAllWindows().length, visible: BrowserWindow.getAllWindows()[0]?.isVisible() ?? false }))
+  expect(await windowState()).toEqual({ count: 1, visible: true })
+
+  // The close button: the window disappears, the app (and the service it manages) keeps running.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close())
+  await expect.poll(windowState).toEqual({ count: 1, visible: false })
+
+  // The tray icon's "open", or a second launch of the app, brings it back.
+  await app.evaluate(({ app: electronApp }) => electronApp.emit('second-instance'))
+  await expect.poll(windowState).toEqual({ count: 1, visible: true })
+
+  // Turned off again, closing is closing (not exercised here: it would end the test app).
+  await toggle.uncheck({ force: true })
+  await expect(toggle).not.toBeChecked()
+  await page.goto(here + '#/')
+})
+
 test('switches to Greek without a restart and the choice persists to the API', async () => {
   await page.goto(page.url().split('#')[0] + '#/settings/general')
+  await expect(page.getByRole('heading', { name: 'General', level: 2 })).toBeVisible()
+  await page.waitForTimeout(500) // let the freshly shown page settle: a click in the first instants can be missed
   await page.getByRole('button', { name: 'Ελληνικά' }).click()
   await expect(page.getByRole('heading', { name: 'Ρυθμίσεις', level: 1 })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Κύρια πλοήγηση' }).getByRole('link', { name: 'Ταινίες' })).toBeVisible()
@@ -519,6 +566,8 @@ test('switches to Greek without a restart and the choice persists to the API', a
 
 test('toggles between dark and light themes', async () => {
   await page.goto(page.url().split('#')[0] + '#/settings/general')
+  await expect(page.getByRole('heading', { level: 2 }).first()).toBeVisible()
+  await page.waitForTimeout(500)
   await page.getByRole('button', { name: 'Ανοιχτό' }).click()
   await expect(page.locator('.v-application')).toHaveClass(/v-theme--theamaLight/)
   await page.getByRole('button', { name: 'Σκούρο' }).click()

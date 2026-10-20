@@ -34,6 +34,26 @@ No external player exposes resume position uniformly. VLC (HTTP/RC interface), m
 | Collection data is read once per ~30 days | A new film added to a TMDB set shows up on the next read. | Refreshing any member movie by hand re-reads its set. |
 | Title keys for user collections | A user member is stored by title key. If a title's key changes (renamed files, different year in the name), the old member shows as a non-playable entry. | The entry stays removable; the title can be added again. Provider-id based keys arrive with a future title table. |
 
+## Window, tray and tests
+| Risk | Detail | Mitigation |
+|---|---|---|
+| Hidden window with no way back | Closing to the tray with no tray icon would strand the app. | The window only hides when the tray icon exists (`shouldHideOnClose`); a second launch of the app also shows it; the tray icon needs `tray-16.png` beside the app (shipped), otherwise closing just closes. |
+| Start with Windows is unverified | It needs the installed app and a sign-in. | Only offered in the installed app (disabled with a reason in development); on the manual checklist. |
+| Accessibility audit is partial | Automation finds roughly a third of accessibility problems. | A person's screen-reader pass is on the manual checklist and listed as not done. |
+| Timing-sensitive UI tests | In the Electron tests the first click on a page that has just been shown can be missed on a busy machine (after tray or settings changes), and auditing a page mid-fade reports false findings. | The tests wait for the page to settle before the first click and before each audit. If you see a real missed click, this is where to look (it has not been seen outside the test runs). |
+
+## Packaging and updates
+| Risk | Detail | Mitigation |
+|---|---|---|
+| **The installer has not been run** | It compiles (NSIS) and the app it contains passes the packaged smoke test, but installing needs an administrator's approval, so the install, upgrade-with-service and uninstall hooks have only been checked by reading and compiling. | The manual checklist in `docs/10` §6; the hooks are small and use explicit labels, and a failed stop/start never blocks the install. |
+| Not code-signed | Windows SmartScreen and some antivirus tools warn about unsigned installers. | Sign with a certificate before sharing widely; electron-builder is already configured to sign when one is provided. |
+| Bundled Node.js | The service runs the Node.js the build ran with, so security fixes arrive with a new Theama build, not with the system's Node. | Rebuild and release when Node ships a security update; `resources\node\VERSION.txt` says which one is inside. |
+| FFprobe is GPL | The bundled FFmpeg "essentials" build is GPLv3. | It is only ever started as a separate program; its licence text and readme ship beside it, with the source pointers in `THIRD-PARTY-NOTICES.txt`; it can be replaced by the user's own build. |
+| No automatic updates | There is nowhere to host a feed yet. | Update = run a newer installer over the old one (data is kept, the service is stopped and restarted, an automatic *before an upgrade* backup is made). electron-builder already writes `latest.yml` and a block map for when a host (GitHub Releases or any HTTPS folder) is chosen. |
+| Restore replaces the library | A wrong restore loses changes made since the backup. | A confirmation that says so, the current state saved first as *before a restore*, the staged file re-checked at start, and a backup from a newer Theama refused. |
+| Backups contain library data | Paths, collections, watched marks. | No secrets (the TMDB key and API token are outside the database); the backups folder inherits the data folder's access rules. |
+| Service account and upgrades | The service's configured paths point into the install folder. | A different install folder needs *Repair service* in the app. |
+
 ## Playback and file renaming
 | Risk | Detail | Mitigation |
 |---|---|---|

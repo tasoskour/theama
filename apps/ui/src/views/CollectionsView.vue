@@ -7,6 +7,7 @@ import CollectionCard from '@/components/collections/CollectionCard.vue'
 import NewCollectionDialog from '@/components/collections/NewCollectionDialog.vue'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
+import { moveBetweenCards } from '@/utils/gridNav'
 
 const connection = useConnectionStore()
 const metadata = useMetadataStore()
@@ -64,7 +65,7 @@ function created(detail: CollectionDetail): void {
       </v-btn-toggle>
     </div>
 
-    <ul v-if="shown.length > 0" class="grid" role="list" :aria-label="$t('nav.collections')">
+    <ul v-if="shown.length > 0" class="grid" role="list" :aria-label="$t('nav.collections')" @keydown="moveBetweenCards($event, '[data-collection-id]')">
       <li v-for="c in shown" :key="c.id"><CollectionCard :collection="c" /></li>
     </ul>
 

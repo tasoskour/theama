@@ -11,6 +11,8 @@ export interface DevControllerOptions {
   probe: (conn: ApiConnection) => Promise<boolean>
   /** Receives the child's stdout/stderr lines. */
   onOutput?: (line: string) => void
+  /** What to run. Defaults to the source tree through tsx; a packaged build runs its bundled Node and server instead. */
+  command?: { exe: string; args: string[] }
 }
 
 const UNSUPPORTED = 'The development process is not a Windows service. Install/repair/uninstall only apply to the NSSM service.'
@@ -84,7 +86,8 @@ export class DevProcessController implements ServiceController {
   }
 
   private spawnChild(): void {
-    const child = spawn('node', ['--import', 'tsx', 'src/main.ts'], {
+    const command = this.options.command ?? { exe: 'node', args: ['--import', 'tsx', 'src/main.ts'] }
+    const child = spawn(command.exe, command.args, {
       cwd: this.options.serverDir,
       env: { ...process.env, ...this.options.env, THEAMA_STDIN_CONTROL: '1' },
       stdio: ['pipe', 'pipe', 'pipe'],

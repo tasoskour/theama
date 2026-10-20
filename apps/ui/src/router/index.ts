@@ -58,6 +58,7 @@ const routes: RouteRecordRaw[] = [
         children: [
           { path: 'service', name: 'settings-service', component: () => import('@/views/settings/ServiceSettings.vue') },
           { path: 'logs', name: 'settings-logs', component: () => import('@/views/settings/LogsSettings.vue') },
+          { path: 'backup', name: 'settings-backup', component: () => import('@/views/settings/BackupSettings.vue') },
           { path: 'about', name: 'settings-about', component: () => import('@/views/settings/AboutSettings.vue') },
         ],
       },

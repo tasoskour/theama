@@ -25,7 +25,7 @@ const SECTIONS = [
     </header>
     <div class="layout">
       <nav class="sections" :aria-label="$t('settings.title')">
-        <v-list nav bg-color="transparent" density="comfortable" class="pa-0">
+        <v-list nav role="presentation" bg-color="transparent" density="comfortable" class="pa-0">
           <v-list-item
             v-for="s in SECTIONS"
             :key="s.key"

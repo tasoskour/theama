@@ -109,6 +109,7 @@ export const mediaFile = sqliteTable(
     index('idx_media_file_identity').on(t.sourceId, t.volumeId, t.fileId),
     index('idx_media_file_state').on(t.sourceId, t.state),
     index('idx_media_file_title_key').on(t.kind, t.titleKey),
+    index('idx_media_file_title_episode').on(t.titleKey, t.season, t.episode),
   ],
 )
 
@@ -132,7 +133,7 @@ export const titleMatch = sqliteTable(
     attemptedAt: text('attempted_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
-  (t) => [index('idx_title_match_state').on(t.state)],
+  (t) => [index('idx_title_match_state').on(t.state), index('idx_title_match_external').on(t.provider, t.externalId)],
 )
 
 /** Provider data for a matched title; never mixed with what the user's files say. */

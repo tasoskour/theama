@@ -7,6 +7,8 @@ import SectionPage from '@/components/SectionPage.vue'
 import PosterRail from '@/components/titles/PosterRail.vue'
 import { useTitles } from '@/composables/useTitles'
 import { useContinueWatching } from '@/composables/useContinueWatching'
+import CollectionRail from '@/components/collections/CollectionRail.vue'
+import { useCollections } from '@/composables/useCollections'
 
 /** Newest first, a short page each: Home is a shop window, the section pages are the full shelves. */
 const RAIL = 24
@@ -17,6 +19,7 @@ const series = useTitles({ kind: () => 'series', sort: 'added', limit: RAIL })
 const videos = useTitles({ kind: () => 'video', sort: 'added', limit: RAIL })
 
 const resume = useContinueWatching()
+const collections = useCollections()
 const resumeTitles = computed(() => resume.items.value.map((i) => i.summary))
 const resumeCaptions = computed(() => Object.fromEntries(resume.items.value.map((i) => [i.summary.key, i.label ? `${i18n.t('play.upNext')} ${i.label}` : i18n.t('play.resume')])))
 
@@ -42,6 +45,7 @@ const hasContent = computed(() => recent.total.value > 0)
       :see-all="{ name: 'series' }"
       :total="series.total.value"
     />
+    <CollectionRail v-if="collections.items.value.length > 0" :heading="$t('home.collections')" :collections="collections.items.value" :see-all="{ name: 'collections' }" />
     <PosterRail
       v-if="videos.total.value > 0"
       :heading="$t('nav.videos')"

@@ -20,7 +20,7 @@ flowchart LR
 | **Media folders** (pulled forward from Phase 2): add/remove folders with the native picker, type per folder (Movies/Series/My Videos/Auto), subfolders, enable/pause, per-folder online/offline status (volume-aware), duplicate detection; no scanning yet | ✅ |
 | UI shell: sidebar / bottom nav / app bar, 6 section pages with empty states, themes, EN/ΕΛ, settings, **Service page**, **Log history**, recovery screen | ✅ |
 | Logo + icons (SVG masters → PNG/ICO) | ✅ |
-| Tests: 443 unit/integration + 15 Electron e2e (Phases 1–6) | ✅ |
+| Tests: 485 unit/integration + 22 Electron e2e (incl. 5 accessibility) + 6 packaged-app smoke (Phases 1–8) | ✅ |
 
 **Acceptance (brief):** Theama opens as a desktop app, talks to the backend, shows a functional shell — ✅ (e2e). **Added:** service manageable from the UI, logs browsable, recovery when the service is down — ✅.
 
@@ -49,7 +49,7 @@ Provider abstraction + TMDB adapter, matcher (07), artwork cache, cast/crew/genr
 
 ## Phase 5 — Series & collections ✅ (first slice delivered)
 Delivered: per-episode coverage (local / missing / upcoming / undated, duplicates, unlisted files, multi-episode ranges, specials), season summaries and missing counts on cards and pages, background refresh of airing series; official collections from TMDB with contextual "not in your library" entries; user collections (create, rename, delete, add/remove, custom order, release order); "Part of" and *Add to collection* on title pages; versioned provider data that refreshes itself when a build stores more.
-Not yet: continue-watching and next-episode rules (need Phase 6 playback state), story order / sequel chains / universes (need curated data), drag-and-drop ordering, arrow-key navigation in collection grids, collections in search and on Home, episode groups / absolute numbering for anime, "excluded by filter" classification.
+Not yet: story order / sequel chains / universes (need curated data), drag-and-drop ordering, episode groups / absolute numbering for anime, "excluded by filter" classification.
 
 Original scope:
 Series/season/episode model and episode detection (multi-episode, specials), missing-episode classification, continue-watching + next-episode rules, collections (official, sequels, universes, user; release/story/custom ordering; contextual missing entries). *Depends on:* 4.
@@ -61,8 +61,17 @@ Not yet: resume position and automatic watched tracking (needs per-player integr
 Original scope:
 External players (detect, configure, per-video choice, argument arrays only) executed by the **desktop shell**; open folder; copy path; subtitles (embedded + external, language, association); rename templates + preview + collision detection + **journalled, recoverable** operations + rollback; playback-state capabilities per player. *Depends on:* 2, 4.
 
-## Phase 7 — Production readiness
+## Phase 7 — Production readiness ✅ (first slice delivered)
+Delivered: backup and restore (automatic daily and pre-upgrade copies, manual copies, restore from the list or a file, applied safely at the next start); an installer (electron-builder + NSIS, per-machine) with the bundled Node.js, backend, NSSM, FFprobe and notices, upgrade hooks that stop and restart the service, and an uninstaller that removes the service and asks before deleting data; a packaged-app smoke test; a performance pass against the budgets with fixes to two quadratic queries; local error reporting (interface and desktop errors in the log history, a copyable diagnostics report); window state; third-party notices.
+Not yet: running the installer on a clean machine (needs an administrator's approval); code signing (SmartScreen will warn); automatic updates (electron-builder already writes the blockmap; a feed needs a host); tray icon and start-with-Windows; installer language selection (the installer is English); an accessibility audit with a screen reader.
+
+Original scope:
 Installer (electron-builder + NSIS) that: installs the app, bundles `node.exe` + `server.cjs` + `nssm.exe` + the admin script as resources, runs the **elevated** install (service + data dir ACLs), preserves data on upgrade (stop service → replace files → start), removes the service on uninstall with a keep/delete-data choice · auto-update strategy · backup/restore (SQLite backup API) · performance pass (budgets in 10) · error reporting (local only) · docs. *Acceptance:* clean Windows install can install, run, update, uninstall reliably.
 
-## Cross-cutting backlog
-Window state persistence · "start with Windows / run in tray" setting · log-level setting · accessibility audit (screen reader pass) · signed binaries.
+## Phase 8 — Everyday polish ✅ (first slice delivered)
+There was no eighth phase in the original plan; this one collects the cross-cutting backlog that could be finished and checked without anything from outside (a certificate, a host, a clean machine).
+Delivered: an **automated accessibility audit** (axe-core, WCAG 2.0/2.1 A and AA) of every page and dialog, in both themes and both languages, with the problems it found fixed; **keep Theama in the notification area** (tray icon, close-to-tray, start with Windows to the tray); a **log detail** setting; **collections** on Home, in search, and arrow-key movement between cards; window state (Phase 7).
+Not yet: a screen-reader pass by a person (the audit cannot judge reading order, wording or focus management as a whole); code signing; a tray menu with service actions (it shows the service state, Open and Quit); installer language; the original backlog items that need outside input (a certificate, an update host, a clean Windows VM).
+
+## Cross-cutting backlog (what is left)
+Signed binaries · automatic updates (needs a host) · a screen-reader pass · running the installer on a clean machine.

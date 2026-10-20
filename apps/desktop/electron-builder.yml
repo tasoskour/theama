@@ -1,0 +1,42 @@
+# Builds the Windows installer from what tools/package/stage.mjs assembled. Run "yarn dist" from the repository root.
+appId: app.theama.desktop
+productName: Theama
+copyright: Theama
+electronVersion: 44.9.0
+# Use the Electron already installed for development instead of downloading it again.
+electronDist: ../../node_modules/electron/dist
+
+directories:
+  app: ../../build/stage/app
+  output: ../../build/installer
+  buildResources: build
+
+asar: true
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+
+# Placed next to the app as "resources/": the interface, the backend, Node.js, NSSM, FFprobe, notices.
+extraResources:
+  - from: ../../build/stage/resources
+    to: .
+
+win:
+  icon: ../../build/stage/app/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  # Not code-signed: Windows SmartScreen will warn on first run until a certificate is added (see docs/11-risks.md).
+  signAndEditExecutable: true
+
+nsis:
+  oneClick: false
+  perMachine: true
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Theama
+  deleteAppDataOnUninstall: false
+  include: build/installer.nsh
+  artifactName: Theama-Setup-${version}.${ext}

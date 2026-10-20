@@ -10,7 +10,7 @@ import { NAV_ITEMS } from './nav'
       <BrandLogo />
     </div>
     <nav :aria-label="$t('nav.main')">
-      <v-list nav density="comfortable" bg-color="transparent" class="px-3">
+      <v-list nav role="presentation" density="comfortable" bg-color="transparent" class="px-3">
         <v-list-item
           v-for="item in NAV_ITEMS.filter((i) => i.to !== '/settings')"
           :key="item.to"
@@ -24,7 +24,7 @@ import { NAV_ITEMS } from './nav'
     </nav>
     <template #append>
       <div class="sidebar__footer">
-        <v-list nav density="comfortable" bg-color="transparent" class="px-3">
+        <v-list nav role="presentation" density="comfortable" bg-color="transparent" class="px-3">
           <v-list-item
             to="/settings"
             :prepend-icon="NAV_ITEMS.find((i) => i.to === '/settings')?.icon"

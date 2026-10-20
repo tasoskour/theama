@@ -91,23 +91,39 @@ const GROUP_SELECT = `
          MAX(d.poster_file) AS poster_file,
          MAX(d.rating) AS rating,
          MAX(m.state) AS match_state,
-         MAX(cov.missing) AS missing_episodes,
+         NULL AS missing_episodes,
          SUM(coalesce(pb.watched, 0)) AS watched_files,
          COUNT(DISTINCT CASE WHEN pb.watched = 1 AND f.episode IS NOT NULL THEN coalesce(f.season, -1) * 100000 + f.episode END) AS watched_episodes
   FROM media_file f JOIN library_source s ON s.id = f.source_id
        LEFT JOIN title_metadata d ON d.title_key = f.title_key
        LEFT JOIN title_match m ON m.title_key = f.title_key
-       LEFT JOIN playback_state pb ON pb.file_id = f.id
-       LEFT JOIN (
-         -- Aired episodes (specials excluded) that no file covers; a file may cover a range (E03-E04).
-         SELECT em.title_key AS k,
+       LEFT JOIN playback_state pb ON pb.file_id = f.id`
+
+/**
+ * Aired episodes (specials excluded) that no file covers; a file may cover a range (E03-E04). Worked out for
+ * the few titles on a page rather than inside the library-wide grouping, which would repeat it for every title.
+ */
+function fillMissingEpisodes(raw: Database.Database, rows: GroupRow[]): void {
+  const series = rows.filter((r) => r.kind === 'episode')
+  if (series.length === 0) return
+  const found = new Map<string, number>()
+  for (let i = 0; i < series.length; i += 400) {
+    const chunk = series.slice(i, i + 400).map((r) => r.key)
+    const result = raw
+      .prepare(
+        `SELECT em.title_key AS k,
                 SUM(CASE WHEN em.season > 0 AND em.air_date IS NOT NULL AND em.air_date <= date('now')
                           AND NOT EXISTS (SELECT 1 FROM media_file f2
                                            WHERE f2.title_key = em.title_key AND f2.season = em.season
                                              AND em.episode BETWEEN f2.episode AND coalesce(f2.episode_end, f2.episode))
                          THEN 1 ELSE 0 END) AS missing
-           FROM episode_metadata em GROUP BY em.title_key
-       ) cov ON cov.k = f.title_key`
+           FROM episode_metadata em WHERE em.title_key IN (${chunk.map(() => '?').join(',')}) GROUP BY em.title_key`,
+      )
+      .all(...chunk) as { k: string; missing: number }[]
+    for (const r of result) found.set(r.k, r.missing)
+  }
+  for (const r of series) r.missing_episodes = found.get(r.key) ?? null
+}
 
 export class TitleRepo {
   constructor(
@@ -136,9 +152,18 @@ export class TitleRepo {
     if (query.hideUnavailable === true || (query.hideUnavailable as unknown) === 'true') {
       where.push("s.availability <> 'offline' AND f.state = 'available'")
     }
-    const grouped = `${GROUP_SELECT} WHERE ${where.join(' AND ')} GROUP BY f.kind, f.title_key`
-
-    const total = (this.raw.prepare(`SELECT COUNT(*) AS n FROM (${grouped})`).get(...params) as { n: number }).n
+    // Choosing the page needs only a title's name, year and date added; counting, availability and the rest
+    // are worked out afterwards for the few titles shown. (Doing it all for every title first made a library
+    // of 5,000 titles slow to open.)
+    const joinSource = query.hideUnavailable === true || (query.hideUnavailable as unknown) === 'true' ? 'JOIN library_source s ON s.id = f.source_id' : ''
+    const filters = where.join(' AND ')
+    const total = (this.raw.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 FROM media_file f ${joinSource} WHERE ${filters} GROUP BY f.kind, f.title_key)`).get(...params) as { n: number }).n
+    const grouped = `SELECT f.kind AS kind, f.title_key AS key,
+         coalesce(MAX(d.title), MIN(f.guessed_title COLLATE BINARY)) AS title,
+         coalesce(MAX(d.year), MAX(f.guessed_year)) AS year,
+         MAX(f.first_seen_at) AS added_at
+       FROM media_file f ${joinSource} LEFT JOIN title_metadata d ON d.title_key = f.title_key
+       WHERE ${filters} GROUP BY f.kind, f.title_key`
 
     const orderBy = {
       title: 'lower(title), key',
@@ -164,7 +189,7 @@ export class TitleRepo {
 
     const rows = this.raw
       .prepare(`SELECT * FROM (${grouped}) ${cursorWhere} ORDER BY ${orderBy} LIMIT ?`)
-      .all(...params, ...cursorParams, limit + 1) as GroupRow[]
+      .all(...params, ...cursorParams, limit + 1) as { kind: MediaKind; key: string; title: string; year: number | null; added_at: string }[]
     const hasMore = rows.length > limit
     const page = rows.slice(0, limit)
     const last = page[page.length - 1]
@@ -177,7 +202,8 @@ export class TitleRepo {
             ? encodeCursor([last.added_at, last.key])
             : encodeCursor([last.year ?? 0, last.title.toLowerCase(), last.key])
     }
-    return { items: page.map(toSummary).filter((s): s is TitleSummary => s !== null), nextCursor, total }
+    const described = this.summaries(page.map((p) => p.key))
+    return { items: page.flatMap((p) => described.get(p.key) ?? []), nextCursor, total }
   }
 
   /** Library cards for specific title keys (collections use this); unknown keys are simply absent. */
@@ -188,6 +214,7 @@ export class TitleRepo {
       const rows = this.raw
         .prepare(`${GROUP_SELECT} WHERE f.kind <> 'extra' AND f.title_key IN (${chunk.map(() => '?').join(',')}) GROUP BY f.kind, f.title_key`)
         .all(...chunk) as GroupRow[]
+      fillMissingEpisodes(this.raw, rows)
       for (const r of rows) {
         const s = toSummary(r)
         if (s) out.set(s.key, s)
@@ -199,6 +226,7 @@ export class TitleRepo {
   /** One title with all of its files, or null if the key is unknown. */
   detail(key: string): TitleDetail | null {
     const group = this.raw.prepare(`${GROUP_SELECT} WHERE f.title_key = ? GROUP BY f.kind, f.title_key`).get(key) as GroupRow | undefined
+    if (group) fillMissingEpisodes(this.raw, [group])
     const summary = group ? toSummary(group) : null
     if (!group || !summary) return null
     const rows = this.raw

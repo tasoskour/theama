@@ -254,6 +254,12 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX idx_file_operation_batch ON file_operation(batch_id, seq);
   `,
+  /* 7 — lookups of a title's files by season and episode (missing-episode counts, coverage, next episode) */
+  `
+  CREATE INDEX idx_media_file_title_episode ON media_file(title_key, season, episode);
+  -- Collections and "part of" look titles up by the provider's id.
+  CREATE INDEX idx_title_match_external ON title_match(provider, external_id);
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

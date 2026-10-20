@@ -49,11 +49,45 @@ Targets from the brief: 5,000 movies, 1,000 series, tens of thousands of episode
 - Startup to interactive shell ≤ 2 s with the service already running.
 Benchmarks run against a generated synthetic library (a script creating N empty files with realistic names) so they are reproducible.
 
+### Accessibility audit (`apps/desktop/e2e/a11y.spec.ts`)
+Launches the app with a real library (films, a series with gaps, an unidentified series, a personal video, official and personal collections, fake TMDB data), then runs **axe-core** (WCAG 2.0/2.1 A and AA rules) on every page (Home, Movies, Series, My Videos, Search, Collections, nine Settings pages), on four kinds of title page and both collection pages, and on the dialogs (add folder, identify, rename, new collection) — in dark and light, English and Greek: four passes of about 30 s. It also checks that arrow keys walk collection cards and that a live theme switch repaints the sidebar. Notes on the method: axe is injected through the debugger (Electron cannot open the second page `@axe-core/playwright` wants, and the app's CSP forbids inline scripts); each pass starts from a freshly loaded page in its theme and waits until no page is mid-fade, because auditing a half-faded page sees two pages and washed-out colours; a contrast finding that axe makes against an assumed white background (it cannot read colours behind anything below the fold) is re-computed from the real background and dropped only if that passes. This cannot judge reading order, wording or focus management as a whole: that needs a person with a screen reader.
+
+### Measured against the budgets (`yarn perf`)
+A synthetic library of 4,800 identifiable titles / 20,000 files (3,800 films, 1,000 series of 16 episodes, 200 personal videos; most identified, with episode lists, watched marks and 40 collections), then a real scan of 10,000 empty files. Run on the development PC (Windows 10, Node 24):
+
+| | p50 | p95 | budget |
+|---|---|---|---|
+| first page: A–Z / recently added / by year | 44 / 45 / 35 ms | 56 / 57 / 51 ms | 150 ms |
+| series only · hide unavailable · deep scroll | 28 · 17 · 37 ms | 33 · 22 · 47 ms | 150 ms |
+| search (prefix, mixed Latin/Greek) | 6 ms | 13 ms | 100 ms |
+| title page (series with episodes · film) | 3.6 · 2.0 ms | 8 · 6 ms | 150 ms |
+| continue watching · collections · technical file list | 14 · 12 · 25 ms | 27 · 22 · 30 ms | 150 ms |
+| API while a 10,000-file scan runs | 10 ms | 15 ms | 50 ms |
+| service start to listening | 426 ms | | 2,000 ms |
+| scan of 10,000 files (no FFprobe) | 5.2 s | | |
+
+The first run found two real problems (the missing-episode count and collections were quadratic); `apps/server/src/scan/titles-scale.test.ts` now fails if listing a ~5,000-file library takes more than 1.5 s, which those bugs missed by orders of magnitude. Not measured: the UI's scroll frame rate and memory at this size (the grid pages 60 titles at a time with `content-visibility`), and FFprobe's effect on scan time.
+
+### The packaged app (`yarn test:packaged`)
+Builds the unpacked app and drives the shipped `Theama.exe` with Playwright: window and interface from `resources/ui`, the bundled Node running the bundled backend with its native SQLite module, FFprobe found, a Greek-named folder scanned, the service and backup pages, a backup then restore then service restart onto the restored library, and the notices present. It runs the backend as a plain child (`THEAMA_CONTROLLER=process`) because a Windows service needs an administrator's approval.
+
 ### Players in the end-to-end test
 The Electron tests never start a real player: with `THEAMA_TEST_PLAYER_LOG` set (honoured in unpackaged builds only) the shell pretends the usual players are installed under a made-up Program Files folder and appends what it *would* have started to a log, which the test reads back.
 
 ### Metadata without a TMDB key
 All automated metadata tests use `tools/fake-tmdb/server.mjs`, a small local server that speaks the TMDB shapes Theama uses (search, details with credits, seasons, images, 401/404/429/500 and dropped connections). To click through the app against it: `yarn tmdb:fake`, then start Theama with the two environment variables it prints and use the key it prints. The real service has been probed only for its error shape (HTTP 401 with `status_code` 7 for a missing key).
+
+## 5b. Manual checks that automation cannot make
+- **Screen reader pass** (NVDA or Narrator): open each page; headings and landmarks read in a sensible order; cards read as "title, detail"; dialogs trap focus and return it; the Play button, watched toggle and rename preview are usable without sight.
+- **Tray** (installed app): enable *Keep Theama in the notification area*, close the window, find the icon near the clock (it may be in the hidden-icons flyout), click it, use *Quit*; sign out and in with *Start Theama when I sign in* on.
+
+## 6. Manual checklist for the installer (not automated: needs an administrator's approval)
+1. `yarn dist`, copy `build/installer/Theama-Setup-<version>.exe` to a clean Windows 10/11 VM. SmartScreen warns (unsigned): *More info → Run anyway*.
+2. Install (UAC). Start menu and desktop shortcuts exist; the app opens and offers to install the service; install it (account choice, UAC) and check *Running*.
+3. Add a folder, let it scan, make a backup. Reboot: the service starts and the library is intact.
+4. Install a **newer** build over it: the service is stopped, files replaced, the service started again, the library intact, a *Before an upgrade* backup exists if the database layout changed.
+5. Uninstall: the service is gone; answering *No* to the data question keeps `%ProgramData%\Theama`; reinstalling finds the library; uninstalling again and answering *Yes* removes the folder. Video files are never touched.
+6. `sc query Theama` after each step; `%ProgramData%\Theama\logs` has no unexpected errors.
 
 ## 5. Manual Windows checklist (NSSM)
 1. `yarn build`, `yarn nssm:fetch`, then `yarn service:install` (choose account) — UAC prompt appears; password prompt for "current user".

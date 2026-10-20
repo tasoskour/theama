@@ -31,7 +31,7 @@ const detail = computed(() => {
 const needsId = computed(() => props.title.matchState === 'ambiguous' || props.title.matchState === 'unmatched')
 
 const label = computed(() =>
-  [props.title.title, props.caption ?? detail.value, offline.value ? t('files.offline') : '', props.title.watchState === 'all' ? t('play.watched') : '', needsId.value ? t('match.notIdentified') : '']
+  [props.title.title, props.caption ?? detail.value, offline.value ? t('files.offline') : '', partly.value ? t('titles.partial', { available: props.title.availableCount, total: props.title.fileCount }) : '', props.title.watchState === 'all' ? t('play.watched') : '', needsId.value ? t('match.notIdentified') : '']
     .filter(Boolean)
     .join(', '),
 )
@@ -58,15 +58,14 @@ const label = computed(() =>
         <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path :d="mdiCloudOffOutline" fill="currentColor" /></svg>
         {{ $t('files.offline') }}
       </span>
-      <span v-else-if="partly" class="card__badge" :title="$t('titles.partlyHint')">{{ title.availableCount }}/{{ title.fileCount }}</span>
+      <span v-else-if="partly" class="card__badge" :title="$t('titles.partlyHint')" :data-text="`${title.availableCount}/${title.fileCount}`" />
       <span v-if="title.watchState === 'all'" class="card__seen" :title="$t('play.watched')">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path :d="mdiCheckCircle" fill="currentColor" /></svg>
       </span>
-      <span v-if="needsId" class="card__badge card__badge--id" :title="$t('match.notIdentifiedHint')">?</span>
-    </div>
+      <span v-if="needsId" class="card__badge card__badge--id" :title="$t('match.notIdentifiedHint')" data-text="?" />
+    </div>{{ ' ' }}
     <div class="card__meta" aria-hidden="true">
-      <div class="card__title">{{ title.title }}</div>
-      <div v-if="caption ?? detail" class="card__detail th-muted">{{ caption ?? detail }}</div>
+      <span class="card__title">{{ title.title }}</span>{{ ' ' }}<span v-if="caption ?? detail" class="card__detail th-muted">{{ caption ?? detail }}</span>
     </div>
   </router-link>
 </template>
@@ -117,6 +116,9 @@ const label = computed(() =>
   background: rgba(15, 14, 12, 0.78);
   border-radius: 50%;
 }
+.card__badge[data-text]::before {
+  content: attr(data-text);
+}
 .card__badge--id {
   left: auto;
   right: 8px;
@@ -144,6 +146,7 @@ const label = computed(() =>
   -webkit-box-orient: vertical;
 }
 .card__detail {
+  display: block;
   font-size: 0.8rem;
   margin-top: 2px;
 }

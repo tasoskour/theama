@@ -30,6 +30,15 @@ export class ApiClient {
     return this.request('GET', path, schema, undefined, query)
   }
 
+  /** A plain-text endpoint (the diagnostics report). */
+  async getText(path: string): Promise<string> {
+    const headers: Record<string, string> = {}
+    if (this.token) headers.Authorization = `Bearer ${this.token}`
+    const res = await fetch(new URL(`${this.base}${API_PREFIX}${path}`), { headers })
+    if (!res.ok) throw new ApiRequestError(`HTTP ${res.status}`, res.status, 'http_error')
+    return res.text()
+  }
+
   put<S extends z.ZodType>(path: string, body: unknown, schema: S): Promise<z.output<S>> {
     return this.request('PUT', path, schema, body)
   }

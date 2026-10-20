@@ -3,7 +3,10 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { mdiHistory, mdiMagnify } from '@mdi/js'
 import type { TitleKind, TitleSummary } from '@theama/contracts'
 import PosterGrid from '@/components/titles/PosterGrid.vue'
+import CollectionCard from '@/components/collections/CollectionCard.vue'
+import { useCollections } from '@/composables/useCollections'
 import { useTitles } from '@/composables/useTitles'
+import { moveBetweenCards } from '@/utils/gridNav'
 
 const RECENT_KEY = 'theama.recentSearches'
 const MAX_RECENT = 8
@@ -32,6 +35,7 @@ const searching = computed(() => text.value.trim().length > 0)
 // Up to 200 matches in one page: a search is a short list, not a library to scroll through.
 const list = useTitles({ kind: () => (searching.value ? undefined : null), limit: 200, q: text })
 const { items, total, loaded, loading } = list
+const foundCollections = useCollections(() => (searching.value ? text.value.trim() : null))
 
 const SECTIONS: { kind: TitleKind; labelKey: string }[] = [
   { kind: 'movie', labelKey: 'nav.movies' },
@@ -105,7 +109,13 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
 
     <template v-else>
       <p class="th-muted mb-2" aria-live="polite">{{ loading && !loaded ? $t('common.loading') : $t('titles.count', total) }}</p>
-      <p v-if="loaded && !loading && total === 0" class="none th-muted">{{ $t('titles.noMatches') }}</p>
+      <p v-if="loaded && !loading && total === 0 && foundCollections.items.value.length === 0" class="none th-muted">{{ $t('titles.noMatches') }}</p>
+      <section v-if="foundCollections.items.value.length > 0" class="group" data-test="collection-results">
+        <h2 class="th-display group__title">{{ $t('nav.collections') }}</h2>
+        <ul class="found" role="list" :aria-label="$t('nav.collections')" @keydown="moveBetweenCards($event, '[data-collection-id]')">
+          <li v-for="c in foundCollections.items.value" :key="c.id"><CollectionCard :collection="c" /></li>
+        </ul>
+      </section>
       <section v-for="g in groups" :key="g.kind" class="group">
         <h2 class="th-display group__title">{{ $t(g.labelKey) }}</h2>
         <PosterGrid :titles="g.titles" :label="$t(g.labelKey)" />
@@ -136,6 +146,14 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.found {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(130px, 13vw, 180px), 1fr));
+  gap: 28px 18px;
 }
 .group {
   margin-top: 24px;

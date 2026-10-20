@@ -47,6 +47,8 @@ const theamaLight: ThemeDefinition = {
     info: '#3F6783',
     hairline: '#D6CCB4',
   },
+  // Vuetify's default 60 % for labels and hints is about 3.5:1 on this warm paper colour; 72 % clears 4.5:1 (WCAG AA).
+  variables: { 'medium-emphasis-opacity': 0.72 },
 }
 
 export const THEME_DARK = 'theamaDark'

@@ -1,8 +1,8 @@
-import { app, BrowserWindow, dialog, Menu, net, protocol, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, Menu, net, protocol, screen, session, shell } from 'electron'
 import { appendFileSync, existsSync } from 'node:fs'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { IPC, LaunchInfo, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
+import { IPC, LaunchInfo, type DesktopSettings, type DesktopSettingsPatch, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
 import { defaultDataDir, resolveDataPaths } from '@theama/logs'
 import { registerIpc } from './ipc'
 import { buildMenu, type ServiceMenuAction } from './menu'
@@ -10,6 +10,10 @@ import { menuStrings } from './menu-strings'
 import { originOf } from './origin'
 import { launchDetached, PlayerManager } from './players'
 import { PrefsStore } from './prefs'
+import { restoreWindowState } from './window-state'
+import { shouldHideOnClose, shouldStartHidden } from './behaviour'
+import { TrayIcon } from './tray'
+import { logDesktop } from './desktop-log'
 import { probeHealth, readConnection, type ApiConnection } from './runtime'
 import { resolveAdminPaths } from './service/admin-paths'
 import type { ServiceController } from './service/controller'
@@ -96,8 +100,14 @@ function createController(): ServiceController {
       probe,
     })
   }
+  // "process" runs the packaged app's own Node and server as a plain child of the app, with no Windows service. It exists for
+  // the packaged smoke test and for a quick look without installing the service; it is not how Theama normally runs.
+  const packagedProcess = controllerKind === 'process' && app.isPackaged
   return new DevProcessController({
-    serverDir: join(repoRoot, 'apps', 'server'),
+    serverDir: packagedProcess ? process.resourcesPath : join(repoRoot, 'apps', 'server'),
+    ...(packagedProcess
+      ? { command: { exe: join(process.resourcesPath, 'node', 'node.exe'), args: [join(process.resourcesPath, 'server', 'server.cjs')] } }
+      : {}),
     env: {
       THEAMA_DATA_DIR: dataDir,
       THEAMA_HOST_MODE: 'foreground',
@@ -108,6 +118,45 @@ function createController(): ServiceController {
     probe,
     onOutput: (line) => console.log(`[server] ${line}`),
   })
+}
+
+let tray: TrayIcon | null = null
+let quitting = false
+
+function desktopSettings(): DesktopSettings {
+  return {
+    closeToTray: prefs.behaviour.closeToTray,
+    // The operating system is the source of truth for sign-in start-up; a development build cannot register itself.
+    startWithWindows: app.isPackaged ? app.getLoginItemSettings().openAtLogin : false,
+    startWithWindowsSupported: app.isPackaged,
+  }
+}
+
+/** Puts the tray icon and the sign-in start-up in line with the saved choices. */
+function applyBehaviour(): void {
+  tray ??= new TrayIcon(brandDir, { open: showWindow, quit: () => app.quit() })
+  if (prefs.behaviour.closeToTray) tray.show(prefs.language, lastStatus)
+  else tray.hide()
+  if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: prefs.behaviour.startWithWindows, args: ['--hidden'] })
+}
+
+function setDesktopSettings(patch: DesktopSettingsPatch): DesktopSettings {
+  prefs.setBehaviour({
+    closeToTray: patch.closeToTray ?? prefs.behaviour.closeToTray,
+    startWithWindows: patch.startWithWindows ?? prefs.behaviour.startWithWindows,
+  })
+  applyBehaviour()
+  return desktopSettings()
+}
+
+function showWindow(): void {
+  if (!mainWindow) {
+    createWindow()
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
 }
 
 function rebuildMenu(): void {
@@ -122,6 +171,7 @@ function rebuildMenu(): void {
     },
   )
   Menu.setApplicationMenu(menu)
+  tray?.refresh(prefs.language, lastStatus)
 }
 
 function publishStatus(status: ServiceStatus): void {
@@ -223,9 +273,11 @@ function hardenSession(): void {
 
 function createWindow(): void {
   const icon = join(brandDir, dev ? 'theama.ico' : 'icon.ico')
+  const saved = restoreWindowState(prefs.window, screen.getAllDisplays().map((d) => d.workArea))
   mainWindow = new BrowserWindow({
-    width: 1360,
-    height: 860,
+    width: saved.width,
+    height: saved.height,
+    ...(saved.x === undefined || saved.y === undefined ? {} : { x: saved.x, y: saved.y }),
     minWidth: 480,
     minHeight: 560,
     show: false,
@@ -241,10 +293,49 @@ function createWindow(): void {
       spellcheck: false,
     },
   })
-  mainWindow.once('ready-to-show', () => mainWindow?.show())
+  const startHidden = shouldStartHidden(process.argv, prefs.behaviour.closeToTray, tray?.active === true)
+  mainWindow.once('ready-to-show', () => {
+    if (saved.maximized) mainWindow?.maximize()
+    if (!startHidden) mainWindow?.show()
+  })
+  // With "keep Theama in the tray" on, closing the window only hides it; Quit (menu or tray) really quits.
+  mainWindow.on('close', (event) => {
+    if (shouldHideOnClose({ closeToTray: prefs.behaviour.closeToTray, trayShown: tray?.active === true, quitting })) {
+      event.preventDefault()
+      mainWindow?.hide()
+    }
+  })
+  // Remember where the window was, a moment after it stops moving (not on every pixel of a drag).
+  let saveTimer: NodeJS.Timeout | undefined
+  const remember = (): void => {
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => {
+      const win = mainWindow
+      if (!win || win.isDestroyed() || win.isMinimized() || win.isFullScreen()) return
+      const b = win.isMaximized() ? win.getNormalBounds() : win.getBounds()
+      prefs.setWindow({ ...b, maximized: win.isMaximized() })
+    }, 600)
+  }
+  mainWindow.on('resize', remember)
+  mainWindow.on('move', remember)
+  mainWindow.on('maximize', remember)
+  mainWindow.on('unmaximize', remember)
+  mainWindow.on('close', () => {
+    clearTimeout(saveTimer)
+    const win = mainWindow
+    if (win && !win.isDestroyed() && !win.isMinimized() && !win.isFullScreen()) {
+      const b = win.isMaximized() ? win.getNormalBounds() : win.getBounds()
+      prefs.setWindow({ ...b, maximized: win.isMaximized() })
+    }
+  })
   mainWindow.on('closed', () => (mainWindow = null))
+  mainWindow.webContents.on('render-process-gone', (_e, details) => logDesktop(paths.logsDir, 'error', 'The window\'s renderer process ended unexpectedly', { reason: details.reason, exitCode: details.exitCode }))
   void mainWindow.loadURL(devUiUrl ?? `${APP_ORIGIN}/index.html`)
 }
+
+/** Problems in the shell itself go to the same log history as the service's, so they can be found in one place. */
+process.on('uncaughtException', (err) => logDesktop(paths.logsDir, 'fatal', 'Uncaught exception in the desktop app', { err: { message: err.message, stack: err.stack } }))
+process.on('unhandledRejection', (reason) => logDesktop(paths.logsDir, 'error', 'Unhandled promise rejection in the desktop app', { reason: String(reason) }))
 
 async function main(): Promise<void> {
   app.setAppUserModelId('app.theama.desktop')
@@ -276,6 +367,8 @@ async function main(): Promise<void> {
     version: app.getVersion(),
     dev,
     trustedOrigins: trustedOrigins(),
+    desktopSettings,
+    setDesktopSettings,
     setLanguage: (lang) => {
       prefs.setLanguage(lang)
       rebuildMenu()
@@ -288,11 +381,12 @@ async function main(): Promise<void> {
   })
 
   rebuildMenu()
+  applyBehaviour()
   createWindow()
 
   // The server is brought up in the background so the window opens immediately.
   void refreshStatus().then(async (status) => {
-    if (controllerKind === 'dev' && !status.apiReachable) await runServiceAction('start')
+    if (controllerKind !== 'nssm' && !status.apiReachable) await runServiceAction('start')
   })
   setInterval(() => {
     if (!busy) void refreshStatus().catch(() => undefined)
@@ -302,17 +396,13 @@ async function main(): Promise<void> {
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
-    }
-  })
+  app.on('second-instance', () => showWindow())
   // Closing the window quits the UI only: the Windows service keeps managing the library.
   app.on('window-all-closed', () => app.quit())
 
   let disposed = false
   app.on('before-quit', (event) => {
+    quitting = true
     if (disposed || !controller?.dispose) return
     event.preventDefault()
     disposed = true

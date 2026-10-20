@@ -9,6 +9,9 @@ import { LogEntry } from './logs'
  */
 export const IPC = {
   pickFolder: 'dialog:pickFolder',
+  pickBackupFile: 'dialog:pickBackup',
+  desktopGet: 'desktop:get',
+  desktopSet: 'desktop:set',
   openPath: 'shell:openPath',
   showItemInFolder: 'shell:showItemInFolder',
   appInfo: 'app:info',
@@ -48,6 +51,19 @@ export const PickFolderRequest = z.object({ title: z.string().max(200).optional(
 export const PathRequest = z.object({ path: z.string().min(1).max(32_000) })
 export const ServiceInstallRequest = z.object({ account: ServiceAccountChoice })
 export const LocalLogsRequest = z.object({ limit: z.number().int().min(1).max(500).default(200) })
+
+/** How the desktop app behaves around the window; kept by the desktop app itself, per Windows user. */
+export const DesktopSettings = z.object({
+  /** Closing the window keeps Theama in the notification area instead of quitting. */
+  closeToTray: z.boolean(),
+  /** Start Theama when the person signs in to Windows (to the tray, if the tray is on). */
+  startWithWindows: z.boolean(),
+  /** False in a development build: it cannot register itself to start with Windows. */
+  startWithWindowsSupported: z.boolean(),
+})
+export type DesktopSettings = z.infer<typeof DesktopSettings>
+export const DesktopSettingsPatch = z.object({ closeToTray: z.boolean().optional(), startWithWindows: z.boolean().optional() })
+export type DesktopSettingsPatch = z.infer<typeof DesktopSettingsPatch>
 
 export const PlayerKind = z.enum(['vlc', 'mpv', 'mpc-hc', 'mpc-be', 'potplayer', 'system', 'custom'])
 export type PlayerKind = z.infer<typeof PlayerKind>
@@ -93,6 +109,12 @@ export interface TheamaBridge {
   /** Tells the main process which language to use for native menus and dialogs. */
   setLanguage(language: UiLanguage): Promise<void>
   pickFolder(title?: string): Promise<string | null>
+  /** A native file picker for a Theama backup (.db). Resolves to the chosen path, or null if cancelled. */
+  pickBackupFile(): Promise<string | null>
+  desktop: {
+    get(): Promise<DesktopSettings>
+    set(patch: DesktopSettingsPatch): Promise<DesktopSettings>
+  }
   openPath(path: string): Promise<void>
   showItemInFolder(path: string): Promise<void>
   service: {

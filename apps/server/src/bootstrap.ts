@@ -8,6 +8,7 @@ import { openDatabase } from './db/client'
 import { createLogger } from './log/logger'
 import { EventsHub } from './events-hub'
 import { LibrarySourceRepo } from './library/sources'
+import { applyPendingRestore, backupBeforeMigration, BackupService } from './backup/backup'
 import { CollectionRepo } from './collections/store'
 import { FileJournal } from './files/journal'
 import { RenameService } from './files/rename'
@@ -48,9 +49,16 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   const { logger, hub } = createLogger(config)
   const startedAt = new Date()
 
+  // A restore the person asked for before the last restart takes effect now, while nothing has the database open.
+  applyPendingRestore({ databaseFile: config.databaseFile, backupsDir: config.backupsDir, restoreDir: config.restoreDir }, logger)
+  // An upgrade to a newer database layout is the one moment an existing library can be hurt: keep a copy first.
+  backupBeforeMigration(config.databaseFile, config.backupsDir, logger)
   const handle = openDatabase(config.databaseFile)
+  const backups = new BackupService({ raw: handle.raw, dir: config.backupsDir, restoreDir: config.restoreDir, logger })
   const serviceEvents = new ServiceEventRepo(handle.db)
   const settings = new SettingsRepo(handle.db)
+  // The saved log detail applies unless the environment sets a level explicitly (as development scripts and tests do).
+  if (!config.logLevelPinned) logger.level = settings.get().logDetail
   const library = new LibrarySourceRepo(handle.db)
   const files = new MediaFileRepo(handle.db, handle.raw)
   const jobs = new ScanJobRepo(handle.db)
@@ -126,6 +134,8 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     playback,
     renamer,
     journal,
+    backups,
+    ffprobeFound: ffprobePath !== null,
     jobs,
     scans,
     auto,
@@ -152,6 +162,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   events.startHeartbeat()
   auto.start()
   metadata.start()
+  backups.start()
   void renamer.recover().catch((err: unknown) => logger.error({ err }, 'Could not settle interrupted renames'))
   writeRuntimeFile(config, {
     port,
@@ -173,6 +184,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     stopping ??= (async () => {
       logger.info({ reason }, 'Shutting down')
       auto.stop()
+      backups.stop()
       await metadata.stop()
       await scans.close()
       events.stop()

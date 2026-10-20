@@ -7,6 +7,11 @@ const bridge: TheamaBridge = {
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
   setLanguage: (language) => ipcRenderer.invoke(IPC.setLanguage, { language }),
   pickFolder: (title) => ipcRenderer.invoke(IPC.pickFolder, { title }),
+  pickBackupFile: () => ipcRenderer.invoke(IPC.pickBackupFile),
+  desktop: {
+    get: () => ipcRenderer.invoke(IPC.desktopGet),
+    set: (patch) => ipcRenderer.invoke(IPC.desktopSet, patch),
+  },
   openPath: (path) => ipcRenderer.invoke(IPC.openPath, { path }),
   showItemInFolder: (path) => ipcRenderer.invoke(IPC.showItemInFolder, { path }),
   service: {

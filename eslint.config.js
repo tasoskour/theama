@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint'
 import vue from 'eslint-plugin-vue'
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/out/**', '**/release/**', '**/node_modules/**', '.yarn/**', '.dev-data/**'] },
+  { ignores: ['**/dist/**', '**/out/**', '**/release/**', 'build/**', '**/node_modules/**', '.yarn/**', '.dev-data/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...vue.configs['flat/recommended'],

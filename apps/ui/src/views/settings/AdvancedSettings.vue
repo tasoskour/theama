@@ -2,6 +2,7 @@
 const TABS = [
   { to: '/settings/advanced/service', key: 'service' },
   { to: '/settings/advanced/logs', key: 'logs' },
+  { to: '/settings/advanced/backup', key: 'backup' },
   { to: '/settings/advanced/about', key: 'about' },
 ] as const
 </script>

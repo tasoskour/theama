@@ -4,8 +4,11 @@ import { mdiFolderOpenOutline } from '@mdi/js'
 import { SystemInfo, type AppInfo } from '@theama/contracts'
 import { getBridge } from '@/api/bridge'
 import { useConnectionStore } from '@/stores/connection'
+import { useI18n } from 'vue-i18n'
 
 const connection = useConnectionStore()
+const { t } = useI18n()
+const reportState = ref<'idle' | 'busy' | 'copied' | 'failed'>('idle')
 const bridge = getBridge()
 const info = ref<SystemInfo | null>(null)
 const app = ref<AppInfo | null>(null)
@@ -19,6 +22,17 @@ function formatUptime(seconds: number): string {
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${seconds % 60}s` : `${seconds}s`
+}
+
+async function copyReport(): Promise<void> {
+  if (!connection.client) return
+  reportState.value = 'busy'
+  try {
+    await navigator.clipboard.writeText(await connection.client.getText('/diagnostics/report'))
+    reportState.value = 'copied'
+  } catch {
+    reportState.value = 'failed'
+  }
 }
 
 onMounted(() => void load())
@@ -68,6 +82,14 @@ v-for="row in [
       </template>
     </dl>
     <p v-else class="th-muted">{{ $t('common.loading') }}</p>
+
+    <div class="diag">
+      <h3 class="th-display diag__title">{{ $t('settings.about.diagnostics') }}</h3>
+      <p class="th-muted diag__hint">{{ $t('settings.about.diagnosticsHint') }}</p>
+      <v-btn variant="tonal" :loading="reportState === 'busy'" :disabled="!connection.isConnected" data-test="copy-report" @click="copyReport">{{ $t('settings.about.copyReport') }}</v-btn>
+      <span v-if="reportState === 'copied'" class="diag__state" role="status">{{ t('settings.about.reportCopied') }}</span>
+      <span v-if="reportState === 'failed'" class="diag__state diag__state--bad" role="alert">{{ t('settings.about.reportFailed') }}</span>
+    </div>
   </section>
 </template>
 
@@ -84,6 +106,24 @@ dt {
 dd {
   margin: 0;
   word-break: break-all;
+}
+.diag {
+  margin-top: 40px;
+}
+.diag__title {
+  font-size: 1.2rem;
+  margin: 0 0 8px;
+}
+.diag__hint {
+  max-width: 64ch;
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+}
+.diag__state {
+  margin-left: 12px;
+}
+.diag__state--bad {
+  color: rgb(var(--v-theme-error));
 }
 .path {
   display: flex;

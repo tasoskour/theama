@@ -255,6 +255,14 @@ describe('your own collections', () => {
     expect((await send('PATCH', `/collections/${id}`, { name: 'Friday night' })).status).toBe(200) // same name, same collection
   })
 
+  it('finds collections by words of their name, ignoring accents and capitals', async () => {
+    expect(CollectionList.parse(await get('/collections?q=FRIDAY')).items.map((c) => c.name)).toEqual(['Friday night'])
+    expect(CollectionList.parse(await get('/collections?q=mad%20max')).items.map((c) => c.name)).toEqual(['Mad Max Collection'])
+    expect(CollectionList.parse(await get('/collections?q=night%20fri')).items).toHaveLength(1) // every word, in any order
+    expect(CollectionList.parse(await get('/collections?q=zzz')).items).toEqual([])
+    expect(CollectionList.parse(await get('/collections?q=mad&kind=user')).items).toEqual([])
+  })
+
   it('lists it next to the official ones, filtered by kind', async () => {
     expect(CollectionList.parse(await get('/collections')).items.map((c) => c.name)).toEqual(['Friday night', 'Mad Max Collection'])
     expect(CollectionList.parse(await get('/collections?kind=user')).items.map((c) => c.name)).toEqual(['Friday night'])

@@ -39,7 +39,7 @@ Single-user, single-machine. A secured LAN/mobile mode is explicitly future work
 | Playback | External players (VLC, MPC-HC/BE, mpv, PotPlayer, default), open folder, copy path, watched state | **Built** — started by the desktop shell with argument arrays; watched is marked by hand (Theama cannot see inside an external player); resume position is not tracked |
 | Subtitles | Embedded/external detection, language, association, default selection | **Built** for detection (embedded streams from FFprobe; external files beside the video, with language), language preferences and default selection at launch; picking a file by hand to associate is not built |
 | File organisation | Rename templates, preview, collision detection, journal, rollback | **Built** for in-place renames of films and episodes (with their subtitles); moving into folders is not built |
-| Packaging | Installer, updates, backup/restore | Designed (Phase 7) |
+| Packaging | Installer, updates, backup/restore | **Built, with gaps:** the installer builds and the packaged app passes a smoke test, but the installer itself has not been run on a clean machine (it needs an administrator's approval); backup/restore **built**; updates are by running a newer installer over the old one (a feed for automatic updates needs a place to host it) |
 
 ### Post-MVP
 Embedded player (codec/container limits must be evaluated first) · player-specific resume-position integrations · NFO import/export · smart collections beyond the basics · metadata refresh scheduling · additional providers via adapters.

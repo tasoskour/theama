@@ -9,6 +9,10 @@ export const ThemePreference = z.enum(['system', 'dark', 'light'])
 export type ThemePreference = z.infer<typeof ThemePreference>
 
 /** Days of rotated NDJSON log files kept on disk. */
+/** How much the service writes to the log history. `debug` is for finding a problem and makes the logs large. */
+export const LogDetail = z.enum(['error', 'warn', 'info', 'debug'])
+export type LogDetail = z.infer<typeof LogDetail>
+
 const LogRetentionDays = z.number().int().min(1).max(365)
 
 const SubtitleLanguages = z.array(z.string().regex(/^[a-z]{2}$/)).max(6)
@@ -17,6 +21,7 @@ export const AppSettings = z.object({
   language: UiLanguage.default('en'),
   theme: ThemePreference.default('system'),
   logRetentionDays: LogRetentionDays.default(14),
+  logDetail: LogDetail.default('info'),
   /** Language requested from the metadata provider; independent of the interface language. */
   metadataLanguage: MetadataLanguage.default('en'),
   /** Subtitle languages to prefer when starting a video, most wanted first (ISO 639-1). */
@@ -31,6 +36,7 @@ export const AppSettingsPatch = z.object({
   language: UiLanguage.optional(),
   theme: ThemePreference.optional(),
   logRetentionDays: LogRetentionDays.optional(),
+  logDetail: LogDetail.optional(),
   metadataLanguage: MetadataLanguage.optional(),
   subtitleLanguages: SubtitleLanguages.optional(),
   renameMovieTemplate: Template.optional(),

@@ -51,7 +51,11 @@ export type CollectionDetail = z.infer<typeof CollectionDetail>
 export const CollectionList = z.object({ items: z.array(CollectionSummary) })
 export type CollectionList = z.infer<typeof CollectionList>
 
-export const CollectionListQuery = z.object({ kind: CollectionKind.optional() })
+export const CollectionListQuery = z.object({
+  kind: CollectionKind.optional(),
+  /** Words of the name, accents and capitals ignored (the same folding as search). */
+  q: z.string().trim().max(200).optional(),
+})
 export type CollectionListQuery = z.input<typeof CollectionListQuery>
 
 export const CollectionDetailQuery = z.object({ order: CollectionOrder.optional() })

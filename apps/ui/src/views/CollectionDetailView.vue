@@ -8,6 +8,7 @@ import { ApiRequestError } from '@/api/client'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import PosterCard from '@/components/titles/PosterCard.vue'
 import { useConnectionStore } from '@/stores/connection'
+import { moveBetweenCards } from '@/utils/gridNav'
 
 const route = useRoute()
 const router = useRouter()
@@ -175,7 +176,7 @@ const heroStyle = computed(() => {
 
       <p v-if="detail.members.length === 0" class="th-muted empty">{{ $t('collections.emptyCollection') }}</p>
 
-      <ol v-else class="members" :aria-label="summary.name">
+      <ol v-else class="members" :aria-label="summary.name" @keydown="moveBetweenCards($event, '[data-title-key]')">
         <li v-for="m in detail.members" :key="m.titleKey ?? m.title + m.position" class="member">
           <div class="member__pos th-muted" aria-hidden="true">{{ m.position }}</div>
           <PosterCard v-if="m.summary" :title="m.summary" />

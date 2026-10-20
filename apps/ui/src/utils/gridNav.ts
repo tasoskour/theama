@@ -33,6 +33,23 @@ export function nextGridIndex(key: NavKey, index: number, columns: number, count
   }
 }
 
+/**
+ * Arrow-key movement between the cards matching `selector` inside the element the handler is on. Each card
+ * stays a Tab stop (unlike the paged poster grids, which are one); the arrows are a faster way around.
+ */
+export function moveBetweenCards(e: KeyboardEvent, selector: string): void {
+  const keys: NavKey[] = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']
+  if (!keys.includes(e.key as NavKey) || e.altKey || e.ctrlKey || e.metaKey) return
+  const root = e.currentTarget as HTMLElement
+  const cards = [...root.querySelectorAll<HTMLElement>(selector)]
+  const from = cards.findIndex((c) => c === e.target || c.contains(e.target as Node))
+  if (from < 0) return
+  const to = nextGridIndex(e.key as NavKey, from, columnsFromOffsets(cards.map((c) => c.offsetTop)), cards.length)
+  if (to === from || to < 0) return
+  e.preventDefault()
+  cards[to]!.focus()
+}
+
 /** Number of cards in the first visual row, from each card's top offset. */
 export function columnsFromOffsets(tops: readonly number[]): number {
   if (tops.length === 0) return 1

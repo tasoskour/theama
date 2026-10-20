@@ -9,6 +9,8 @@ import {
   API_PREFIX,
   AppSettingsPatch,
   AddMemberRequest,
+  ClientErrorReport,
+  RestoreRequest,
   RenameApplyRequest,
   RenamePreviewRequest,
   SetTitleWatchedRequest,
@@ -29,6 +31,8 @@ import {
   UpdateSourceRequest,
   type LibrarySource,
   type LibrarySourceList,
+  type BackupInfo,
+  type BackupList,
   type CollectionDetail,
   type OperationBatch,
   type OperationList,
@@ -69,6 +73,8 @@ import type { MediaFileRepo, ScanJobRepo } from './scan/store'
 import type { TitleRepo } from './scan/titles'
 import { CollectionProblem, type CollectionRepo } from './collections/store'
 import { PlaybackProblem, type PlaybackRepo } from './playback/store'
+import { BackupProblem, type BackupService } from './backup/backup'
+import { buildReport } from './diagnostics/report'
 import type { FileJournal } from './files/journal'
 import { RenameProblem, type RenameService } from './files/rename'
 import { TemplateError, validateTemplate } from './files/template'
@@ -90,6 +96,8 @@ export interface AppDeps {
   playback: PlaybackRepo
   renamer: RenameService
   journal: FileJournal
+  backups: BackupService
+  ffprobeFound: boolean
   jobs: ScanJobRepo
   scans: ScanManager
   auto: AutoScanner
@@ -108,7 +116,7 @@ function apiError(code: string, message: string, details?: unknown): ApiError {
 }
 
 export async function buildApp(deps: AppDeps) {
-  const { config, logger, logHub, settings, serviceEvents, library, files, titles, collections, playback, renamer, journal, jobs, scans, auto, metadata, credentials, provider, artwork, events, token, startedAt } = deps
+  const { config, logger, logHub, settings, serviceEvents, library, files, titles, collections, playback, renamer, journal, backups, ffprobeFound, jobs, scans, auto, metadata, credentials, provider, artwork, events, token, startedAt } = deps
   const app = Fastify({
     loggerInstance: logger,
     logController: new LogController({ disableRequestLogging: true }),
@@ -186,6 +194,7 @@ export async function buildApp(deps: AppDeps) {
     }
     const updated = settings.update(patch)
     if (patch.logRetentionDays !== undefined) pruneLogs(config.logsDir, updated.logRetentionDays)
+    if (patch.logDetail !== undefined && !config.logLevelPinned) logger.level = updated.logDetail
     // Titles fetched in another language are refreshed in the background.
     if (patch.metadataLanguage !== undefined) metadata.kick()
     events.broadcast({ type: 'settings.changed', settings: updated })
@@ -405,7 +414,10 @@ export async function buildApp(deps: AppDeps) {
   const KeyQuery = z.object({ key: z.string().min(1).max(1000) })
 
   app.get(`${API_PREFIX}/collections`, async (req): Promise<CollectionList> => ({
-    items: collections.list(CollectionListQuery.parse(req.query).kind),
+    items: (() => {
+      const query = CollectionListQuery.parse(req.query)
+      return collections.list(query.kind, query.q)
+    })(),
   }))
 
   app.get(`${API_PREFIX}/collections/:id`, async (req): Promise<CollectionDetail> => {
@@ -566,6 +578,80 @@ export async function buildApp(deps: AppDeps) {
     if (!batch) throw new ApiProblem('not_found', 'No such batch of renames', 404)
     events.broadcast({ type: 'library.changed' })
     return batch
+  })
+
+  // --- backups ------------------------------------------------------------
+
+  function backupCall<T>(fn: () => T): T {
+    try {
+      return fn()
+    } catch (err) {
+      if (err instanceof BackupProblem) {
+        const status = { not_found: 404, invalid_backup: 422, newer_version: 422, bad_path: 400 }[err.code]
+        throw new ApiProblem(err.code, err.message, status)
+      }
+      throw err
+    }
+  }
+  const backupList = (): BackupList => ({ items: backups.list(), pending: backups.pending(), directory: config.backupsDir })
+
+  app.get(`${API_PREFIX}/backups`, async (): Promise<BackupList> => backupList())
+
+  app.post(`${API_PREFIX}/backups`, async (_req, reply): Promise<BackupInfo> => reply.code(201).send(backupCall(() => backups.create('manual'))))
+
+  app.delete(`${API_PREFIX}/backups/:name`, async (req) => {
+    const { name } = z.object({ name: z.string().min(1).max(200) }).parse(req.params)
+    backupCall(() => backups.remove(name))
+    return { deleted: true }
+  })
+
+  /** Sets a restore aside. It takes effect at the next start of the service (the database is open now). */
+  app.post(`${API_PREFIX}/backups/restore`, async (req): Promise<BackupList> => {
+    const body = RestoreRequest.parse(req.body ?? {})
+    backupCall(() => backups.stage(body.name !== undefined ? { name: body.name } : { path: body.path! }))
+    return backupList()
+  })
+
+  app.delete(`${API_PREFIX}/backups/restore`, async (): Promise<BackupList> => {
+    backups.cancelPending()
+    return backupList()
+  })
+
+  // --- diagnostics (local only: nothing here is sent anywhere) --------------------
+
+  /** At most this many interface errors are logged per minute, so a render loop cannot flood the log history. */
+  const clientErrors = { windowStart: 0, count: 0 }
+  app.post(`${API_PREFIX}/diagnostics/client-error`, async (req, reply) => {
+    const report = ClientErrorReport.parse(req.body ?? {})
+    const now = Date.now()
+    if (now - clientErrors.windowStart > 60_000) Object.assign(clientErrors, { windowStart: now, count: 0 })
+    if (++clientErrors.count > 30) return reply.code(202).send({ accepted: false })
+    logger.error({ source: 'ui', kind: report.kind, where: report.where, stack: report.stack }, `The interface reported an error: ${report.message}`)
+    return reply.code(202).send({ accepted: true })
+  })
+
+  app.get(`${API_PREFIX}/diagnostics/report`, async (_req, reply) => {
+    const text = buildReport({
+      info: {
+        version: APP_VERSION,
+        nodeVersion: process.version,
+        pid: process.pid,
+        startedAt: startedAt.toISOString(),
+        uptimeSeconds: Math.round((Date.now() - startedAt.getTime()) / 1000),
+        hostMode: config.hostMode,
+        paths: { dataDir: config.dataDir, databaseFile: config.databaseFile, cacheDir: config.cacheDir, logsDir: config.logsDir },
+        schemaVersion: deps.schemaVersion,
+      },
+      library: scans.status(),
+      metadata: metadata.status(),
+      backups: backups.list(),
+      serviceEvents: serviceEvents.list(20),
+      ffprobeFound,
+      logsDir: config.logsDir,
+      secrets: [token, credentials.get()],
+      now: new Date(),
+    })
+    return reply.type('text/plain; charset=utf-8').send(text)
   })
 
   app.get(`${API_PREFIX}/library/status`, async (): Promise<LibraryStatus> => scans.status())

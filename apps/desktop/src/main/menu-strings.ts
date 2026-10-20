@@ -1,6 +1,7 @@
 import type { ServiceState, UiLanguage } from '@theama/contracts'
 
 export interface MenuStrings {
+  openTheama: string
   file: string
   quit: string
   edit: string
@@ -41,6 +42,7 @@ export interface MenuStrings {
 }
 
 const en: MenuStrings = {
+  openTheama: 'Open Theama',
   file: '&File',
   quit: 'Quit Theama',
   edit: '&Edit',
@@ -89,6 +91,7 @@ const en: MenuStrings = {
 }
 
 const el: MenuStrings = {
+  openTheama: 'Άνοιγμα του Θέαμα',
   file: '&Αρχείο',
   quit: 'Έξοδος από το Θέαμα',
   edit: '&Επεξεργασία',

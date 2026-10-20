@@ -9,6 +9,7 @@ import type {
 } from '@theama/contracts'
 import { artworkUrl } from '../metadata/artwork'
 import type { ProviderCollection } from '../metadata/provider'
+import { normaliseTitle } from '../scan/filename'
 import type { TitleRepo } from '../scan/titles'
 
 interface CollectionRow {
@@ -190,7 +191,10 @@ export class CollectionRepo {
   }
 
   private views(rows: MemberRow[]): MemberView[] {
-    const summaries = this.titles.summaries(rows.flatMap((r) => (r.local_key ? [r.local_key] : [])))
+    return this.viewsFrom(rows, this.titles.summaries(rows.flatMap((r) => (r.local_key ? [r.local_key] : []))))
+  }
+
+  private viewsFrom(rows: MemberRow[], summaries: Map<string, TitleSummary>): MemberView[] {
     return rows.map((row) => {
       const summary = row.local_key ? (summaries.get(row.local_key) ?? null) : null
       return { row, summary, title: summary?.title ?? row.title, date: row.release_date ?? (summary?.year ? `${summary.year}` : row.year ? `${row.year}` : null) }
@@ -223,14 +227,24 @@ export class CollectionRepo {
   }
 
   /** Official collections show only when something in them is in the library; the person's own always show. */
-  list(kind?: CollectionKind): CollectionSummary[] {
-    const rows = this.raw
-      .prepare(`SELECT id, kind, provider, external_id, name, overview, poster_file, backdrop_file, fetched_at FROM collection ${kind ? 'WHERE kind = ?' : ''} ORDER BY name COLLATE NOCASE, id`)
-      .all(...(kind ? [kind] : [])) as CollectionRow[]
+  list(kind?: CollectionKind, q?: string): CollectionSummary[] {
+    const words = q ? normaliseTitle(q).split(' ').filter(Boolean) : []
+    const rows = (
+      this.raw
+        .prepare(`SELECT id, kind, provider, external_id, name, overview, poster_file, backdrop_file, fetched_at FROM collection ${kind ? 'WHERE kind = ?' : ''} ORDER BY name COLLATE NOCASE, id`)
+        .all(...(kind ? [kind] : [])) as CollectionRow[]
+    ).filter((c) => {
+      const name = normaliseTitle(c.name)
+      return words.every((w) => name.includes(w))
+    })
+    // Look up the library cards of every collection's members in one go, not once per collection.
+    const members = new Map(rows.map((c) => [c.id, this.memberRows(c)]))
+    const cards = this.titles.summaries([...new Set([...members.values()].flatMap((m) => m.flatMap((r) => (r.local_key ? [r.local_key] : []))))])
     const out: CollectionSummary[] = []
     for (const c of rows) {
       const order = CollectionRepo.orders(c.kind)[0]!
-      const s = this.summaryOf(c, CollectionRepo.sort(this.views(this.memberRows(c)), order))
+      const sorted = CollectionRepo.sort(this.viewsFrom(members.get(c.id)!, cards), order)
+      const s = this.summaryOf(c, sorted)
       if (c.kind === 'official' && s.localCount === 0) continue
       out.push(s)
     }

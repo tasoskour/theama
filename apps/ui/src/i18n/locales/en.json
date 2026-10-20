@@ -179,11 +179,13 @@
       "year": "Year (newest first)"
     },
     "noMatches": "Nothing matches.",
-    "partlyHint": "Some files of this title are not available right now."
+    "partlyHint": "Some files of this title are not available right now.",
+    "partial": "{available} of {total} files available"
   },
   "home": {
     "recent": "Recently added",
-    "continue": "Continue watching"
+    "continue": "Continue watching",
+    "collections": "Collections"
   },
   "detail": {
     "back": "Back",
@@ -257,7 +259,8 @@
     "advancedTabs": {
       "service": "Service",
       "logs": "Log history",
-      "about": "About"
+      "about": "About",
+      "backup": "Backup"
     },
     "general": {
       "language": "Language",
@@ -272,7 +275,15 @@
       "logRetention": "Keep log history for",
       "logRetentionHint": "Older log files are deleted automatically.",
       "days": "{count} day | {count} days",
-      "saved": "Settings saved"
+      "saved": "Settings saved",
+      "logDetail": "Log detail",
+      "logDetailHint": "How much Theama writes to its log history. Normal is right for everyday use; choose Detailed only while looking for a problem, because it makes the logs much larger. It applies at once.",
+      "logDetails": {
+        "error": "Errors only",
+        "warn": "Warnings and errors",
+        "info": "Normal",
+        "debug": "Detailed"
+      }
     },
     "about": {
       "version": "Version",
@@ -287,7 +298,20 @@
       "logs": "Logs folder",
       "desktop": "Desktop app",
       "hostService": "Windows service",
-      "hostForeground": "Foreground process (development)"
+      "hostForeground": "Foreground process (development)",
+      "diagnostics": "Diagnostics",
+      "diagnosticsHint": "If something goes wrong, copy this report and paste it where you are asking for help. It lists versions, what is running and recent warnings and errors. It contains file paths but never your API token or TMDB key, and nothing is sent anywhere.",
+      "copyReport": "Copy diagnostics report",
+      "reportCopied": "Report copied",
+      "reportFailed": "The report could not be made."
+    },
+    "desktop": {
+      "title": "Desktop app",
+      "closeToTray": "Keep Theama in the notification area when I close the window",
+      "closeToTrayHint": "Closing the window hides it; use the Theama icon near the clock to open it again, or Quit to exit. The background service runs either way.",
+      "startWithWindows": "Start Theama when I sign in to Windows",
+      "startWithWindowsHint": "It starts in the notification area if the option above is on, otherwise it opens its window.",
+      "startWithWindowsDev": "Only the installed app can start with Windows."
     }
   },
   "service": {
@@ -444,7 +468,7 @@
       "results": "Search results",
       "noOverview": "No description available.",
       "pick": "This one",
-      "choose": "Use {name} {year}",
+      "choose": "This one: {name} {year}",
       "lockNote": "Your choice is locked: rescans and refreshes will not change it."
     }
   },
@@ -643,5 +667,37 @@
       "skipped": "An episode needs a season and an episode number to be named by this template.",
       "changed": "This file changed since the preview."
     }
+  },
+  "backup": {
+    "title": "Backup and restore",
+    "intro": "Your library lives in a database on this PC: which titles are identified, your collections, what you have watched, your settings and the rename history. Theama keeps a copy once a day and before any upgrade. Your video files are never part of it.",
+    "now": "Back up now",
+    "fromFile": "Restore from a file…",
+    "openFolder": "Open the backups folder",
+    "made": "Backup made",
+    "none": "No backups yet.",
+    "restore": "Restore",
+    "restoreFrom": "Restore the backup from {when}",
+    "delete": "Delete",
+    "deleteOne": "Delete the backup from {when}",
+    "deleteTitle": "Delete this backup?",
+    "deleteBody": "Only the backup file is deleted. Your library is not affected.",
+    "what": "A backup holds the library database only. Artwork is downloaded again when needed, and the TMDB key is not included, so a backup is safe to keep or share.",
+    "kinds": {
+      "manual": "Made by you",
+      "daily": "Daily",
+      "pre-migration": "Before an upgrade",
+      "pre-restore": "Before a restore"
+    },
+    "confirmTitle": "Restore this backup?",
+    "confirmBody": "Your library data (identifications, collections, watched marks, settings, rename history) will be replaced by what the backup holds. Changes made since will be lost. The service has to restart to do it.",
+    "confirmSafe": "The current state is saved first as a “before a restore” backup, and your video files are not touched.",
+    "confirmGo": "Prepare restore",
+    "pendingTitle": "A restore is ready",
+    "pendingBody": "“{source}” ({files} files, {titles} titles) will replace the library when the service restarts.",
+    "restartNow": "Restart now",
+    "cancelRestore": "Cancel the restore",
+    "restartByHand": "Restart the Theama service to apply it.",
+    "restarted": "Restarting the service…"
   }
 }

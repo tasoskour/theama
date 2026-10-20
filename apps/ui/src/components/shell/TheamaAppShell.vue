@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import BrandLogo from './BrandLogo.vue'
 import ConnectionChip from './ConnectionChip.vue'
@@ -7,10 +7,15 @@ import TheamaBottomNavigation from './TheamaBottomNavigation.vue'
 import TheamaTopNavigation from './TheamaTopNavigation.vue'
 import RecoveryScreen from '@/components/service/RecoveryScreen.vue'
 import { useGlobalShortcuts } from '@/composables/useGlobalShortcuts'
+import { useImmersive } from '@/composables/useImmersive'
 import { useConnectionStore } from '@/stores/connection'
 import { useTitleActionsStore } from '@/stores/titleActions'
 
+// Only fetched when the immersive mode is on; Standard never loads the 3D code.
+const ImmersiveBackdrop = defineAsyncComponent(() => import('@/components/immersive/ImmersiveBackdrop.vue'))
+
 const display = useDisplay()
+const immersive = useImmersive()
 const mobile = computed(() => display.smAndDown.value)
 const connection = useConnectionStore()
 const titleActions = useTitleActionsStore()
@@ -35,6 +40,7 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
 </script>
 
 <template>
+  <ImmersiveBackdrop v-if="immersive.active.value" />
   <TheamaTopNavigation v-if="!mobile" />
   <v-app-bar v-if="mobile" flat color="surface" class="th-hairline appbar" density="comfortable">
     <div class="px-4"><BrandLogo :size="28" /></div>

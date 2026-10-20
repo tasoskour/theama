@@ -314,6 +314,23 @@
         "dark": "Dark",
         "light": "Light"
       },
+      "visualMode": "Visual mode",
+      "visualModeHint": "Immersive adds an animated 3D backdrop and depth effects to posters. It needs a working graphics card.",
+      "visualModes": {
+        "standard": "Standard",
+        "immersive": "Immersive 3D"
+      },
+      "graphicsQuality": "Graphics quality",
+      "graphicsQualityHint": "Lower this if the animation feels slow. The app also lowers it by itself when needed.",
+      "qualities": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "immersiveUnavailable": {
+        "webgl": "3D graphics are not available on this computer, so the standard interface is used.",
+        "motion": "Windows is set to reduce animations, so the standard interface is used."
+      },
       "logRetention": "Keep log history for",
       "logRetentionHint": "Older log files are deleted automatically.",
       "days": "{count} day | {count} days",

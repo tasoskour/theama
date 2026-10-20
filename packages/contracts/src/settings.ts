@@ -8,6 +8,14 @@ export type UiLanguage = z.infer<typeof UiLanguage>
 export const ThemePreference = z.enum(['system', 'dark', 'light'])
 export type ThemePreference = z.infer<typeof ThemePreference>
 
+/** `immersive` adds the optional three.js backdrop and 3D poster effects; `standard` is the plain interface. */
+export const VisualMode = z.enum(['standard', 'immersive'])
+export type VisualMode = z.infer<typeof VisualMode>
+
+/** How much the immersive mode asks of the graphics card. */
+export const GraphicsQuality = z.enum(['low', 'medium', 'high'])
+export type GraphicsQuality = z.infer<typeof GraphicsQuality>
+
 /** Days of rotated NDJSON log files kept on disk. */
 /** How much the service writes to the log history. `debug` is for finding a problem and makes the logs large. */
 export const LogDetail = z.enum(['error', 'warn', 'info', 'debug'])
@@ -20,6 +28,8 @@ const SubtitleLanguages = z.array(z.string().regex(/^[a-z]{2}$/)).max(6)
 export const AppSettings = z.object({
   language: UiLanguage.default('en'),
   theme: ThemePreference.default('system'),
+  visualMode: VisualMode.default('standard'),
+  graphicsQuality: GraphicsQuality.default('medium'),
   logRetentionDays: LogRetentionDays.default(14),
   logDetail: LogDetail.default('info'),
   /** Language requested from the metadata provider; independent of the interface language. */
@@ -35,6 +45,8 @@ export type AppSettings = z.infer<typeof AppSettings>
 export const AppSettingsPatch = z.object({
   language: UiLanguage.optional(),
   theme: ThemePreference.optional(),
+  visualMode: VisualMode.optional(),
+  graphicsQuality: GraphicsQuality.optional(),
   logRetentionDays: LogRetentionDays.optional(),
   logDetail: LogDetail.optional(),
   metadataLanguage: MetadataLanguage.optional(),

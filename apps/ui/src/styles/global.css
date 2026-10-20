@@ -266,6 +266,39 @@ body {
   opacity: 0;
 }
 
+/*
+ * Immersive 3D mode (html.th-immersive, set only while the three.js backdrop is really running).
+ * The page background becomes see-through so the backdrop shows, the bars turn to frosted glass, and
+ * switching tabs pushes through depth instead of just fading. Nothing here applies in Standard mode.
+ */
+.th-immersive .v-application {
+  background: transparent;
+}
+.th-immersive .v-app-bar,
+.th-immersive .v-bottom-navigation {
+  background: rgba(var(--v-theme-surface), 0.74) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  backdrop-filter: blur(18px) saturate(1.25);
+}
+.th-immersive .th-fade-enter-active {
+  transition:
+    opacity 320ms var(--th-ease),
+    transform 420ms var(--th-ease);
+}
+.th-immersive .th-fade-leave-active {
+  transition:
+    opacity 130ms ease-out,
+    transform 130ms ease-out;
+}
+.th-immersive .th-fade-enter-from {
+  opacity: 0;
+  transform: perspective(1200px) translate3d(0, 14px, -140px) rotateX(3deg);
+}
+.th-immersive .th-fade-leave-to {
+  opacity: 0;
+  transform: perspective(1200px) translate3d(0, 0, 90px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

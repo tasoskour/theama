@@ -183,3 +183,33 @@ watch(
   }
 }
 </style>
+
+<!--
+  Immersive 3D: the shelf curves away from the middle of the visible row. Each item is driven by its own
+  position inside the scrolling list (scroll-driven animation), so there is no script and no layout cost.
+  Not scoped: see PosterCard.
+-->
+<style>
+@supports (animation-timeline: view()) {
+  .th-immersive [data-rail] .rail__list {
+    perspective: 1000px;
+  }
+  .th-immersive [data-rail] .rail__item {
+    animation: th-rail-curve linear both;
+    animation-timeline: view(inline);
+  }
+}
+/* Depth only, no fading: text on a card must keep its full contrast wherever the card sits. */
+@keyframes th-rail-curve {
+  0% {
+    transform: translateZ(-90px) rotateY(16deg);
+  }
+  30%,
+  70% {
+    transform: translateZ(0) rotateY(0deg);
+  }
+  100% {
+    transform: translateZ(-90px) rotateY(-16deg);
+  }
+}
+</style>

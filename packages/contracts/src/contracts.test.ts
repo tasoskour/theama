@@ -3,13 +3,18 @@ import { AppSettings, AppSettingsPatch, DEFAULT_SETTINGS, LogQuery, ServerEvent 
 
 describe('settings contract', () => {
   it('fills defaults', () => {
-    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'system', logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}' })
+    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'system', visualMode: 'standard', graphicsQuality: 'medium', logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}' })
   })
   it('rejects unknown language', () => {
     expect(AppSettings.safeParse({ language: 'fr' }).success).toBe(false)
   })
   it('patch is partial', () => {
     expect(AppSettingsPatch.parse({ theme: 'dark' })).toEqual({ theme: 'dark' })
+  })
+  it('accepts the visual mode and graphics quality, and nothing else', () => {
+    expect(AppSettingsPatch.parse({ visualMode: 'immersive', graphicsQuality: 'high' })).toEqual({ visualMode: 'immersive', graphicsQuality: 'high' })
+    expect(AppSettingsPatch.safeParse({ visualMode: '3d' }).success).toBe(false)
+    expect(AppSettingsPatch.safeParse({ graphicsQuality: 'ultra' }).success).toBe(false)
   })
 })
 

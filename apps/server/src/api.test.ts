@@ -115,6 +115,24 @@ describe('system and settings', () => {
     expect(bad.status).toBe(400)
     expect((await body(bad)).error.code).toBe('invalid_request')
   })
+
+  it('persists the visual mode and graphics quality', async () => {
+    const put = await fetch(`${base}/settings`, {
+      method: 'PUT',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visualMode: 'immersive', graphicsQuality: 'low' }),
+    })
+    expect(put.status).toBe(200)
+    const settings = await body(await fetch(`${base}/settings`, { headers: auth() }))
+    expect(settings.visualMode).toBe('immersive')
+    expect(settings.graphicsQuality).toBe('low')
+    const bad = await fetch(`${base}/settings`, {
+      method: 'PUT',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visualMode: 'vr' }),
+    })
+    expect(bad.status).toBe(400)
+  })
 })
 
 describe('log history', () => {

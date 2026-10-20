@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { DesktopSettings, LogDetail, ThemePreference, UiLanguage } from '@theama/contracts'
+import type { DesktopSettings, GraphicsQuality, LogDetail, ThemePreference, UiLanguage, VisualMode } from '@theama/contracts'
 import { getBridge } from '@/api/bridge'
+import { useImmersive } from '@/composables/useImmersive'
 import { SUPPORTED_LANGUAGES } from '@/i18n'
 import { useConnectionStore } from '@/stores/connection'
 import { useSettingsStore } from '@/stores/settings'
@@ -28,6 +29,9 @@ async function setDesktop(patch: { closeToTray?: boolean; startWithWindows?: boo
 }
 
 const themes: ThemePreference[] = ['system', 'dark', 'light']
+const visualModes: VisualMode[] = ['standard', 'immersive']
+const qualities: GraphicsQuality[] = ['low', 'medium', 'high']
+const immersive = useImmersive()
 const retentionChoices = [7, 14, 30, 90]
 const retentionItems = computed(() => retentionChoices.map((n) => ({ value: n, title: t('settings.general.days', n) })))
 
@@ -75,6 +79,48 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
         <v-btn v-for="th in themes" :key="th" :value="th" :aria-pressed="store.settings.theme === th">{{ $t(`settings.general.themes.${th}`) }}</v-btn>
       </v-btn-toggle>
       <p class="th-muted hint">{{ $t('settings.general.themeHint') }}</p>
+    </div>
+
+    <div class="field th-form-section" data-test="visual-mode">
+      <span id="visual-mode" class="label">{{ $t('settings.general.visualMode') }}</span>
+      <v-btn-toggle
+        :model-value="store.settings.visualMode"
+        mandatory
+        divided
+        color="primary"
+        variant="outlined"
+        aria-labelledby="visual-mode"
+        @update:model-value="(v: VisualMode) => save({ visualMode: v })"
+      >
+        <v-btn
+          v-for="m in visualModes"
+          :key="m"
+          :value="m"
+          :disabled="m === 'immersive' && immersive.block.value === 'webgl'"
+          :aria-pressed="store.settings.visualMode === m"
+          :data-test="`visual-mode-${m}`"
+        >{{ $t(`settings.general.visualModes.${m}`) }}</v-btn>
+      </v-btn-toggle>
+      <p class="th-muted hint">{{ $t('settings.general.visualModeHint') }}</p>
+      <p v-if="immersive.wanted.value && immersive.block.value" class="hint" role="status" data-test="immersive-unavailable">
+        {{ $t(`settings.general.immersiveUnavailable.${immersive.block.value}`) }}
+      </p>
+    </div>
+
+    <div v-if="store.settings.visualMode === 'immersive'" class="field th-form-section" data-test="graphics-quality">
+      <span id="graphics-quality" class="label">{{ $t('settings.general.graphicsQuality') }}</span>
+      <v-btn-toggle
+        :model-value="store.settings.graphicsQuality"
+        mandatory
+        divided
+        color="primary"
+        variant="outlined"
+        aria-labelledby="graphics-quality"
+        @update:model-value="(v: GraphicsQuality) => save({ graphicsQuality: v })"
+      >
+        <v-btn v-for="q in qualities" :key="q" :value="q" :aria-pressed="store.settings.graphicsQuality === q">{{ $t(`settings.general.qualities.${q}`) }}</v-btn>
+      </v-btn-toggle>
+      <p class="th-muted hint">{{ $t('settings.general.graphicsQualityHint') }}</p>
     </div>
 
     <div class="field th-form-section">

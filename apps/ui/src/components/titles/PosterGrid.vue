@@ -71,7 +71,7 @@ watch(
 <template>
   <div>
     <ul ref="root" class="grid" role="list" :aria-label="label" @keydown="onKeydown" @focusin="onFocusin">
-      <li v-for="(t, i) in titles" :key="t.key" class="cell">
+      <li v-for="(t, i) in titles" :key="t.key" class="cell" data-poster-cell>
         <PosterCard :title="t" :tabindex="i === active ? 0 : -1" />
       </li>
     </ul>
@@ -103,11 +103,32 @@ watch(
 .cell {
   min-width: 0;
 }
+
 .sentinel {
   height: 1px;
 }
 .loading {
   text-align: center;
   padding: 12px;
+}
+</style>
+
+<!-- Immersive 3D: posters tip up out of the depth as they scroll into view. Needs scroll-driven animations. Not scoped: see PosterCard. -->
+<style>
+@supports (animation-timeline: view()) {
+  .th-immersive [data-poster-cell] {
+    animation: th-cell-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 45%;
+  }
+}
+/* Depth only, no fading: text on a card must keep its full contrast wherever the card sits. */
+@keyframes th-cell-rise {
+  from {
+    transform: perspective(900px) translateY(36px) translateZ(-90px) rotateX(14deg);
+  }
+  to {
+    transform: perspective(900px) translateY(0) translateZ(0) rotateX(0deg);
+  }
 }
 </style>

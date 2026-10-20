@@ -1,5 +1,5 @@
 import { createI18n } from 'vue-i18n'
-import type { UiLanguage } from '@theama/contracts'
+import type { GraphicsQuality, UiLanguage, VisualMode } from '@theama/contracts'
 import en from './locales/en.json'
 import el from './locales/el.json'
 
@@ -13,6 +13,8 @@ const PREFS_KEY = 'theama.prefs'
 export interface CachedPrefs {
   language?: UiLanguage
   theme?: 'system' | 'dark' | 'light'
+  visualMode?: VisualMode
+  graphicsQuality?: GraphicsQuality
 }
 
 /** Last-known preferences, read before the API answers so first paint is correct. */

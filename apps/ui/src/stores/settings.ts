@@ -12,6 +12,8 @@ export const useSettingsStore = defineStore('settings', () => {
     ...DEFAULT_SETTINGS,
     language: cached.language ?? DEFAULT_SETTINGS.language,
     theme: cached.theme ?? DEFAULT_SETTINGS.theme,
+    visualMode: cached.visualMode ?? DEFAULT_SETTINGS.visualMode,
+    graphicsQuality: cached.graphicsQuality ?? DEFAULT_SETTINGS.graphicsQuality,
   })
   const loaded = ref(false)
   const saving = ref(false)
@@ -20,7 +22,7 @@ export const useSettingsStore = defineStore('settings', () => {
   function apply(next: AppSettings): void {
     settings.value = next
     setLanguage(next.language)
-    writeCachedPrefs({ language: next.language, theme: next.theme })
+    writeCachedPrefs({ language: next.language, theme: next.theme, visualMode: next.visualMode, graphicsQuality: next.graphicsQuality })
     void getBridge()?.setLanguage(next.language)
   }
 

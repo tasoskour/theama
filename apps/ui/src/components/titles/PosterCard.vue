@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { mdiCheckCircle, mdiCloudOffOutline } from '@mdi/js'
 import type { TitleSummary } from '@theama/contracts'
+import { useTilt } from '@/composables/useTilt'
 import { useConnectionStore } from '@/stores/connection'
 import PosterArt from './PosterArt.vue'
 import TitleActionsMenu from './TitleActionsMenu.vue'
@@ -13,6 +14,10 @@ const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number;
 })
 const { t } = useI18n()
 const connection = useConnectionStore()
+
+// Immersive mode only: the poster leans toward the pointer. Inert otherwise (see useTilt).
+const art = ref<HTMLElement | null>(null)
+const tilt = useTilt(art)
 
 const offline = computed(() => props.title.availableCount === 0)
 const partly = computed(() => props.title.availableCount > 0 && props.title.availableCount < props.title.fileCount)
@@ -42,15 +47,17 @@ const label = computed(() =>
 </script>
 
 <template>
-  <article class="card" :class="{ 'card--offline': offline }">
+  <article class="card" :class="{ 'card--offline': offline }" data-poster-card>
     <router-link
       class="card__link"
       :to="{ name: 'title', query: { key: title.key } }"
       :data-title-key="title.key"
       :tabindex="tabindex ?? 0"
       :aria-label="label"
+      @pointermove="tilt.onPointerMove"
+      @pointerleave="tilt.reset"
     >
-      <div class="card__art">
+      <div ref="art" class="card__art">
         <PosterArt
           :seed="title.key"
           :title="title.title"
@@ -172,5 +179,47 @@ const label = computed(() =>
   .card__link:focus-visible .card__art {
     transform: none;
   }
+}
+</style>
+
+<!--
+  Immersive 3D: the poster leans toward the pointer with a moving highlight. Not scoped, and anchored on
+  data-poster-card, because this Vue version drops the selector after a leading :global() in scoped CSS.
+  Everything hangs off html.th-immersive, so Standard mode is exactly the rules above. The card gives up
+  content-visibility so a tilted poster is not cut off at the card's edge.
+-->
+<style>
+.th-immersive [data-poster-card] {
+  content-visibility: visible;
+  perspective: 800px;
+}
+.th-immersive [data-poster-card] .card__art {
+  transition:
+    transform 140ms ease-out,
+    box-shadow 200ms ease-out;
+  will-change: transform;
+}
+.th-immersive [data-poster-card] .card__art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 0%), rgba(255, 255, 255, 0.28), transparent 55%);
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+  pointer-events: none;
+}
+.th-immersive [data-poster-card]:hover .card__art {
+  transform: translateY(-6px) scale(1.04) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  box-shadow:
+    0 22px 40px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.th-immersive [data-poster-card]:hover .card__art::after {
+  opacity: 1;
+}
+.th-immersive [data-poster-card] .card__link:focus-visible .card__art {
+  transform: translateY(-6px) scale(1.04);
+  box-shadow: 0 22px 40px rgba(0, 0, 0, 0.5);
 }
 </style>

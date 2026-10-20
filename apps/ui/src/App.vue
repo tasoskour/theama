@@ -3,6 +3,7 @@ import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import TheamaAppShell from '@/components/shell/TheamaAppShell.vue'
+import { useImmersiveRoot } from '@/composables/useImmersive'
 import { useSettingsStore } from '@/stores/settings'
 import { useAppTheme } from '@/theme/useAppTheme'
 
@@ -11,6 +12,7 @@ const route = useRoute()
 const { t } = useI18n()
 
 useAppTheme(() => settings.settings.theme)
+useImmersiveRoot()
 
 watch(
   () => [route.meta.titleKey, settings.settings.language] as const,

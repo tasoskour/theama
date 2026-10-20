@@ -6,6 +6,7 @@ import { WebSocket } from 'ws'
 import { LogPage, ServerEvent, ServiceEventList, SystemInfo } from '@theama/contracts'
 import { startServer, type RunningServer } from './bootstrap'
 import { loadConfig } from './config'
+import { LATEST_SCHEMA_VERSION } from './db/migrations'
 
 let dir: string
 let server: RunningServer
@@ -91,7 +92,7 @@ describe('system and settings', () => {
     const info = SystemInfo.parse(await (await fetch(`${base}/system/info`, { headers: auth() })).json())
     expect(info.hostMode).toBe('service')
     expect(info.paths.dataDir).toBe(dir)
-    expect(info.schemaVersion).toBe(8)
+    expect(info.schemaVersion).toBe(LATEST_SCHEMA_VERSION)
   })
 
   it('writes runtime.json while running', () => {

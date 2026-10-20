@@ -13,6 +13,7 @@ import {
   RestoreRequest,
   RenameApplyRequest,
   RenamePreviewRequest,
+  ReclassifyTitleRequest,
   SetTitleWatchedRequest,
   SetWatchedRequest,
   CollectionDetailQuery,
@@ -48,6 +49,8 @@ import {
   type LibraryStatus,
   type MetadataSearchResult,
   type MetadataStatus,
+  type ReclassifyTitleResult,
+  type RemoveTitleResult,
   type MediaFilePage,
   type TitleDetail,
   type TitlePage,
@@ -289,6 +292,24 @@ export async function buildApp(deps: AppDeps) {
     if (hidden === 0) throw new ApiProblem('not_found', 'No such title', 404)
     events.broadcast({ type: 'library.changed' })
     return { hidden }
+  })
+
+  app.post(`${API_PREFIX}/library/titles/reclassify`, async (req): Promise<ReclassifyTitleResult> => {
+    const body = ReclassifyTitleRequest.parse(req.body ?? {})
+    const result = titles.reclassify(body.key, body.kind)
+    if (!result) throw new ApiProblem('not_found', 'No such title', 404)
+    logger.info({ key: body.key, kind: body.kind, affectedFileCount: result.affectedFileCount }, 'Title category changed (files untouched)')
+    events.broadcast({ type: 'library.changed' })
+    return result
+  })
+
+  app.delete(`${API_PREFIX}/library/titles/:key`, async (req): Promise<RemoveTitleResult> => {
+    const { key } = z.object({ key: z.string().min(1).max(1000) }).parse(req.params)
+    const result = titles.remove(key)
+    if (!result) throw new ApiProblem('not_found', 'No such title', 404)
+    logger.info({ key, removedFileCount: result.removedFileCount }, 'Title removed from Theama (files untouched)')
+    events.broadcast({ type: 'library.changed' })
+    return result
   })
 
   app.post(`${API_PREFIX}/library/files/:id/hide`, async (req): Promise<{ hidden: number }> => {

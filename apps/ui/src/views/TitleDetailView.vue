@@ -539,6 +539,8 @@ const metaChips = computed(() => {
   width: 100%;
   max-width: 240px;
   min-width: 0;
+  overflow: hidden;
+  border-radius: var(--th-radius);
   align-self: start;
 }
 .hero__info {
@@ -563,6 +565,9 @@ const metaChips = computed(() => {
   gap: 8px;
   margin: 0;
   padding: 0;
+}
+.chips :deep(.v-chip) {
+  max-width: 100%;
 }
 .season-summary {
   margin: -4px 0 12px;
@@ -830,6 +835,20 @@ const metaChips = computed(() => {
     max-width: none;
   }
   .ep__row {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .ep__line {
+    align-items: flex-start;
+  }
+  .ep__meta {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .ep__actions {
+    padding-top: 8px;
+  }
+  .file__head {
     flex-wrap: wrap;
   }
   .ep__facts {

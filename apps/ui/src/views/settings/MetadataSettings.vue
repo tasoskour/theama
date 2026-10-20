@@ -80,7 +80,7 @@ async function setLanguage(value: MetadataLanguage): Promise<void> {
     <h2 class="th-display section-title">{{ $t('settings.sections.metadata') }}</h2>
     <p class="intro">{{ $t('metadata.intro') }}</p>
 
-    <div class="field">
+    <div class="field th-form-section">
       <div class="label-row">
         <span id="tmdb-label" class="label">{{ $t('metadata.tmdb') }}</span>
         <v-chip v-if="status" size="small" label variant="tonal" :color="stateColor" data-test="metadata-state">{{ stateText }}</v-chip>
@@ -120,7 +120,7 @@ async function setLanguage(value: MetadataLanguage): Promise<void> {
       <v-alert v-if="status?.state === 'invalid_key'" type="warning" variant="tonal" density="compact" class="mt-4">{{ $t('metadata.rejected') }}</v-alert>
     </div>
 
-    <div v-if="configured && status" class="field">
+    <div v-if="configured && status" class="field th-form-section">
       <span class="label">{{ $t('metadata.progress') }}</span>
       <p v-if="status.state === 'working' && status.current" class="th-muted hint" aria-live="polite">{{ $t('metadata.lookingUp', { title: status.current }) }}</p>
       <dl class="counts" data-test="metadata-counts">
@@ -132,7 +132,7 @@ async function setLanguage(value: MetadataLanguage): Promise<void> {
       <p class="th-muted hint">{{ $t('metadata.countsHint') }}</p>
     </div>
 
-    <div class="field">
+    <div class="field th-form-section">
       <label class="label" for="meta-lang">{{ $t('metadata.language') }}</label>
       <v-select
         id="meta-lang"
@@ -145,7 +145,7 @@ async function setLanguage(value: MetadataLanguage): Promise<void> {
       <p class="th-muted hint">{{ $t('metadata.languageHint') }}</p>
     </div>
 
-    <div class="field">
+    <div class="field th-form-section">
       <span class="label">{{ $t('metadata.privacy') }}</span>
       <p class="th-muted hint">{{ $t('metadata.privacyText') }}</p>
     </div>

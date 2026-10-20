@@ -34,6 +34,7 @@ const label = computed(() => [props.collection.kind === 'user' ? t('collections.
 <style scoped>
 .card {
   display: block;
+  min-width: 0;
   color: inherit;
   text-decoration: none;
   border-radius: calc(var(--th-radius) + 2px);
@@ -41,6 +42,11 @@ const label = computed(() => [props.collection.kind === 'user' ? t('collections.
 }
 .card__art {
   position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--th-radius);
   transition:
     transform var(--th-motion),
     box-shadow var(--th-motion);
@@ -62,6 +68,7 @@ const label = computed(() => [props.collection.kind === 'user' ? t('collections.
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 .card__meta {
+  min-width: 0;
   padding: 10px 2px 0;
 }
 .card__title {
@@ -69,6 +76,7 @@ const label = computed(() => [props.collection.kind === 'user' ? t('collections.
   font-weight: 600;
   font-size: 0.92rem;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 .card__detail {
   display: block;

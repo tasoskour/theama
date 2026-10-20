@@ -148,6 +148,7 @@ watch(
 }
 .rail__item {
   flex: 0 0 clamp(130px, 13vw, 180px);
+  min-width: 0;
   scroll-snap-align: start;
 }
 .rail__nav {

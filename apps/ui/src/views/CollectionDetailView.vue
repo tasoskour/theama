@@ -287,8 +287,8 @@ const heroStyle = computed(() => {
   margin: 32px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(130px, 13vw, 180px), 1fr));
-  gap: 28px 18px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 28px 20px;
 }
 .member {
   position: relative;
@@ -310,6 +310,10 @@ const heroStyle = computed(() => {
   gap: 10px;
 }
 .ghost__art {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   opacity: 0.45;
   filter: grayscale(0.7);
   border-radius: var(--th-radius);
@@ -324,6 +328,17 @@ const heroStyle = computed(() => {
 .ghost__detail {
   font-size: 0.8rem;
   margin-top: 2px;
+}
+@media (min-width: 1500px) {
+  .members {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .members {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 20px 14px;
+  }
 }
 .gone {
   text-align: center;

@@ -40,7 +40,7 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
   <section>
     <h2 class="th-display section-title">{{ $t('settings.sections.general') }}</h2>
 
-    <div class="field">
+    <div class="field th-form-section">
       <label class="label" for="lang">{{ $t('settings.general.language') }}</label>
       <v-btn-toggle
         :model-value="store.settings.language"
@@ -62,7 +62,7 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
       <p class="th-muted hint">{{ $t('settings.general.languageHint') }}</p>
     </div>
 
-    <div class="field">
+    <div class="field th-form-section">
       <span class="label">{{ $t('settings.general.theme') }}</span>
       <v-btn-toggle
         :model-value="store.settings.theme"
@@ -77,7 +77,7 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
       <p class="th-muted hint">{{ $t('settings.general.themeHint') }}</p>
     </div>
 
-    <div class="field">
+    <div class="field th-form-section">
       <span class="label">{{ $t('settings.general.logRetention') }}</span>
       <v-select
         :model-value="store.settings.logRetentionDays"
@@ -90,7 +90,7 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
       <p class="th-muted hint">{{ $t('settings.general.logRetentionHint') }}</p>
     </div>
 
-    <div class="field">
+    <div class="field th-form-section">
       <span class="label">{{ $t('settings.general.logDetail') }}</span>
       <v-select
         :model-value="store.settings.logDetail"
@@ -103,7 +103,7 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
       <p class="th-muted hint">{{ $t('settings.general.logDetailHint') }}</p>
     </div>
 
-    <div v-if="desktop" class="field" data-test="desktop-behaviour">
+    <div v-if="desktop" class="field th-form-section" data-test="desktop-behaviour">
       <span class="label">{{ $t('settings.desktop.title') }}</span>
       <v-switch
         :model-value="desktop.closeToTray"

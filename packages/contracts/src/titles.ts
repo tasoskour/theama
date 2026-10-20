@@ -37,6 +37,8 @@ export const TitleSummary = z.object({
   missingEpisodes: z.number().int().nullable(),
   /** None, some or all of it watched (a series counts episodes, not files). */
   watchState: z.enum(['none', 'some', 'all']),
+  /** True when the person chose a category instead of using the library folder setting. */
+  categoryOverride: z.boolean(),
 })
 export type TitleSummary = z.infer<typeof TitleSummary>
 
@@ -57,6 +59,22 @@ export const TitlePage = z.object({
   total: z.number().int(),
 })
 export type TitlePage = z.infer<typeof TitlePage>
+
+export const ReclassifyTitleRequest = z.object({
+  key: z.string().min(1).max(1000),
+  kind: TitleKind.nullable(),
+})
+export type ReclassifyTitleRequest = z.infer<typeof ReclassifyTitleRequest>
+
+export const ReclassifyTitleResult = z.object({
+  affectedFileCount: z.number().int().nonnegative(),
+  resultingTitleKeys: z.array(z.string()),
+  kind: TitleKind.nullable(),
+})
+export type ReclassifyTitleResult = z.infer<typeof ReclassifyTitleResult>
+
+export const RemoveTitleResult = z.object({ removedFileCount: z.number().int().nonnegative() })
+export type RemoveTitleResult = z.infer<typeof RemoveTitleResult>
 
 export const SeasonCoverage = z.object({
   season: z.number().int(),

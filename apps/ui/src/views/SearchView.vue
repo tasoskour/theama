@@ -74,19 +74,19 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
 
 <template>
   <div class="th-page th-page--wide">
-    <header class="mb-6">
+    <header class="th-page-header">
       <p class="th-eyebrow mb-2">{{ $t('app.tagline') }}</p>
-      <h1 class="th-display page-title">{{ $t('nav.search') }}</h1>
+      <h1 class="th-display th-page-title">{{ $t('nav.search') }}</h1>
     </header>
 
-    <div class="search-panel th-filter-panel" role="search">
+    <div class="search-panel" role="search">
       <v-text-field
         ref="input"
         v-model="text"
         :prepend-inner-icon="mdiMagnify"
-        :label="$t('search.label')"
-        :hint="$t('search.hint')"
-        persistent-hint
+        :aria-label="$t('search.label')"
+        :placeholder="$t('search.label')"
+        hide-details
         clearable
         autofocus
         variant="solo-filled"
@@ -95,8 +95,10 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
         spellcheck="false"
         data-gramm="false"
         class="field th-search-control"
+        :loading="loading && searching"
         @keydown.down.prevent="toResults"
       />
+      <p class="search-help th-muted">{{ $t('search.hint') }}</p>
     </div>
 
     <section v-if="!searching" class="start">
@@ -107,7 +109,7 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
         </div>
         <ul class="recent" role="list">
           <li v-for="r in recent" :key="r">
-            <v-chip :prepend-icon="mdiHistory" label variant="outlined" @click="text = r">{{ r }}</v-chip>
+            <v-chip :prepend-icon="mdiHistory" label variant="tonal" @click="text = r">{{ r }}</v-chip>
           </li>
         </ul>
       </template>
@@ -115,7 +117,7 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
     </section>
 
     <template v-else>
-      <p class="th-muted mb-2" aria-live="polite">{{ loading && !loaded ? $t('common.loading') : $t('titles.count', total) }}</p>
+      <p class="results-summary th-muted" aria-live="polite">{{ loading && !loaded ? $t('common.loading') : $t('titles.count', total) }}</p>
       <p v-if="loaded && !loading && total === 0 && foundCollections.items.value.length === 0" class="none th-muted">{{ $t('titles.noMatches') }}</p>
       <section v-if="foundCollections.items.value.length > 0" class="group th-results-enter" data-test="collection-results">
         <h2 class="th-display group__title">{{ $t('nav.collections') }}</h2>
@@ -132,16 +134,21 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
 </template>
 
 <style scoped>
-.page-title {
-  font-size: clamp(2rem, 4vw, 3rem);
-  margin: 0;
+.th-page-header {
+  display: block;
 }
 .field {
   width: 100%;
 }
 .search-panel {
-  max-width: 720px;
+  max-width: 800px;
   margin-bottom: 20px;
+}
+.search-help {
+  max-width: 68ch;
+  margin: 8px 4px 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
 }
 .start__head {
   display: flex;
@@ -162,17 +169,32 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(130px, 13vw, 180px), 1fr));
-  gap: 28px 18px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 28px 20px;
 }
 .group {
-  margin-top: 24px;
+  margin-top: 28px;
 }
 .group__title {
   font-size: 1.35rem;
-  margin: 0 0 4px;
+  margin: 0 0 8px;
+}
+.results-summary {
+  margin: 0 0 8px 4px;
+  font-size: 0.86rem;
 }
 .none {
   padding: 32px 0;
+}
+@media (min-width: 1500px) {
+  .found {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .found {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 20px 14px;
+  }
 }
 </style>

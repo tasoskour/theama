@@ -47,10 +47,10 @@ function created(detail: CollectionDetail): void {
 
 <template>
   <div class="th-page th-page--wide">
-    <header class="head">
+    <header class="head th-page-header">
       <div>
         <p class="th-eyebrow mb-2">{{ $t('app.tagline') }}</p>
-        <h1 class="th-display page-title">{{ $t('nav.collections') }}</h1>
+        <h1 class="th-display th-page-title">{{ $t('nav.collections') }}</h1>
       </div>
       <v-btn color="primary" variant="flat" :prepend-icon="mdiPlus" :disabled="!connection.isConnected" data-test="new-collection-page" @click="creating = true">
         {{ $t('collections.newCollection') }}
@@ -84,15 +84,7 @@ function created(detail: CollectionDetail): void {
 
 <style scoped>
 .head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
   gap: 16px;
-  margin-bottom: 24px;
-}
-.page-title {
-  font-size: clamp(2rem, 4vw, 3rem);
-  margin: 0;
 }
 .toolbar {
   margin-bottom: 24px;
@@ -102,8 +94,8 @@ function created(detail: CollectionDetail): void {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(130px, 13vw, 180px), 1fr));
-  gap: 28px 18px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 28px 20px;
 }
 .empty {
   display: grid;
@@ -120,5 +112,16 @@ function created(detail: CollectionDetail): void {
 }
 .empty p {
   margin: 0;
+}
+@media (min-width: 1500px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 20px 14px;
+  }
 }
 </style>

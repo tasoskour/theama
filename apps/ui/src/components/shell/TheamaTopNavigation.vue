@@ -58,6 +58,14 @@ import { NAV_ITEMS } from './nav'
 .topnav__link {
   min-width: 0;
   padding-inline: 10px;
+  border-radius: 10px;
+}
+.topnav__link.v-btn--active {
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.12);
+}
+.topnav__link.v-btn--active::before {
+  opacity: 0;
 }
 .topnav__status {
   flex: 0 0 auto;

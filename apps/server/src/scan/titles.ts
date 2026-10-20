@@ -1,12 +1,14 @@
+import { win32 } from 'node:path'
 import type Database from 'better-sqlite3'
 import { z } from 'zod'
-import type { MediaKind, TitleDetail, TitleKind, TitlePage, TitleQuery, TitleSort, TitleSummary } from '@theama/contracts'
+import type { LibraryType, MediaKind, ReclassifyTitleResult, RemoveTitleResult, TitleDetail, TitleKind, TitlePage, TitleQuery, TitleSort, TitleSummary } from '@theama/contracts'
 import { collectionRefsFor } from '../collections/refs'
 import { artworkUrl } from '../metadata/artwork'
 import type { MetadataRepo } from '../metadata/store'
 import { nextEpisode, toEpisodeFile } from '../playback/next'
 import { buildCoverage } from './coverage'
 import { ftsQuery } from './fts'
+import { parseMediaPath, titleKeyFor } from './filename'
 import { toMediaFile, type ListRow } from './store'
 
 const KIND_TO_DB: Record<TitleKind, MediaKind> = { movie: 'movie', series: 'episode', video: 'video' }
@@ -29,6 +31,7 @@ interface GroupRow {
   missing_episodes: number | null
   watched_files: number
   watched_episodes: number
+  category_override: number
 }
 
 function toSummary(r: GroupRow): TitleSummary | null {
@@ -50,6 +53,7 @@ function toSummary(r: GroupRow): TitleSummary | null {
     matchState: r.match_state,
     missingEpisodes: r.missing_episodes,
     watchState: watchState(r),
+    categoryOverride: r.category_override === 1,
   }
 }
 
@@ -94,6 +98,7 @@ const GROUP_SELECT = `
          NULL AS missing_episodes,
          SUM(coalesce(pb.watched, 0)) AS watched_files,
          COUNT(DISTINCT CASE WHEN pb.watched = 1 AND f.episode IS NOT NULL THEN coalesce(f.season, -1) * 100000 + f.episode END) AS watched_episodes
+         ,MAX(CASE WHEN f.kind_override IS NOT NULL THEN 1 ELSE 0 END) AS category_override
   FROM media_file f JOIN library_source s ON s.id = f.source_id
        LEFT JOIN title_metadata d ON d.title_key = f.title_key
        LEFT JOIN title_match m ON m.title_key = f.title_key
@@ -130,6 +135,101 @@ export class TitleRepo {
     private readonly raw: Database.Database,
     private readonly metadata?: MetadataRepo,
   ) {}
+
+  /** Changes Theama's interpretation of every file represented by a title; disk paths are never changed. */
+  reclassify(key: string, kind: TitleKind | null): ReclassifyTitleResult | null {
+    type ActionFile = {
+      id: number; path: string; source_path: string; library_type: LibraryType
+    }
+    const rows = this.raw.prepare(
+      `SELECT f.id, f.path, s.path AS source_path, s.library_type
+         FROM media_file f JOIN library_source s ON s.id = f.source_id
+        WHERE f.title_key = ? ORDER BY f.id`,
+    ).all(key) as ActionFile[]
+    if (rows.length === 0) return null
+
+    const override: Exclude<MediaKind, 'extra'> | null = kind === 'series' ? 'episode' : kind
+    const targetSource: Record<Exclude<MediaKind, 'extra'>, LibraryType> = { movie: 'movies', episode: 'series', video: 'videos' }
+    const memberships = this.raw.prepare(
+      `SELECT collection_id, custom_order FROM collection_member WHERE title_key = ?`,
+    ).all(key) as { collection_id: number; custom_order: number | null }[]
+    const resulting = new Set<string>()
+    const now = new Date().toISOString()
+
+    this.raw.transaction(() => {
+      const update = this.raw.prepare(
+        `UPDATE media_file SET kind_override = ?, kind = ?, guessed_title = ?, guessed_year = ?, season = ?,
+          episode = ?, episode_end = ?, episode_title = ?, title_key = ? WHERE id = ?`,
+      )
+      for (const row of rows) {
+        const relative = win32.relative(row.source_path, row.path).split(/[\\/]+/).filter(Boolean)
+        const effectiveSource = override ? targetSource[override] : row.library_type
+        let parsed = parseMediaPath([win32.basename(row.source_path), ...relative], effectiveSource)
+        if (override && parsed.kind === 'extra') parsed = { ...parsed, kind: override }
+        const nextKey = titleKeyFor(parsed.kind, parsed.title, parsed.year, row.path)
+        resulting.add(nextKey)
+        update.run(override, parsed.kind, parsed.title, parsed.year, parsed.season, parsed.episode, parsed.episodeEnd, parsed.episodeTitle, nextKey, row.id)
+      }
+
+      this.raw.prepare('DELETE FROM collection_member WHERE title_key = ?').run(key)
+      const describe = this.raw.prepare(
+        `SELECT MIN(guessed_title) AS title, MAX(guessed_year) AS year FROM media_file WHERE title_key = ?`,
+      )
+      const addMember = this.raw.prepare(
+        `INSERT OR IGNORE INTO collection_member (collection_id, title_key, title, year, custom_order) VALUES (?, ?, ?, ?, ?)`,
+      )
+      for (const nextKey of resulting) {
+        const description = describe.get(nextKey) as { title: string; year: number | null }
+        for (const member of memberships) addMember.run(member.collection_id, nextKey, description.title, description.year, member.custom_order)
+      }
+      for (const member of memberships) this.raw.prepare('UPDATE collection SET updated_at = ? WHERE id = ?').run(now, member.collection_id)
+
+      this.purgeTitleData(key)
+      for (const row of rows) this.reindexFile(row.id)
+    })()
+
+    return { affectedFileCount: rows.length, resultingTitleKeys: [...resulting], kind }
+  }
+
+  /** Excludes a title and removes only Theama-owned data. The media files and operation journal stay intact. */
+  remove(key: string): RemoveTitleResult | null {
+    const rows = this.raw.prepare('SELECT id, source_id, path FROM media_file WHERE title_key = ?').all(key) as { id: number; source_id: number; path: string }[]
+    if (rows.length === 0) return null
+    const now = new Date().toISOString()
+    this.raw.transaction(() => {
+      const exclude = this.raw.prepare("INSERT OR IGNORE INTO library_exclusion (source_id, path, kind, created_at) VALUES (?, ?, 'file', ?)")
+      const hide = this.raw.prepare('UPDATE media_file SET excluded = 1 WHERE id = ?')
+      const clearPlayback = this.raw.prepare('DELETE FROM playback_state WHERE file_id = ?')
+      for (const row of rows) {
+        exclude.run(row.source_id, row.path, now)
+        hide.run(row.id)
+        clearPlayback.run(row.id)
+      }
+      this.raw.prepare('DELETE FROM collection_member WHERE title_key = ?').run(key)
+      this.purgeTitleData(key)
+      for (const row of rows) this.reindexFile(row.id)
+    })()
+    return { removedFileCount: rows.length }
+  }
+
+  private purgeTitleData(key: string): void {
+    this.raw.prepare('DELETE FROM episode_metadata WHERE title_key = ?').run(key)
+    this.raw.prepare('DELETE FROM title_metadata WHERE title_key = ?').run(key)
+    this.raw.prepare('DELETE FROM title_match WHERE title_key = ?').run(key)
+  }
+
+  private reindexFile(id: number): void {
+    const row = this.raw.prepare(
+      `SELECT f.guessed_title, f.episode_title, f.path, d.title AS meta_title, d.original_title AS meta_original
+         FROM media_file f LEFT JOIN title_metadata d ON d.title_key = f.title_key WHERE f.id = ?`,
+    ).get(id) as { guessed_title: string; episode_title: string | null; path: string; meta_title: string | null; meta_original: string | null } | undefined
+    this.raw.prepare('DELETE FROM media_file_fts WHERE rowid = ?').run(id)
+    if (!row) return
+    const normalise = (value: string): string => value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/ς/g, 'σ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+    const meta = [row.meta_title, row.meta_original].filter(Boolean).join(' ')
+    this.raw.prepare('INSERT INTO media_file_fts(rowid, guessed_title, episode_title, path_text, meta_text) VALUES (?, ?, ?, ?, ?)')
+      .run(id, normalise(row.guessed_title), normalise(row.episode_title ?? ''), normalise(row.path), normalise(meta))
+  }
 
   list(query: TitleQuery): TitlePage {
     const limit = Math.min(Math.max(Number(query.limit ?? 60), 1), 200)

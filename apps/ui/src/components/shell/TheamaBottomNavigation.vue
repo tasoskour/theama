@@ -36,6 +36,9 @@ const overflow = NAV_ITEMS.filter((i) => !i.bottom)
 .bottomnav {
   border-width: 1px 0 0 0;
 }
+.bottomnav :deep(.v-btn--active) {
+  background: rgba(var(--v-theme-primary), 0.12);
+}
 .label {
   font-size: 0.68rem;
 }

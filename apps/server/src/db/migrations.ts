@@ -274,6 +274,12 @@ export const MIGRATIONS: readonly string[] = [
   CREATE UNIQUE INDEX uq_library_exclusion_path ON library_exclusion(source_id, path COLLATE NOCASE);
   CREATE INDEX idx_library_exclusion_source ON library_exclusion(source_id);
   `,
+  /* 9 — persistent per-file category corrections */
+  `
+  ALTER TABLE media_file ADD COLUMN kind_override TEXT
+    CHECK (kind_override IS NULL OR kind_override IN ('movie','episode','video'));
+  CREATE INDEX idx_media_file_kind_override ON media_file(kind_override);
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

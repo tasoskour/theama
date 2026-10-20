@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { mdiMagnify } from '@mdi/js'
 import { TitleDetail, type MatchCandidate, type MatchKind } from '@theama/contracts'
@@ -21,17 +21,27 @@ const results = ref<MatchCandidate[] | null>(null)
 const searching = ref(false)
 const choosing = ref<string | null>(null)
 const error = ref<{ code: string; message: string } | null>(null)
+let searchGeneration = 0
+let debounce: ReturnType<typeof setTimeout> | undefined
+let skipNextDebounce = false
 
 async function search(): Promise<void> {
   const q = query.value.trim()
-  if (!q || searching.value) return
+  clearTimeout(debounce)
+  if (!q) {
+    results.value = null
+    error.value = null
+    searching.value = false
+    return
+  }
+  const mine = ++searchGeneration
   searching.value = true
   error.value = null
   const res = await metadata.search(props.kind, q)
+  if (mine !== searchGeneration) return
   searching.value = false
   if (res.ok) results.value = res.items
   else {
-    results.value = null
     error.value = { code: res.code, message: res.message }
   }
 }
@@ -54,12 +64,35 @@ async function choose(c: MatchCandidate): Promise<void> {
 
 // Each time the dialog opens it starts from the name found in the files, searched straight away.
 watch(open, (isOpen) => {
+  clearTimeout(debounce)
+  searchGeneration++
   if (!isOpen) return
+  skipNextDebounce = query.value !== props.initialQuery
   query.value = props.initialQuery
   results.value = null
   error.value = null
   void search()
 })
+
+watch(query, () => {
+  if (!open.value) return
+  if (skipNextDebounce) {
+    skipNextDebounce = false
+    return
+  }
+  clearTimeout(debounce)
+  const q = query.value.trim()
+  if (!q) {
+    searchGeneration++
+    results.value = null
+    error.value = null
+    searching.value = false
+    return
+  }
+  debounce = setTimeout(() => void search(), 275)
+})
+
+onScopeDispose(() => clearTimeout(debounce))
 
 function problem(code: string, fallback: string): string {
   return ['no_key', 'invalid_key', 'provider_unavailable'].includes(code) ? t(`match.errors.${code}`) : fallback
@@ -67,26 +100,27 @@ function problem(code: string, fallback: string): string {
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="720" scrollable aria-labelledby="identify-title">
-    <v-card class="pa-2">
+  <v-dialog v-model="open" max-width="820" scrollable aria-labelledby="identify-title">
+    <v-card class="identify-card">
       <v-card-title id="identify-title" class="th-display">{{ $t('match.dialog.title') }}</v-card-title>
       <v-card-subtitle class="subtitle">{{ $t('match.dialog.subtitle', { name: initialQuery }) }}</v-card-subtitle>
       <v-card-text>
-        <form class="search th-filter-panel" role="search" @submit.prevent="search">
+        <form class="search" role="search" @submit.prevent="search">
           <v-text-field
             v-model="query"
             :label="$t(kind === 'series' ? 'match.dialog.searchSeries' : 'match.dialog.searchMovie')"
             :prepend-inner-icon="mdiMagnify"
             autofocus
+            clearable
             hide-details
             variant="solo-filled"
             bg-color="surface-bright"
+            :loading="searching"
             autocomplete="off"
             spellcheck="false"
             data-gramm="false"
             class="th-search-control"
           />
-          <v-btn type="submit" color="primary" :loading="searching" :disabled="!query.trim()">{{ $t('common.search') }}</v-btn>
         </form>
 
         <v-alert v-if="error" type="warning" variant="tonal" density="compact" class="mt-4">
@@ -96,10 +130,10 @@ function problem(code: string, fallback: string): string {
           </template>
         </v-alert>
 
-        <p v-if="results && results.length === 0" class="th-muted mt-4">{{ $t('match.dialog.none') }}</p>
+        <p v-if="results && results.length === 0 && !searching" class="th-muted result-state">{{ $t('match.dialog.none') }}</p>
 
         <ul v-if="results?.length" class="candidates" role="list" :aria-label="$t('match.dialog.results')">
-          <li v-for="c in results" :key="c.externalId" class="cand">
+          <li v-for="c in results" :key="c.externalId" class="cand" data-test="identify-candidate">
             <div class="cand__art">
               <PosterArt :seed="`${c.provider}:${c.externalId}`" :title="c.title" :year="c.year" :kind="c.kind" :image-url="connection.assetUrl(c.posterUrl)" />
             </div>
@@ -132,13 +166,18 @@ function problem(code: string, fallback: string): string {
 </template>
 
 <style scoped>
+.identify-card {
+  overflow: hidden;
+}
 .subtitle {
   white-space: normal;
 }
 .search {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-bottom: 4px;
+  background: rgb(var(--v-theme-surface));
 }
 .candidates {
   list-style: none;
@@ -149,15 +188,34 @@ function problem(code: string, fallback: string): string {
 }
 .cand {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: start;
-  padding: 12px;
-  border: 1px solid rgb(var(--v-theme-hairline));
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(var(--v-theme-hairline), 0.76);
+  border-radius: calc(var(--th-radius) + 2px);
+  background: rgba(var(--v-theme-surface-light), 0.34);
+  transition: border-color var(--th-motion), background-color var(--th-motion);
+}
+.cand:hover,
+.cand:focus-within {
+  border-color: rgba(var(--v-theme-primary), 0.58);
+  background: rgba(var(--v-theme-primary), 0.06);
+}
+.cand__art {
+  width: 72px;
+  min-width: 0;
+  max-width: 72px;
+  overflow: hidden;
   border-radius: var(--th-radius);
+}
+.cand__info {
+  min-width: 0;
 }
 .cand__title {
   font-weight: 600;
+  line-height: 1.3;
 }
 .cand__orig {
   font-size: 0.85rem;
@@ -174,5 +232,29 @@ function problem(code: string, fallback: string): string {
 .note {
   margin: 0 12px;
   font-size: 0.8rem;
+}
+.result-state {
+  padding: 24px 4px 12px;
+}
+@media (max-width: 600px) {
+  .identify-card {
+    border-radius: 0 !important;
+  }
+  .cand {
+    grid-template-columns: 64px minmax(0, 1fr);
+    align-items: start;
+  }
+  .cand__art {
+    width: 64px;
+    max-width: 64px;
+    grid-row: 1;
+  }
+  .cand > .v-btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .note {
+    display: none;
+  }
 }
 </style>

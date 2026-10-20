@@ -52,17 +52,20 @@ const scale = computed(() => titleScale(props.title))
 .art {
   --accent: #d9b87a;
   --scale: 0.12;
+  box-sizing: border-box;
   container-type: inline-size;
   position: relative;
   aspect-ratio: 2 / 3;
+  display: flex;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   border-radius: var(--th-radius);
   color: #f2ebdd;
-  display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 10cqw;
+  padding: 10%;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 /* Soft vignette and a faint film-grain-like pattern, for depth without any image. */
@@ -78,6 +81,7 @@ const scale = computed(() => titleScale(props.title))
 .art__img {
   position: absolute;
   inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;

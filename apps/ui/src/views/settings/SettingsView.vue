@@ -20,8 +20,8 @@ const SECTIONS = [
 
 <template>
   <div class="th-page">
-    <header class="mb-6">
-      <h1 class="th-display page-title">{{ $t('settings.title') }}</h1>
+    <header class="th-page-header">
+      <h1 class="th-display th-page-title">{{ $t('settings.title') }}</h1>
     </header>
     <div class="layout">
       <nav class="sections" :aria-label="$t('settings.title')">
@@ -45,10 +45,6 @@ const SECTIONS = [
 </template>
 
 <style scoped>
-.page-title {
-  font-size: clamp(2rem, 4vw, 3rem);
-  margin: 0;
-}
 .layout {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
@@ -58,8 +54,18 @@ const SECTIONS = [
 .sections {
   position: sticky;
   top: 24px;
+  padding: 8px;
+  border: 1px solid rgba(var(--v-theme-hairline), 0.72);
+  border-radius: var(--th-radius-lg);
+  background: rgba(var(--v-theme-surface), 0.72);
+}
+.sections :deep(.v-list-item--active) {
+  background: rgba(var(--v-theme-primary), 0.12);
 }
 .content {
+  min-width: 0;
+}
+.content > :deep(section) {
   min-width: 0;
 }
 @media (max-width: 960px) {
@@ -70,6 +76,7 @@ const SECTIONS = [
   .sections {
     position: static;
     overflow-x: auto;
+    padding: 4px;
   }
   .sections :deep(.v-list) {
     display: flex;

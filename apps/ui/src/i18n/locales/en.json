@@ -195,7 +195,26 @@
     "hideHint": "Hide this title and exclude its files from future scans",
     "hidden": "{title} hidden. You can restore it from Settings → Library → Exclusions.",
     "partlyHint": "Some files of this title are not available right now.",
-    "partial": "{available} of {total} files available"
+    "partial": "{available} of {total} files available",
+    "actions": {
+      "menu": "Actions for {title}",
+      "showInFolder": "Show in folder",
+      "desktopOnly": "Available in the desktop app",
+      "fileUnavailable": "This file is offline or missing",
+      "moveTo": "Move to",
+      "folderSetting": "Use folder setting",
+      "hide": "Hide",
+      "hideHint": "Keep its data and restore it from Library exclusions",
+      "remove": "Remove from Theama",
+      "failed": "The action could not be completed.",
+      "moveConfirmTitle": "Change this title's category?",
+      "moveConfirmBody": "This changes the category for {count} file(s) to {destination}. Files stay where they are on disk. The title's provider match will be detached and may need to be identified again.",
+      "confirmMove": "Change category",
+      "moved": "Changed {count} file(s) to {destination}.",
+      "removeConfirmTitle": "Remove this title from Theama?",
+      "removeConfirmBody": "The {count} file(s) stay untouched on disk. Theama will remove the metadata match, watched history, and user-collection links. Restoring the exclusion later will not restore that data.",
+      "removed": "Removed {title} from Theama ({count} file(s) left untouched)."
+    }
   },
   "home": {
     "recent": "Recently added",

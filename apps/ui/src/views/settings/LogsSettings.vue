@@ -51,7 +51,7 @@ async function openFolder(): Promise<void> {
     <p class="th-muted mb-4">{{ $t('logs.description') }}</p>
 
     <div class="filters th-filter-panel">
-      <v-text-field v-model="logs.filters.q" :prepend-inner-icon="mdiMagnify" :label="$t('logs.filters.search')" clearable variant="solo-filled" bg-color="surface-bright" hide-details autocomplete="off" spellcheck="false" data-gramm="false" class="f-search th-search-control" />
+      <v-text-field v-model="logs.filters.q" :prepend-inner-icon="mdiMagnify" :label="$t('logs.filters.search')" clearable variant="solo-filled" bg-color="surface-bright" hide-details autocomplete="off" spellcheck="false" data-gramm="false" class="f-search th-search-control" :loading="logs.loading" />
       <v-select v-model="logs.filters.level" :items="levelItems" :label="$t('logs.filters.level')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
       <v-select v-model="logs.filters.source" :items="sourceItems" :label="$t('logs.filters.source')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
       <v-select v-model="logs.filters.range" :items="rangeItems" :label="$t('logs.filters.range')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
@@ -95,16 +95,16 @@ async function openFolder(): Promise<void> {
   margin: 0 0 8px;
 }
 .filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(140px, 1fr));
+  gap: 8px;
   margin-bottom: 12px;
 }
 .f-search {
-  flex: 2 1 240px;
+  min-width: 0;
 }
 .f-select {
-  flex: 1 1 160px;
+  min-width: 0;
 }
 .toolbar {
   display: flex;
@@ -124,5 +124,21 @@ async function openFolder(): Promise<void> {
 .empty {
   padding: 48px 0;
   text-align: center;
+}
+@media (max-width: 1000px) {
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .f-search {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 600px) {
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .f-search {
+    grid-column: auto;
+  }
 }
 </style>

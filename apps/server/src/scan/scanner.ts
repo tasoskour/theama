@@ -1,5 +1,5 @@
 import { win32 } from 'node:path'
-import { EMPTY_SUMMARY, type LibraryExclusion, type LibrarySource, type ScanPhase, type ScanSummary } from '@theama/contracts'
+import { EMPTY_SUMMARY, type LibraryExclusion, type LibrarySource, type LibraryType, type MediaKind, type ScanPhase, type ScanSummary } from '@theama/contracts'
 import { pathKey } from '../library/sources'
 import { parseMediaPath, titleKeyFor } from './filename'
 import { runPool, type ProbeFn } from './probe'
@@ -29,9 +29,12 @@ export interface ScanOutcome {
   diagnostics: string[]
 }
 
-function parseFor(source: LibrarySource, file: WalkedFile) {
+const OVERRIDE_SOURCE: Record<Exclude<MediaKind, 'extra'>, LibraryType> = { movie: 'movies', episode: 'series', video: 'videos' }
+
+function parseFor(source: LibrarySource, file: WalkedFile, override?: Exclude<MediaKind, 'extra'> | null) {
   const rootName = win32.basename(source.path)
-  return parseMediaPath([rootName, ...file.relative], source.libraryType)
+  const parsed = parseMediaPath([rootName, ...file.relative], override ? OVERRIDE_SOURCE[override] : source.libraryType)
+  return override && parsed.kind === 'extra' ? { ...parsed, kind: override } : parsed
 }
 
 function parsedColumns(p: ReturnType<typeof parseFor>, path: string): Required<Pick<FilePatch, 'kind' | 'guessedTitle' | 'guessedYear' | 'season' | 'episode' | 'episodeEnd' | 'episodeTitle' | 'titleKey'>> {
@@ -122,7 +125,7 @@ export async function runScan(ctx: ScanContext): Promise<ScanOutcome> {
       Object.assign(patch, { state: 'available' as const, missingSince: null, lastSeenAt: now })
       if (unchanged) summary.changed++
     }
-    const parsed = parsedColumns(parseFor(source, f), f.path)
+    const parsed = parsedColumns(parseFor(source, f, row.kindOverride), f.path)
     for (const k of PARSED_KEYS) if (row[k] !== parsed[k]) Object.assign(patch, { [k]: parsed[k] })
     if (Object.keys(patch).length > 0) toUpdate.push({ id: row.id, patch })
   }
@@ -150,7 +153,7 @@ export async function runScan(ctx: ScanContext): Promise<ScanOutcome> {
     summary.moved++
     const patch: FilePatch = {
       path: f.path, size: f.size, mtimeMs: f.mtimeMs, volumeId: f.volumeId, fileId: f.fileId,
-      state: 'available', missingSince: null, lastSeenAt: now, ...parsedColumns(parseFor(source, f), f.path),
+      state: 'available', missingSince: null, lastSeenAt: now, ...parsedColumns(parseFor(source, f, row.kindOverride), f.path),
     }
     if (row.mtimeMs !== f.mtimeMs) {
       Object.assign(patch, { probedAt: null, probeError: null })

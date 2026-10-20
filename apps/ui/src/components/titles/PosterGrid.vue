@@ -4,8 +4,8 @@ import type { TitleSummary } from '@theama/contracts'
 import { columnsFromOffsets, nextGridIndex, type NavKey } from '@/utils/gridNav'
 import PosterCard from './PosterCard.vue'
 
-const props = defineProps<{ titles: TitleSummary[]; label: string; hasMore?: boolean; loading?: boolean; hideable?: boolean }>()
-const emit = defineEmits<{ loadMore: []; hide: [title: TitleSummary] }>()
+const props = defineProps<{ titles: TitleSummary[]; label: string; hasMore?: boolean; loading?: boolean }>()
+const emit = defineEmits<{ loadMore: [] }>()
 
 const root = ref<HTMLElement | null>(null)
 const sentinel = ref<HTMLElement | null>(null)
@@ -72,7 +72,7 @@ watch(
   <div>
     <ul ref="root" class="grid" role="list" :aria-label="label" @keydown="onKeydown" @focusin="onFocusin">
       <li v-for="(t, i) in titles" :key="t.key" class="cell">
-        <PosterCard :title="t" :tabindex="i === active ? 0 : -1" :hideable="hideable" @hide="emit('hide', t)" />
+        <PosterCard :title="t" :tabindex="i === active ? 0 : -1" />
       </li>
     </ul>
     <div ref="sentinel" class="sentinel" aria-hidden="true" />

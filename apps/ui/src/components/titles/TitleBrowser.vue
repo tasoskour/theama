@@ -2,15 +2,12 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { mdiMagnify } from '@mdi/js'
-import type { TitleSort, TitleSummary } from '@theama/contracts'
+import type { TitleSort } from '@theama/contracts'
 import type { TitlesList } from '@/composables/useTitles'
 import PosterGrid from './PosterGrid.vue'
-import { useLibraryStore } from '@/stores/library'
 
 const props = defineProps<{ list: TitlesList; label: string }>()
 const { t } = useI18n()
-const library = useLibraryStore()
-const notice = ref<string | null>(null)
 const resultsVersion = ref(0)
 
 // Refs are destructured so the template can v-model them (and they unwrap as top-level bindings).
@@ -23,17 +20,11 @@ watch(items, (next, previous) => {
   if (next.length <= previous.length || next[0]?.key !== previous[0]?.key) resultsVersion.value++
 })
 
-async function hideTitle(title: TitleSummary): Promise<void> {
-  if (await library.hideTitle(title.key)) {
-    notice.value = t('titles.hidden', { title: title.title })
-    await props.list.reload()
-  }
-}
 </script>
 
 <template>
   <section>
-    <div class="toolbar th-filter-panel">
+    <div class="toolbar th-filter-panel" role="search">
       <v-text-field
         v-model="q"
         :prepend-inner-icon="mdiMagnify"
@@ -47,6 +38,7 @@ async function hideTitle(title: TitleSummary): Promise<void> {
         spellcheck="false"
         data-gramm="false"
         class="search th-search-control"
+        :loading="loading && !loaded"
       />
       <v-select v-model="sort" :items="sortItems" :label="$t('titles.sortBy')" density="compact" variant="solo-filled" bg-color="surface-bright" hide-details class="sort" />
       <v-switch v-model="hideUnavailable" :label="$t('files.hideUnavailable')" color="primary" density="compact" hide-details inset class="availability" />
@@ -58,31 +50,25 @@ async function hideTitle(title: TitleSummary): Promise<void> {
     <transition name="results" mode="out-in">
       <div :key="resultsVersion">
         <p v-if="loaded && items.length === 0" class="th-muted none">{{ $t('titles.noMatches') }}</p>
-        <PosterGrid v-else :titles="items" :label="label" :has-more="nextCursor !== null" :loading="loading" hideable @load-more="loadMore()" @hide="hideTitle" />
+        <PosterGrid v-else :titles="items" :label="label" :has-more="nextCursor !== null" :loading="loading" @load-more="loadMore()" />
       </div>
     </transition>
-    <v-snackbar :model-value="notice !== null" :timeout="4000" color="surface-bright" @update:model-value="notice = null">{{ notice }}</v-snackbar>
   </section>
 </template>
 
 <style scoped>
 .toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(170px, 210px) auto auto;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   margin-bottom: 20px;
 }
 .search {
-  flex: 1 1 300px;
-  min-width: min(100%, 240px);
-  transition: flex-basis var(--th-motion);
-}
-.search:focus-within {
-  flex-basis: 360px;
+  min-width: 0;
 }
 .sort {
-  flex: 0 1 200px;
+  min-width: 0;
 }
 .availability {
   flex: 0 0 auto;
@@ -121,12 +107,14 @@ async function hideTitle(title: TitleSummary): Promise<void> {
   text-align: center;
 }
 @media (max-width: 700px) {
-  .search,
-  .search:focus-within {
-    flex-basis: 100%;
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .search {
+    grid-column: 1 / -1;
   }
   .sort {
-    flex: 1 1 170px;
+    min-width: 0;
   }
   .count {
     margin-left: 0;

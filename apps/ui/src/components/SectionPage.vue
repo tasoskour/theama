@@ -44,10 +44,10 @@ const showHeaderAdd = computed(() => canAddMediaFolder.value && library.count > 
 
 <template>
   <div class="th-page th-page--wide">
-    <header class="page-header mb-6">
+    <header class="page-header th-page-header">
       <div>
         <p class="th-eyebrow mb-2">{{ $t('app.tagline') }}</p>
-        <h1 class="th-display page-title">{{ $t(titleKey) }}</h1>
+        <h1 class="th-display th-page-title">{{ $t(titleKey) }}</h1>
       </div>
       <v-btn
         v-if="showHeaderAdd"
@@ -95,14 +95,7 @@ const showHeaderAdd = computed(() => canAddMediaFolder.value && library.count > 
 
 <style scoped>
 .page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
   gap: 24px;
-}
-.page-title {
-  font-size: clamp(2rem, 4vw, 3rem);
-  margin: 0;
 }
 .notice {
   max-width: 640px;

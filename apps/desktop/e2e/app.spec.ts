@@ -142,10 +142,20 @@ test('adds a media folder (Greek name), shows it online, changes its type and re
     await expect(page.getByRole('heading', { name: 'Interstellar', level: 1 })).toBeVisible()
     const detailColumns = await page.locator('.hero').evaluate((hero) => {
       const poster = hero.querySelector('.hero__poster')!.getBoundingClientRect()
+      const art = hero.querySelector('.hero__poster .art')!.getBoundingClientRect()
       const info = hero.querySelector('.hero__info')!.getBoundingClientRect()
-      return { posterRight: poster.right, infoLeft: info.left, infoWidth: info.width }
+      return {
+        posterLeft: poster.left,
+        posterRight: poster.right,
+        artLeft: art.left,
+        artRight: art.right,
+        infoLeft: info.left,
+        infoWidth: info.width,
+      }
     })
     expect(detailColumns.posterRight).toBeLessThan(detailColumns.infoLeft)
+    expect(detailColumns.artLeft).toBeGreaterThanOrEqual(detailColumns.posterLeft)
+    expect(detailColumns.artRight).toBeLessThanOrEqual(detailColumns.posterRight)
     expect(detailColumns.infoWidth).toBeGreaterThan(300)
     await expect(page.getByText('Interstellar (2014).mkv').first()).toBeVisible()
     await expect(page.locator('[data-test="play"]')).toBeEnabled() // a real Play button now (the shell here has pretend players)
@@ -282,6 +292,44 @@ test('identifies titles with TMDB: key set-up, posters, details, and choosing be
   await page.getByRole('button', { name: 'Choose' }).click()
   const identify = page.getByRole('dialog', { name: 'Identify this title' })
   await expect(identify.getByRole('listitem')).toHaveCount(2)
+  const searchesBeforeTyping = fake.requests.filter((request) => request.path === '/search/tv').length
+  const providerSearch = identify.getByRole('textbox', { name: 'Search series' })
+  await providerSearch.fill('D')
+  await providerSearch.fill('Doctor')
+  await providerSearch.fill('Doctor Who')
+  await expect.poll(() => fake.requests.filter((request) => request.path === '/search/tv').length).toBe(searchesBeforeTyping + 1)
+  await expect(identify.getByRole('listitem')).toHaveCount(2)
+  const candidateGeometry = await identify.locator('[data-test="identify-candidate"]').evaluateAll((rows) =>
+    rows.map((row) => {
+      const box = row.getBoundingClientRect()
+      const art = row.querySelector('.cand__art .art')!.getBoundingClientRect()
+      const info = row.querySelector('.cand__info')!.getBoundingClientRect()
+      return { boxLeft: box.left, boxRight: box.right, artLeft: art.left, artRight: art.right, infoLeft: info.left }
+    }),
+  )
+  for (const candidate of candidateGeometry) {
+    expect(candidate.artLeft).toBeGreaterThanOrEqual(candidate.boxLeft)
+    expect(candidate.artRight).toBeLessThan(candidate.infoLeft)
+    expect(candidate.artRight).toBeLessThanOrEqual(candidate.boxRight)
+  }
+  const originalWindowSize = await app.evaluate(({ BrowserWindow }) => {
+    const [width, height] = BrowserWindow.getAllWindows()[0]!.getSize()
+    return { width, height }
+  })
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(560, 800))
+  const narrowCandidate = identify.locator('[data-test="identify-candidate"]').first()
+  await expect(narrowCandidate).toBeVisible()
+  const narrowGeometry = await narrowCandidate.evaluate((row) => {
+    const box = row.getBoundingClientRect()
+    const art = row.querySelector('.cand__art .art')!.getBoundingClientRect()
+    const info = row.querySelector('.cand__info')!.getBoundingClientRect()
+    const action = row.querySelector('.v-btn')!.getBoundingClientRect()
+    return { boxRight: box.right, boxBottom: box.bottom, artRight: art.right, infoLeft: info.left, actionRight: action.right, actionBottom: action.bottom }
+  })
+  expect(narrowGeometry.artRight).toBeLessThan(narrowGeometry.infoLeft)
+  expect(narrowGeometry.actionRight).toBeLessThanOrEqual(narrowGeometry.boxRight)
+  expect(narrowGeometry.actionBottom).toBeLessThanOrEqual(narrowGeometry.boxBottom)
+  await app.evaluate(({ BrowserWindow }, { width, height }) => BrowserWindow.getAllWindows()[0]!.setSize(width!, height!), originalWindowSize)
   await identify.getByRole('button', { name: 'This one: Doctor Who 2005' }).click()
   await expect(identify).toBeHidden()
   await expect(page.getByText('The revived series.')).toBeVisible()

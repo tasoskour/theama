@@ -97,6 +97,8 @@ export const mediaFile = sqliteTable(
     lastSeenAt: text('last_seen_at').notNull(),
     missingSince: text('missing_since'),
     kind: text('kind', { enum: ['movie', 'episode', 'video', 'extra'] }).notNull(),
+    /** A person's category correction. Null means derive the category from the source folder. */
+    kindOverride: text('kind_override', { enum: ['movie', 'episode', 'video'] }),
     guessedTitle: text('guessed_title').notNull(),
     guessedYear: integer('guessed_year'),
     season: integer('season'),

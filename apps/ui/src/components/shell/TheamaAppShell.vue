@@ -8,10 +8,12 @@ import TheamaTopNavigation from './TheamaTopNavigation.vue'
 import RecoveryScreen from '@/components/service/RecoveryScreen.vue'
 import { useGlobalShortcuts } from '@/composables/useGlobalShortcuts'
 import { useConnectionStore } from '@/stores/connection'
+import { useTitleActionsStore } from '@/stores/titleActions'
 
 const display = useDisplay()
 const mobile = computed(() => display.smAndDown.value)
 const connection = useConnectionStore()
+const titleActions = useTitleActionsStore()
 useGlobalShortcuts()
 
 // Brief reconnects (a service restart, a missed heartbeat) should not flash the
@@ -54,6 +56,9 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
   </v-main>
 
   <TheamaBottomNavigation v-if="mobile" />
+  <v-snackbar :model-value="titleActions.message !== null" :timeout="4500" :color="titleActions.color" @update:model-value="titleActions.clear()">
+    {{ titleActions.message }}
+  </v-snackbar>
 </template>
 
 <style scoped>

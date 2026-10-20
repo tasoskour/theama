@@ -51,7 +51,7 @@ async function addLanguage(code: string | null): Promise<void> {
     <h2 class="th-display section-title">{{ $t('settings.sections.playback') }}</h2>
     <p class="intro">{{ $t('playback.intro') }}</p>
 
-    <div class="field">
+    <div class="field th-form-section">
       <span id="players-label" class="label">{{ $t('playback.players') }}</span>
       <v-alert v-if="!players.canPlay" type="info" variant="tonal" density="compact">{{ $t('play.needsAppHint') }}</v-alert>
       <template v-else>
@@ -78,7 +78,7 @@ async function addLanguage(code: string | null): Promise<void> {
       </template>
     </div>
 
-    <div class="field">
+    <div class="field th-form-section">
       <span id="langs-label" class="label">{{ $t('playback.subtitleLanguages') }}</span>
       <ol class="langs" aria-labelledby="langs-label">
         <li v-for="(code, i) in chosen" :key="code" class="lang">
@@ -109,7 +109,7 @@ async function addLanguage(code: string | null): Promise<void> {
       <p class="th-muted hint">{{ $t('playback.subtitleHint') }}</p>
     </div>
 
-    <div class="field">
+    <div class="field th-form-section">
       <span class="label">{{ $t('playback.tracking') }}</span>
       <p class="th-muted hint">{{ $t('playback.trackingText') }}</p>
     </div>

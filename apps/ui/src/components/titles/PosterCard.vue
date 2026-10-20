@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiCheckCircle, mdiCloudOffOutline, mdiEyeOffOutline } from '@mdi/js'
+import { mdiCheckCircle, mdiCloudOffOutline } from '@mdi/js'
 import type { TitleSummary } from '@theama/contracts'
 import { useConnectionStore } from '@/stores/connection'
 import PosterArt from './PosterArt.vue'
+import TitleActionsMenu from './TitleActionsMenu.vue'
 
-const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number; caption?: string; hideable?: boolean }>(), {
+const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number; caption?: string }>(), {
   tabindex: 0,
   caption: undefined,
-  hideable: false,
 })
-const emit = defineEmits<{ hide: [] }>()
 const { t } = useI18n()
 const connection = useConnectionStore()
 
@@ -73,19 +72,7 @@ const label = computed(() =>
         <span class="card__title">{{ title.title }}</span>{{ ' ' }}<span v-if="caption ?? detail" class="card__detail th-muted">{{ caption ?? detail }}</span>
       </div>
     </router-link>
-    <v-btn
-      v-if="hideable"
-      class="card__hide"
-      icon
-      size="small"
-      variant="flat"
-      :tabindex="tabindex === 0 ? 0 : -1"
-      :aria-label="$t('titles.hide', { title: title.title })"
-      :title="$t('titles.hideHint')"
-      @click="emit('hide')"
-    >
-      <v-icon :icon="mdiEyeOffOutline" size="18" />
-    </v-btn>
+    <TitleActionsMenu :title="title" :tabindex="tabindex === 0 ? 0 : -1" />
   </article>
 </template>
 
@@ -93,6 +80,7 @@ const label = computed(() =>
 .card {
   position: relative;
   display: block;
+  min-width: 0;
   content-visibility: auto;
   contain-intrinsic-size: auto 330px;
 }
@@ -105,26 +93,17 @@ const label = computed(() =>
 }
 .card__art {
   position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--th-radius);
   transition: transform var(--th-motion), box-shadow var(--th-motion);
 }
 .card:hover .card__art,
 .card__link:focus-visible .card__art {
   transform: translateY(-4px) scale(1.02);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
-}
-.card__hide {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 2;
-  opacity: 0;
-  color: #efe8da;
-  background: rgba(15, 14, 12, 0.84);
-  transition: opacity var(--th-motion), transform var(--th-motion);
-}
-.card:hover .card__hide,
-.card:focus-within .card__hide {
-  opacity: 1;
 }
 .card--offline .card__art {
   filter: grayscale(0.85) brightness(0.7);
@@ -158,21 +137,19 @@ const label = computed(() =>
 .card__badge--id {
   left: auto;
   right: 8px;
+  top: 48px;
   min-width: 22px;
   justify-content: center;
   font-weight: 700;
   color: #dca94e;
   border-color: rgba(220, 169, 78, 0.5);
 }
-.card:hover .card__badge--id,
-.card:focus-within .card__badge--id {
-  top: 48px;
-}
 .card__badge--offline {
   color: #dca94e;
   border-color: rgba(220, 169, 78, 0.5);
 }
 .card__meta {
+  min-width: 0;
   padding: 10px 2px 0;
 }
 .card__title {
@@ -194,11 +171,6 @@ const label = computed(() =>
   .card:hover .card__art,
   .card__link:focus-visible .card__art {
     transform: none;
-  }
-}
-@media (hover: none) {
-  .card__hide {
-    opacity: 1;
   }
 }
 </style>

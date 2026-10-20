@@ -80,7 +80,7 @@ const fileName = (p: string): string => p.slice(p.lastIndexOf('\\') + 1)
     <h2 class="th-display section-title">{{ $t('settings.sections.files') }}</h2>
     <p class="intro">{{ $t('files.intro') }}</p>
 
-    <div class="field">
+    <div class="field th-form-section">
       <span class="label">{{ $t('files.templates') }}</span>
       <form class="tpl" @submit.prevent="save('movie')">
         <v-text-field v-model="movie" :label="$t('rename.movieTemplate')" :error-messages="problem?.field === 'movie' ? problem.message : undefined" spellcheck="false" autocomplete="off" hide-details="auto" data-test="movie-template" />
@@ -95,7 +95,7 @@ const fileName = (p: string): string => p.slice(p.lastIndexOf('\\') + 1)
       <p class="th-muted hint">{{ $t('rename.tokens', { tokens, example }) }} {{ $t('files.tokenHint') }}</p>
     </div>
 
-    <div class="field">
+    <div class="field th-form-section">
       <span class="label">{{ $t('files.history') }}</span>
       <p class="th-muted hint">{{ $t('files.historyHint') }}</p>
       <v-alert v-if="historyError" type="error" variant="tonal" density="compact">{{ historyError }}</v-alert>

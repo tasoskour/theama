@@ -13,7 +13,7 @@ const { t } = useI18n()
 const resultsVersion = ref(0)
 
 // Refs are destructured so the template can v-model them (and they unwrap as top-level bindings).
-const { items, total, nextCursor, loading, loaded, error, q, sort, genres, hideUnavailable, loadMore } = props.list
+const { items, total, nextCursor, loading, loaded, error, q, sort, genres, genreMode, hideUnavailable, loadMore } = props.list
 const { genres: genreItems } = useGenres(() => props.kind)
 
 const SORTS: TitleSort[] = ['title', 'added', 'year']
@@ -35,7 +35,7 @@ watch(items, (next, previous) => {
         class="search"
         :loading="loading && !loaded"
       />
-      <GenreFilter v-model="genres" :items="genreItems" class="genres" />
+      <GenreFilter v-model="genres" v-model:mode="genreMode" :items="genreItems" class="genres" />
       <v-select v-model="sort" :items="sortItems" :label="$t('titles.sortBy')" density="compact" variant="solo-filled" bg-color="surface-bright" hide-details class="sort" />
       <v-switch v-model="hideUnavailable" :label="$t('files.hideUnavailable')" color="primary" density="compact" hide-details inset class="availability" />
       <span class="count" aria-live="polite">{{ $t('titles.count', total) }}</span>
@@ -55,7 +55,7 @@ watch(items, (next, previous) => {
 <style scoped>
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(180px, 260px) minmax(170px, 210px) auto auto;
+  grid-template-columns: minmax(240px, 1fr) minmax(300px, 400px) minmax(170px, 210px) auto auto;
   align-items: center;
   gap: 8px;
   margin-bottom: 20px;

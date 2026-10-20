@@ -175,6 +175,12 @@ describe('automatic identification', () => {
     const either = await names(`?genres=${encodeURIComponent('Sci-Fi & Fantasy|Nonexistent')}`)
     expect(either).toContain('Severance')
     expect(await names('?genres=Nonexistent')).toEqual([])
+    // "all" needs every chosen genre; "any" (the default) needs one.
+    const both = encodeURIComponent('Drama|Sci-Fi & Fantasy')
+    expect(await names(`?genres=${both}&genreMode=all`)).toContain('Severance')
+    expect(await names(`?genres=${encodeURIComponent('Drama|Nonexistent')}&genreMode=all`)).toEqual([])
+    expect(await names(`?genres=${encodeURIComponent('Drama|Nonexistent')}&genreMode=any`)).toContain('Severance')
+    expect(await names(`?genres=${encodeURIComponent('Drama|Drama')}&genreMode=all`)).toContain('Severance')
     // It combines with the text search and the totals agree with the filter.
     expect(await names(`?genres=Drama&q=severance`)).toEqual(['Severance'])
     expect(TitlePage.parse(await get('/library/titles?genres=Nonexistent')).total).toBe(0)

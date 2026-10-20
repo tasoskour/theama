@@ -188,6 +188,11 @@
     "genres": "Genres",
     "noGenres": "No genres yet. They appear once titles are identified.",
     "genresMore": "+{n} more",
+    "genreMode": "Match genres",
+    "genreAny": "Any",
+    "genreAll": "All",
+    "genreAnyHint": "Titles with at least one of the chosen genres",
+    "genreAllHint": "Titles with every chosen genre",
     "sort": {
       "title": "Title (A–Z)",
       "added": "Recently added",

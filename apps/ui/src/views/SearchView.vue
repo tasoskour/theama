@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { mdiHistory } from '@mdi/js'
-import type { TitleKind, TitleSummary } from '@theama/contracts'
+import type { GenreMode, TitleKind, TitleSummary } from '@theama/contracts'
 import PosterGrid from '@/components/titles/PosterGrid.vue'
 import GenreFilter from '@/components/common/GenreFilter.vue'
 import SearchField from '@/components/common/SearchField.vue'
@@ -35,13 +35,14 @@ const recent = ref<string[]>(readRecent())
 const input = ref<{ focus: () => void } | null>(null)
 
 const genres = ref<string[]>([])
+const genreMode = ref<GenreMode>('any')
 const { genres: genreItems } = useGenres(() => undefined)
 
 const hasText = computed(() => text.value.trim().length > 0)
 // Picking genres alone is a search too: it lists everything of those genres.
 const searching = computed(() => hasText.value || genres.value.length > 0)
 // Up to 200 matches in one page: a search is a short list, not a library to scroll through.
-const list = useTitles({ kind: () => (searching.value ? undefined : null), limit: 200, q: text, genres })
+const list = useTitles({ kind: () => (searching.value ? undefined : null), limit: 200, q: text, genres, genreMode })
 const { items, total, loaded, loading } = list
 const foundCollections = useCollections(() => (hasText.value ? text.value.trim() : null))
 
@@ -99,7 +100,7 @@ watch(input, (el) => el?.focus(), { once: true })
           :loading="loading && searching"
           @keydown.down.prevent="toResults"
         />
-        <GenreFilter v-model="genres" :items="genreItems" class="genres" />
+        <GenreFilter v-model="genres" v-model:mode="genreMode" :items="genreItems" class="genres" />
       </div>
       <p class="search-help th-muted">{{ $t('search.hint') }}</p>
     </div>
@@ -150,8 +151,8 @@ watch(input, (el) => el?.focus(), { once: true })
   min-width: 0;
 }
 .genres {
-  flex: 0 1 280px;
-  min-width: 200px;
+  flex: 0 1 400px;
+  min-width: 300px;
 }
 .search-panel {
   max-width: 800px;

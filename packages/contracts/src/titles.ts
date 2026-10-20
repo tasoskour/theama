@@ -42,12 +42,17 @@ export const TitleSummary = z.object({
 })
 export type TitleSummary = z.infer<typeof TitleSummary>
 
+export const GenreMode = z.enum(['any', 'all'])
+export type GenreMode = z.infer<typeof GenreMode>
+
 export const TitleQuery = z.object({
   kind: TitleKind.optional(),
   /** Full-text search over titles, episode titles and path words (accent- and case-insensitive). */
   q: z.string().max(200).optional(),
-  /** Genres to keep, separated by "|": a title matches when it has any of them. Needs provider data. */
+  /** Genres to keep, separated by "|". Needs provider data. */
   genres: z.string().max(1000).optional(),
+  /** "any": a title needs at least one of the genres; "all": it needs every one of them. */
+  genreMode: GenreMode.default('any'),
   hideUnavailable: z.preprocess((v) => v === true || v === 'true', z.boolean()).default(false),
   sort: TitleSort.default('title'),
   limit: z.coerce.number().int().min(1).max(200).default(60),

@@ -253,10 +253,13 @@ export class TitleRepo {
     }
     const genres = (query.genres ?? '').split(GENRE_SEPARATOR).map((g) => g.trim()).filter(Boolean)
     if (genres.length > 0) {
+      // "all" counts how many of the wanted genres a title has (distinct, so a repeated name cannot cheat).
+      const needed = query.genreMode === 'all' ? new Set(genres).size : 1
       where.push(
-        `f.title_key IN (SELECT d2.title_key FROM title_metadata d2 WHERE EXISTS (SELECT 1 FROM json_each(d2.genres) WHERE value IN (${genres.map(() => '?').join(',')})))`,
+        `f.title_key IN (SELECT d2.title_key FROM title_metadata d2
+           WHERE (SELECT COUNT(DISTINCT value) FROM json_each(d2.genres) WHERE value IN (${genres.map(() => '?').join(',')})) >= ?)`,
       )
-      params.push(...genres)
+      params.push(...genres, needed)
     }
     if (query.hideUnavailable === true || (query.hideUnavailable as unknown) === 'true') {
       where.push("s.availability <> 'offline' AND f.state = 'available'")

@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiMagnify } from '@mdi/js'
-import type { TitleSort } from '@theama/contracts'
+import type { TitleKind, TitleSort } from '@theama/contracts'
+import { useGenres } from '@/composables/useGenres'
 import type { TitlesList } from '@/composables/useTitles'
 import PosterGrid from './PosterGrid.vue'
+import GenreFilter from '@/components/common/GenreFilter.vue'
+import SearchField from '@/components/common/SearchField.vue'
 
-const props = defineProps<{ list: TitlesList; label: string }>()
+const props = defineProps<{ list: TitlesList; label: string; kind?: TitleKind }>()
 const { t } = useI18n()
 const resultsVersion = ref(0)
 
 // Refs are destructured so the template can v-model them (and they unwrap as top-level bindings).
-const { items, total, nextCursor, loading, loaded, error, q, sort, hideUnavailable, loadMore } = props.list
+const { items, total, nextCursor, loading, loaded, error, q, sort, genres, hideUnavailable, loadMore } = props.list
+const { genres: genreItems } = useGenres(() => props.kind)
 
 const SORTS: TitleSort[] = ['title', 'added', 'year']
 const sortItems = computed(() => SORTS.map((s) => ({ value: s, title: t(`titles.sort.${s}`) })))
@@ -25,21 +28,14 @@ watch(items, (next, previous) => {
 <template>
   <section>
     <div class="toolbar th-filter-panel" role="search">
-      <v-text-field
+      <SearchField
         v-model="q"
-        :prepend-inner-icon="mdiMagnify"
         :label="$t('titles.filter')"
-        clearable
         density="compact"
-        variant="solo-filled"
-        bg-color="surface-bright"
-        hide-details
-        autocomplete="off"
-        spellcheck="false"
-        data-gramm="false"
-        class="search th-search-control"
+        class="search"
         :loading="loading && !loaded"
       />
+      <GenreFilter v-model="genres" :items="genreItems" class="genres" />
       <v-select v-model="sort" :items="sortItems" :label="$t('titles.sortBy')" density="compact" variant="solo-filled" bg-color="surface-bright" hide-details class="sort" />
       <v-switch v-model="hideUnavailable" :label="$t('files.hideUnavailable')" color="primary" density="compact" hide-details inset class="availability" />
       <span class="count" aria-live="polite">{{ $t('titles.count', total) }}</span>
@@ -59,7 +55,7 @@ watch(items, (next, previous) => {
 <style scoped>
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(170px, 210px) auto auto;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 260px) minmax(170px, 210px) auto auto;
   align-items: center;
   gap: 8px;
   margin-bottom: 20px;
@@ -111,6 +107,9 @@ watch(items, (next, previous) => {
     grid-template-columns: minmax(0, 1fr) auto;
   }
   .search {
+    grid-column: 1 / -1;
+  }
+  .genres {
     grid-column: 1 / -1;
   }
   .sort {

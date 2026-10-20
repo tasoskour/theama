@@ -2,6 +2,7 @@ import { win32 } from 'node:path'
 import type Database from 'better-sqlite3'
 import { z } from 'zod'
 import type { LibraryType, MediaKind, ReclassifyTitleResult, RemoveTitleResult, TitleDetail, TitleKind, TitlePage, TitleQuery, TitleSort, TitleSummary } from '@theama/contracts'
+import { GENRE_SEPARATOR } from '@theama/contracts'
 import { collectionRefsFor } from '../collections/refs'
 import { artworkUrl } from '../metadata/artwork'
 import type { MetadataRepo } from '../metadata/store'
@@ -250,6 +251,13 @@ export class TitleRepo {
       where.push('f.id IN (SELECT rowid FROM media_file_fts WHERE media_file_fts MATCH ?)')
       params.push(fts)
     }
+    const genres = (query.genres ?? '').split(GENRE_SEPARATOR).map((g) => g.trim()).filter(Boolean)
+    if (genres.length > 0) {
+      where.push(
+        `f.title_key IN (SELECT d2.title_key FROM title_metadata d2 WHERE EXISTS (SELECT 1 FROM json_each(d2.genres) WHERE value IN (${genres.map(() => '?').join(',')})))`,
+      )
+      params.push(...genres)
+    }
     if (query.hideUnavailable === true || (query.hideUnavailable as unknown) === 'true') {
       where.push("s.availability <> 'offline' AND f.state = 'available'")
     }
@@ -305,6 +313,20 @@ export class TitleRepo {
     }
     const described = this.summaries(page.map((p) => p.key))
     return { items: page.flatMap((p) => described.get(p.key) ?? []), nextCursor, total }
+  }
+
+  /** The genres of identified titles that are in the library (optionally of one kind), alphabetically. */
+  genres(kind?: TitleKind): string[] {
+    const rows = this.raw
+      .prepare(
+        `SELECT DISTINCT j.value AS genre
+           FROM title_metadata d, json_each(d.genres) j
+          WHERE d.title_key IN (SELECT title_key FROM media_file WHERE excluded = 0 AND ${kind ? 'kind = ?' : "kind <> 'extra'"})
+            AND j.value <> ''
+          ORDER BY lower(j.value)`,
+      )
+      .all(...(kind ? [KIND_TO_DB[kind]] : [])) as { genre: string }[]
+    return rows.map((r) => r.genre)
   }
 
   /** Library cards for specific title keys (collections use this); unknown keys are simply absent. */

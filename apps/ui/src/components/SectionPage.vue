@@ -31,9 +31,9 @@ const flow = useAddFolder(() => SECTION_TYPE[props.sectionKey] ?? 'auto')
 const SECTION_KIND: Partial<Record<Section, TitleKind>> = { movies: 'movie', series: 'series', videos: 'video' }
 const kind = SECTION_KIND[props.sectionKey] ?? null
 const list = useTitles({ kind: () => kind, remember: true })
-const { total, q, hideUnavailable, loaded } = list
+const { total, q, genres, hideUnavailable, loaded } = list
 
-const showList = computed(() => kind !== null && (total.value > 0 || q.value.trim() !== '' || hideUnavailable.value))
+const showList = computed(() => kind !== null && (total.value > 0 || q.value.trim() !== '' || genres.value.length > 0 || hideUnavailable.value))
 const showContent = computed(() => kind === null && props.hasContent === true)
 const nothingOfKind = computed(() => kind !== null && loaded.value && !showList.value && library.count > 0 && !scans.scanning)
 const canAddMediaFolder = computed(() => ['home', 'movies', 'series', 'videos'].includes(props.sectionKey))
@@ -65,7 +65,7 @@ const showHeaderAdd = computed(() => canAddMediaFolder.value && library.count > 
       {{ $t('scan.headline') }}
     </v-alert>
 
-    <TitleBrowser v-if="showList" :list="list" :label="$t(titleKey)" />
+    <TitleBrowser v-if="showList" :list="list" :label="$t(titleKey)" :kind="kind ?? undefined" />
     <slot v-else-if="showContent" />
 
     <template v-else>

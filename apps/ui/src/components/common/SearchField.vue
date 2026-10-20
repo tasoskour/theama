@@ -1,0 +1,32 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import { mdiMagnify } from '@mdi/js'
+
+// The one search input used by the global search, library filter, identify dialog and logs.
+// Everything else (label, placeholder, density, loading, autofocus, aria-label, listeners) falls
+// through to the underlying v-text-field.
+const model = defineModel<string | null | undefined>()
+
+const field = ref<{ $el: HTMLElement } | null>(null)
+
+defineExpose({
+  focus: () => field.value?.$el.querySelector('input')?.focus(),
+})
+</script>
+
+<template>
+  <v-text-field
+    ref="field"
+    v-model="model"
+    :prepend-inner-icon="mdiMagnify"
+    clearable
+    hide-details
+    variant="solo-filled"
+    flat
+    bg-color="surface-bright"
+    autocomplete="off"
+    spellcheck="false"
+    data-gramm="false"
+    class="th-search-control"
+  />
+</template>

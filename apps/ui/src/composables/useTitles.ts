@@ -1,6 +1,6 @@
 import { nextTick, onScopeDispose, ref, watch, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { TitlePage, type TitleKind, type TitleSort, type TitleSummary } from '@theama/contracts'
+import { GENRE_SEPARATOR, TitlePage, type TitleKind, type TitleSort, type TitleSummary } from '@theama/contracts'
 import { useConnectionStore } from '@/stores/connection'
 import { navState } from '@/utils/navState'
 
@@ -12,6 +12,7 @@ interface Snapshot {
   nextCursor: string | null
   q: string
   sort: TitleSort
+  genres: string[]
   hideUnavailable: boolean
   scrollY: number
   focusKey: string | null
@@ -29,6 +30,8 @@ export interface UseTitlesOptions {
   remember?: boolean
   /** Use this ref as the search text (the page owns the input). */
   q?: Ref<string>
+  /** Use this ref as the chosen genres (a title needs any one of them). */
+  genres?: Ref<string[]>
 }
 
 /**
@@ -50,6 +53,7 @@ export function useTitles(options: UseTitlesOptions) {
   const error = ref<string | null>(null)
   const q = options.q ?? ref(snap?.q ?? '')
   const sort = ref<TitleSort>(snap?.sort ?? options.sort ?? 'title')
+  const genres = options.genres ?? ref<string[]>(snap?.genres ?? [])
   const hideUnavailable = ref(snap?.hideUnavailable ?? false)
 
   let generation = 0 // drops responses that belong to an older query
@@ -61,6 +65,7 @@ export function useTitles(options: UseTitlesOptions) {
       kind,
       q: q.value.trim() || undefined,
       sort: sort.value,
+      genres: genres.value.join(GENRE_SEPARATOR) || undefined,
       hideUnavailable: hideUnavailable.value,
       limit: options.limit ?? PAGE_SIZE,
       cursor,
@@ -120,7 +125,7 @@ export function useTitles(options: UseTitlesOptions) {
         // Runs before the page changes, while scroll position and focus are still the list's.
         if (from.fullPath === routeKey) {
           snapshots.set(routeKey, {
-            items: items.value, total: total.value, nextCursor: nextCursor.value, q: q.value, sort: sort.value,
+            items: items.value, total: total.value, nextCursor: nextCursor.value, q: q.value, sort: sort.value, genres: genres.value,
             hideUnavailable: hideUnavailable.value, scrollY: window.scrollY, focusKey: focusedKey(),
           })
         }
@@ -145,7 +150,7 @@ export function useTitles(options: UseTitlesOptions) {
 
   // --- reacting to changes -------------------------------------------------------------------
   let debounce: ReturnType<typeof setTimeout> | undefined
-  watch([q, sort, hideUnavailable], () => {
+  watch([q, sort, genres, hideUnavailable], () => {
     clearTimeout(debounce)
     debounce = setTimeout(() => void reload(), 250)
   })
@@ -168,7 +173,7 @@ export function useTitles(options: UseTitlesOptions) {
     clearTimeout(debounce)
   })
 
-  return { items, total, nextCursor, loading, loaded, error, q, sort, hideUnavailable, reload, loadMore }
+  return { items, total, nextCursor, loading, loaded, error, q, sort, genres, hideUnavailable, reload, loadMore }
 }
 
 export type TitlesList = ReturnType<typeof useTitles>

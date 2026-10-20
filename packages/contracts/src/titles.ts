@@ -46,12 +46,24 @@ export const TitleQuery = z.object({
   kind: TitleKind.optional(),
   /** Full-text search over titles, episode titles and path words (accent- and case-insensitive). */
   q: z.string().max(200).optional(),
+  /** Genres to keep, separated by "|": a title matches when it has any of them. Needs provider data. */
+  genres: z.string().max(1000).optional(),
   hideUnavailable: z.preprocess((v) => v === true || v === 'true', z.boolean()).default(false),
   sort: TitleSort.default('title'),
   limit: z.coerce.number().int().min(1).max(200).default(60),
   cursor: z.string().optional(),
 })
 export type TitleQuery = z.input<typeof TitleQuery>
+
+/** Separates genre names in `TitleQuery.genres`. */
+export const GENRE_SEPARATOR = '|'
+
+export const GenreQuery = z.object({ kind: TitleKind.optional() })
+export type GenreQuery = z.input<typeof GenreQuery>
+
+/** Every genre that at least one library title has, alphabetically. */
+export const GenreList = z.object({ genres: z.array(z.string()) })
+export type GenreList = z.infer<typeof GenreList>
 
 export const TitlePage = z.object({
   items: z.array(TitleSummary),

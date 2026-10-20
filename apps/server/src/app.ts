@@ -30,6 +30,7 @@ import {
   LogQuery,
   MediaFileQuery,
   TitleQuery,
+  GenreQuery,
   UpdateSourceRequest,
   type LibrarySource,
   type LibrarySourceList,
@@ -43,6 +44,7 @@ import {
   type RenameApplyResult,
   type RenamePreview,
   type ContinueList,
+  type GenreList,
   type FileSubtitles,
   type LaunchInfo,
   type CollectionList,
@@ -340,6 +342,8 @@ export async function buildApp(deps: AppDeps) {
   app.get(`${API_PREFIX}/library/files`, async (req): Promise<MediaFilePage> => files.list(MediaFileQuery.parse(req.query)))
 
   app.get(`${API_PREFIX}/library/titles`, async (req): Promise<TitlePage> => titles.list(TitleQuery.parse(req.query)))
+
+  app.get(`${API_PREFIX}/library/genres`, async (req): Promise<GenreList> => ({ genres: titles.genres(GenreQuery.parse(req.query).kind) }))
 
   app.get(`${API_PREFIX}/library/title`, async (req): Promise<TitleDetail> => {
     const { key } = z.object({ key: z.string().min(1).max(1000) }).parse(req.query)

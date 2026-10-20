@@ -185,6 +185,9 @@
     "scrollRight": "Scroll right",
     "filter": "Filter this list",
     "sortBy": "Sort by",
+    "genres": "Genres",
+    "noGenres": "No genres yet. They appear once titles are identified.",
+    "genresMore": "+{n} more",
     "sort": {
       "title": "Title (A–Z)",
       "added": "Recently added",

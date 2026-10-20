@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { LibraryStatus, MetadataSearchResult, MetadataStatus, TitleDetail, TitlePage, type TitleSummary } from '@theama/contracts'
+import { GenreList, LibraryStatus, MetadataSearchResult, MetadataStatus, TitleDetail, TitlePage, type TitleSummary } from '@theama/contracts'
 import { GOOD_KEY, startFakeTmdb, type FakeTmdb } from '../../../../tools/fake-tmdb/server.mjs'
 import { startServer, type RunningServer } from '../bootstrap'
 import { loadConfig } from '../config'
@@ -158,6 +158,26 @@ describe('automatic identification', () => {
     })
     expect(d.episodes.filter((e) => e.season === 1).map((e) => e.name)).toEqual(['Good News About Hell', 'Half Loop', 'In Perpetuity'])
     expect(d.episodes.some((e) => e.season === 2)).toBe(true)
+  })
+
+  it('lists the library genres and filters titles by any of the chosen ones', async () => {
+    const { genres } = GenreList.parse(await get('/library/genres'))
+    expect(genres).toEqual(expect.arrayContaining(['Drama', 'Sci-Fi & Fantasy']))
+    expect([...genres].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))).toEqual(genres)
+    // Personal videos are never identified, so a kind with no provider data has no genres.
+    expect(GenreList.parse(await get('/library/genres?kind=video')).genres).toEqual([])
+    expect(GenreList.parse(await get('/library/genres?kind=series')).genres).toEqual(expect.arrayContaining(['Drama']))
+
+    const names = async (q: string) => (await titles(q)).map((t) => t.title)
+    expect(await names(`?genres=${encodeURIComponent('Sci-Fi & Fantasy')}`)).toContain('Severance')
+    expect(await names(`?genres=${encodeURIComponent('Sci-Fi & Fantasy')}&kind=movie`)).not.toContain('Severance')
+    // Several genres widen the result (any match), and a genre nobody has leaves nothing.
+    const either = await names(`?genres=${encodeURIComponent('Sci-Fi & Fantasy|Nonexistent')}`)
+    expect(either).toContain('Severance')
+    expect(await names('?genres=Nonexistent')).toEqual([])
+    // It combines with the text search and the totals agree with the filter.
+    expect(await names(`?genres=Drama&q=severance`)).toEqual(['Severance'])
+    expect(TitlePage.parse(await get('/library/titles?genres=Nonexistent')).total).toBe(0)
   })
 
   it('caches artwork on disk once and serves it from the backend', async () => {

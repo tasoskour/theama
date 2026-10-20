@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiContentCopy, mdiFolderOpenOutline, mdiMagnify, mdiRefresh } from '@mdi/js'
+import { mdiContentCopy, mdiFolderOpenOutline, mdiRefresh } from '@mdi/js'
 import { LOG_LEVEL_ORDER } from '@theama/contracts'
 import LogList from '@/components/logs/LogList.vue'
+import SearchField from '@/components/common/SearchField.vue'
 import { getBridge } from '@/api/bridge'
 import { useConnectionStore } from '@/stores/connection'
 import { useLogsStore, type RangeKey } from '@/stores/logs'
@@ -51,7 +52,7 @@ async function openFolder(): Promise<void> {
     <p class="th-muted mb-4">{{ $t('logs.description') }}</p>
 
     <div class="filters th-filter-panel">
-      <v-text-field v-model="logs.filters.q" :prepend-inner-icon="mdiMagnify" :label="$t('logs.filters.search')" clearable variant="solo-filled" bg-color="surface-bright" hide-details autocomplete="off" spellcheck="false" data-gramm="false" class="f-search th-search-control" :loading="logs.loading" />
+      <SearchField v-model="logs.filters.q" :label="$t('logs.filters.search')" class="f-search" :loading="logs.loading" />
       <v-select v-model="logs.filters.level" :items="levelItems" :label="$t('logs.filters.level')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
       <v-select v-model="logs.filters.source" :items="sourceItems" :label="$t('logs.filters.source')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
       <v-select v-model="logs.filters.range" :items="rangeItems" :label="$t('logs.filters.range')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />

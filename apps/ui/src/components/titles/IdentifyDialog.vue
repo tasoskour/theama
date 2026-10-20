@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiMagnify } from '@mdi/js'
 import { TitleDetail, type MatchCandidate, type MatchKind } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
 import PosterArt from './PosterArt.vue'
+import SearchField from '@/components/common/SearchField.vue'
 
 const props = defineProps<{ titleKey: string; kind: MatchKind; initialQuery: string; initialYear: number | null }>()
 const open = defineModel<boolean>({ required: true })
@@ -106,20 +106,11 @@ function problem(code: string, fallback: string): string {
       <v-card-subtitle class="subtitle">{{ $t('match.dialog.subtitle', { name: initialQuery }) }}</v-card-subtitle>
       <v-card-text>
         <form class="search" role="search" @submit.prevent="search">
-          <v-text-field
+          <SearchField
             v-model="query"
             :label="$t(kind === 'series' ? 'match.dialog.searchSeries' : 'match.dialog.searchMovie')"
-            :prepend-inner-icon="mdiMagnify"
             autofocus
-            clearable
-            hide-details
-            variant="solo-filled"
-            bg-color="surface-bright"
             :loading="searching"
-            autocomplete="off"
-            spellcheck="false"
-            data-gramm="false"
-            class="th-search-control"
           />
         </form>
 

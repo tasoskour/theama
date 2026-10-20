@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { mdiHistory, mdiMagnify } from '@mdi/js'
+import { mdiHistory } from '@mdi/js'
 import type { TitleKind, TitleSummary } from '@theama/contracts'
 import PosterGrid from '@/components/titles/PosterGrid.vue'
+import GenreFilter from '@/components/common/GenreFilter.vue'
+import SearchField from '@/components/common/SearchField.vue'
 import CollectionCard from '@/components/collections/CollectionCard.vue'
 import { useCollections } from '@/composables/useCollections'
+import { useGenres } from '@/composables/useGenres'
 import { useTitles } from '@/composables/useTitles'
 import { moveBetweenCards } from '@/utils/gridNav'
 
@@ -29,13 +32,18 @@ function writeRecent(list: string[]): void {
 
 const text = ref('')
 const recent = ref<string[]>(readRecent())
-const input = ref<{ $el: HTMLElement } | null>(null)
+const input = ref<{ focus: () => void } | null>(null)
 
-const searching = computed(() => text.value.trim().length > 0)
+const genres = ref<string[]>([])
+const { genres: genreItems } = useGenres(() => undefined)
+
+const hasText = computed(() => text.value.trim().length > 0)
+// Picking genres alone is a search too: it lists everything of those genres.
+const searching = computed(() => hasText.value || genres.value.length > 0)
 // Up to 200 matches in one page: a search is a short list, not a library to scroll through.
-const list = useTitles({ kind: () => (searching.value ? undefined : null), limit: 200, q: text })
+const list = useTitles({ kind: () => (searching.value ? undefined : null), limit: 200, q: text, genres })
 const { items, total, loaded, loading } = list
-const foundCollections = useCollections(() => (searching.value ? text.value.trim() : null))
+const foundCollections = useCollections(() => (hasText.value ? text.value.trim() : null))
 
 const SECTIONS: { kind: TitleKind; labelKey: string }[] = [
   { kind: 'movie', labelKey: 'nav.movies' },
@@ -69,7 +77,7 @@ async function toResults(): Promise<void> {
   document.querySelector<HTMLElement>('[data-title-key]')?.focus()
 }
 
-watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
+watch(input, (el) => el?.focus(), { once: true })
 </script>
 
 <template>
@@ -80,24 +88,19 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
     </header>
 
     <div class="search-panel" role="search">
-      <v-text-field
-        ref="input"
-        v-model="text"
-        :prepend-inner-icon="mdiMagnify"
-        :aria-label="$t('search.label')"
-        :placeholder="$t('search.label')"
-        hide-details
-        clearable
-        autofocus
-        variant="solo-filled"
-        bg-color="surface-bright"
-        autocomplete="off"
-        spellcheck="false"
-        data-gramm="false"
-        class="field th-search-control"
-        :loading="loading && searching"
-        @keydown.down.prevent="toResults"
-      />
+      <div class="search-row">
+        <SearchField
+          ref="input"
+          v-model="text"
+          :aria-label="$t('search.label')"
+          :placeholder="$t('search.label')"
+          autofocus
+          class="field"
+          :loading="loading && searching"
+          @keydown.down.prevent="toResults"
+        />
+        <GenreFilter v-model="genres" :items="genreItems" class="genres" />
+      </div>
       <p class="search-help th-muted">{{ $t('search.hint') }}</p>
     </div>
 
@@ -137,8 +140,18 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
 .th-page-header {
   display: block;
 }
+.search-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .field {
-  width: 100%;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.genres {
+  flex: 0 1 280px;
+  min-width: 200px;
 }
 .search-panel {
   max-width: 800px;

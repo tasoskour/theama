@@ -114,7 +114,7 @@ function fillMissingEpisodes(raw: Database.Database, rows: GroupRow[]): void {
         `SELECT em.title_key AS k,
                 SUM(CASE WHEN em.season > 0 AND em.air_date IS NOT NULL AND em.air_date <= date('now')
                           AND NOT EXISTS (SELECT 1 FROM media_file f2
-                                           WHERE f2.title_key = em.title_key AND f2.season = em.season
+                                           WHERE f2.title_key = em.title_key AND f2.season = em.season AND f2.excluded = 0
                                              AND em.episode BETWEEN f2.episode AND coalesce(f2.episode_end, f2.episode))
                          THEN 1 ELSE 0 END) AS missing
            FROM episode_metadata em WHERE em.title_key IN (${chunk.map(() => '?').join(',')}) GROUP BY em.title_key`,
@@ -137,6 +137,7 @@ export class TitleRepo {
     const where: string[] = []
     const params: (string | number)[] = []
 
+    where.push('f.excluded = 0')
     if (query.kind) {
       where.push('f.kind = ?')
       params.push(KIND_TO_DB[query.kind])
@@ -212,7 +213,7 @@ export class TitleRepo {
     for (let i = 0; i < keys.length; i += 400) {
       const chunk = keys.slice(i, i + 400)
       const rows = this.raw
-        .prepare(`${GROUP_SELECT} WHERE f.kind <> 'extra' AND f.title_key IN (${chunk.map(() => '?').join(',')}) GROUP BY f.kind, f.title_key`)
+        .prepare(`${GROUP_SELECT} WHERE f.excluded = 0 AND f.kind <> 'extra' AND f.title_key IN (${chunk.map(() => '?').join(',')}) GROUP BY f.kind, f.title_key`)
         .all(...chunk) as GroupRow[]
       fillMissingEpisodes(this.raw, rows)
       for (const r of rows) {
@@ -225,7 +226,7 @@ export class TitleRepo {
 
   /** One title with all of its files, or null if the key is unknown. */
   detail(key: string): TitleDetail | null {
-    const group = this.raw.prepare(`${GROUP_SELECT} WHERE f.title_key = ? GROUP BY f.kind, f.title_key`).get(key) as GroupRow | undefined
+    const group = this.raw.prepare(`${GROUP_SELECT} WHERE f.excluded = 0 AND f.title_key = ? GROUP BY f.kind, f.title_key`).get(key) as GroupRow | undefined
     if (group) fillMissingEpisodes(this.raw, [group])
     const summary = group ? toSummary(group) : null
     if (!group || !summary) return null
@@ -233,7 +234,7 @@ export class TitleRepo {
       .prepare(
         `SELECT f.*, s.availability AS source_availability, p.watched AS watched, p.last_played_at AS last_played_at
          FROM media_file f JOIN library_source s ON s.id = f.source_id LEFT JOIN playback_state p ON p.file_id = f.id
-         WHERE f.title_key = ?
+         WHERE f.excluded = 0 AND f.title_key = ?
          ORDER BY coalesce(f.season, -1), coalesce(f.episode, -1), lower(f.path)`,
       )
       .all(key) as ListRow[]

@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiCheckCircle, mdiCloudOffOutline } from '@mdi/js'
+import { mdiCheckCircle, mdiCloudOffOutline, mdiEyeOffOutline } from '@mdi/js'
 import type { TitleSummary } from '@theama/contracts'
 import { useConnectionStore } from '@/stores/connection'
 import PosterArt from './PosterArt.vue'
 
-const props = defineProps<{ title: TitleSummary; tabindex?: number; caption?: string }>()
+const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number; caption?: string; hideable?: boolean }>(), {
+  tabindex: 0,
+  caption: undefined,
+  hideable: false,
+})
+const emit = defineEmits<{ hide: [] }>()
 const { t } = useI18n()
 const connection = useConnectionStore()
 
@@ -38,57 +43,88 @@ const label = computed(() =>
 </script>
 
 <template>
-  <router-link
-    class="card"
-    :class="{ 'card--offline': offline }"
-    :to="{ name: 'title', query: { key: title.key } }"
-    :data-title-key="title.key"
-    :tabindex="tabindex ?? 0"
-    :aria-label="label"
-  >
-    <div class="card__art">
-      <PosterArt
-        :seed="title.key"
-        :title="title.title"
-        :year="title.kind === 'movie' ? title.year : null"
-        :kind="title.kind"
-        :image-url="connection.assetUrl(title.posterUrl)"
-      />
-      <span v-if="offline" class="card__badge card__badge--offline" :title="$t('files.offlineHint')">
-        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path :d="mdiCloudOffOutline" fill="currentColor" /></svg>
-        {{ $t('files.offline') }}
-      </span>
-      <span v-else-if="partly" class="card__badge" :title="$t('titles.partlyHint')" :data-text="`${title.availableCount}/${title.fileCount}`" />
-      <span v-if="title.watchState === 'all'" class="card__seen" :title="$t('play.watched')">
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path :d="mdiCheckCircle" fill="currentColor" /></svg>
-      </span>
-      <span v-if="needsId" class="card__badge card__badge--id" :title="$t('match.notIdentifiedHint')" data-text="?" />
-    </div>{{ ' ' }}
-    <div class="card__meta" aria-hidden="true">
-      <span class="card__title">{{ title.title }}</span>{{ ' ' }}<span v-if="caption ?? detail" class="card__detail th-muted">{{ caption ?? detail }}</span>
-    </div>
-  </router-link>
+  <article class="card" :class="{ 'card--offline': offline }">
+    <router-link
+      class="card__link"
+      :to="{ name: 'title', query: { key: title.key } }"
+      :data-title-key="title.key"
+      :tabindex="tabindex ?? 0"
+      :aria-label="label"
+    >
+      <div class="card__art">
+        <PosterArt
+          :seed="title.key"
+          :title="title.title"
+          :year="title.kind === 'movie' ? title.year : null"
+          :kind="title.kind"
+          :image-url="connection.assetUrl(title.posterUrl)"
+        />
+        <span v-if="offline" class="card__badge card__badge--offline" :title="$t('files.offlineHint')">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path :d="mdiCloudOffOutline" fill="currentColor" /></svg>
+          {{ $t('files.offline') }}
+        </span>
+        <span v-else-if="partly" class="card__badge" :title="$t('titles.partlyHint')" :data-text="`${title.availableCount}/${title.fileCount}`" />
+        <span v-if="title.watchState === 'all'" class="card__seen" :title="$t('play.watched')">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path :d="mdiCheckCircle" fill="currentColor" /></svg>
+        </span>
+        <span v-if="needsId" class="card__badge card__badge--id" :title="$t('match.notIdentifiedHint')" data-text="?" />
+      </div>{{ ' ' }}
+      <div class="card__meta" aria-hidden="true">
+        <span class="card__title">{{ title.title }}</span>{{ ' ' }}<span v-if="caption ?? detail" class="card__detail th-muted">{{ caption ?? detail }}</span>
+      </div>
+    </router-link>
+    <v-btn
+      v-if="hideable"
+      class="card__hide"
+      icon
+      size="small"
+      variant="flat"
+      :tabindex="tabindex === 0 ? 0 : -1"
+      :aria-label="$t('titles.hide', { title: title.title })"
+      :title="$t('titles.hideHint')"
+      @click="emit('hide')"
+    >
+      <v-icon :icon="mdiEyeOffOutline" size="18" />
+    </v-btn>
+  </article>
 </template>
 
 <style scoped>
 .card {
+  position: relative;
+  display: block;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 330px;
+}
+.card__link {
   display: block;
   color: inherit;
   text-decoration: none;
   border-radius: calc(var(--th-radius) + 2px);
   outline-offset: 4px;
-  /* Off-screen cards in a long grid are not laid out or painted until they scroll near. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 330px;
 }
 .card__art {
   position: relative;
   transition: transform var(--th-motion), box-shadow var(--th-motion);
 }
 .card:hover .card__art,
-.card:focus-visible .card__art {
+.card__link:focus-visible .card__art {
   transform: translateY(-4px) scale(1.02);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+.card__hide {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  opacity: 0;
+  color: #efe8da;
+  background: rgba(15, 14, 12, 0.84);
+  transition: opacity var(--th-motion), transform var(--th-motion);
+}
+.card:hover .card__hide,
+.card:focus-within .card__hide {
+  opacity: 1;
 }
 .card--offline .card__art {
   filter: grayscale(0.85) brightness(0.7);
@@ -128,6 +164,10 @@ const label = computed(() =>
   color: #dca94e;
   border-color: rgba(220, 169, 78, 0.5);
 }
+.card:hover .card__badge--id,
+.card:focus-within .card__badge--id {
+  top: 48px;
+}
 .card__badge--offline {
   color: #dca94e;
   border-color: rgba(220, 169, 78, 0.5);
@@ -152,8 +192,13 @@ const label = computed(() =>
 }
 @media (prefers-reduced-motion: reduce) {
   .card:hover .card__art,
-  .card:focus-visible .card__art {
+  .card__link:focus-visible .card__art {
     transform: none;
+  }
+}
+@media (hover: none) {
+  .card__hide {
+    opacity: 1;
   }
 }
 </style>

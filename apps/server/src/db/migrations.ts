@@ -260,6 +260,20 @@ export const MIGRATIONS: readonly string[] = [
   -- Collections and "part of" look titles up by the provider's id.
   CREATE INDEX idx_title_match_external ON title_match(provider, external_id);
   `,
+  /* 8 — persistent file and subfolder exclusions */
+  `
+  ALTER TABLE media_file ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0;
+
+  CREATE TABLE library_exclusion (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id  INTEGER NOT NULL REFERENCES library_source(id) ON DELETE CASCADE,
+    path       TEXT NOT NULL,
+    kind       TEXT NOT NULL CHECK (kind IN ('file','folder')),
+    created_at TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX uq_library_exclusion_path ON library_exclusion(source_id, path COLLATE NOCASE);
+  CREATE INDEX idx_library_exclusion_source ON library_exclusion(source_id);
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

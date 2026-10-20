@@ -21,6 +21,7 @@ import {
   RenameCollectionRequest,
   ReorderRequest,
   CreateSourceRequest,
+  CreateExclusionRequest,
   IdentifyRequest,
   MetadataSearchQuery,
   SetCredentialsRequest,
@@ -31,6 +32,8 @@ import {
   UpdateSourceRequest,
   type LibrarySource,
   type LibrarySourceList,
+  type LibraryExclusion,
+  type LibraryExclusionList,
   type BackupInfo,
   type BackupList,
   type CollectionDetail,
@@ -80,6 +83,7 @@ import { RenameProblem, type RenameService } from './files/rename'
 import { TemplateError, validateTemplate } from './files/template'
 import { chooseSubtitle, discoverExternal } from './subtitles/discover'
 import { ApiProblem, LibrarySourceRepo, normaliseFolderPath, probeFolder, refreshAvailability, withTimeout } from './library/sources'
+import type { LibraryExclusionRepo } from './library/exclusions'
 import { extractBearer, isAllowedOrigin, isLoopbackHost, tokenMatches } from './security'
 import { APP_VERSION } from './version'
 
@@ -90,6 +94,7 @@ export interface AppDeps {
   settings: SettingsRepo
   serviceEvents: ServiceEventRepo
   library: LibrarySourceRepo
+  exclusions: LibraryExclusionRepo
   files: MediaFileRepo
   titles: TitleRepo
   collections: CollectionRepo
@@ -116,7 +121,7 @@ function apiError(code: string, message: string, details?: unknown): ApiError {
 }
 
 export async function buildApp(deps: AppDeps) {
-  const { config, logger, logHub, settings, serviceEvents, library, files, titles, collections, playback, renamer, journal, backups, ffprobeFound, jobs, scans, auto, metadata, credentials, provider, artwork, events, token, startedAt } = deps
+  const { config, logger, logHub, settings, serviceEvents, library, exclusions, files, titles, collections, playback, renamer, journal, backups, ffprobeFound, jobs, scans, auto, metadata, credentials, provider, artwork, events, token, startedAt } = deps
   const app = Fastify({
     loggerInstance: logger,
     logController: new LogController({ disableRequestLogging: true }),
@@ -251,6 +256,46 @@ export async function buildApp(deps: AppDeps) {
     const job = scans.enqueue(id, 'requested by the user')
     if (!job) throw new ApiProblem('unavailable', 'The service is shutting down', 503)
     return reply.code(202).send(job)
+  })
+
+  app.get(`${API_PREFIX}/library/sources/:id/exclusions`, async (req): Promise<LibraryExclusionList> => {
+    const { id } = IdParams.parse(req.params)
+    if (!library.get(id)) throw new ApiProblem('not_found', 'No such library folder', 404)
+    return { items: exclusions.list(id) }
+  })
+
+  app.post(`${API_PREFIX}/library/sources/:id/exclusions`, async (req, reply): Promise<LibraryExclusion> => {
+    const { id } = IdParams.parse(req.params)
+    const body = CreateExclusionRequest.parse(req.body ?? {})
+    const path = normaliseFolderPath(body.path)
+    if (body.kind === 'folder') await probeFolder(path)
+    const exclusion = exclusions.create(id, path, body.kind)
+    events.broadcast({ type: 'library.changed' })
+    return reply.code(201).send(exclusion)
+  })
+
+  app.delete(`${API_PREFIX}/library/exclusions/:id`, async (req) => {
+    const { id } = IdParams.parse(req.params)
+    const removed = exclusions.remove(id)
+    if (!removed) throw new ApiProblem('not_found', 'No such exclusion', 404)
+    scans.enqueue(removed.sourceId, 'exclusion removed')
+    events.broadcast({ type: 'library.changed' })
+    return { deleted: true }
+  })
+
+  app.post(`${API_PREFIX}/library/titles/hide`, async (req): Promise<{ hidden: number }> => {
+    const { key } = TitleKeyRequest.parse(req.body ?? {})
+    const hidden = exclusions.hideTitle(key)
+    if (hidden === 0) throw new ApiProblem('not_found', 'No such title', 404)
+    events.broadcast({ type: 'library.changed' })
+    return { hidden }
+  })
+
+  app.post(`${API_PREFIX}/library/files/:id/hide`, async (req): Promise<{ hidden: number }> => {
+    const { id } = IdParams.parse(req.params)
+    const hidden = exclusions.hideFile(id)
+    events.broadcast({ type: 'library.changed' })
+    return { hidden }
   })
 
   app.get(`${API_PREFIX}/scans`, async (req): Promise<ScanJobList> => {

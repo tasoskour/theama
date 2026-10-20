@@ -78,7 +78,7 @@ Base: `http://127.0.0.1:<port>/api/v1` (default port 47890, falls back to a free
 ## Desktop IPC (renderer ⇄ main) — `window.theama`
 Defined in `packages/contracts/src/ipc.ts`; each channel has a Zod request schema, validated in the main process, and calls from frames other than Theama's own UI are rejected.
 
-`appInfo` · `setLanguage` · `pickFolder` · `openPath` · `showItemInFolder` · `service.{status,start,stop,restart,install,uninstall,repair,onStatus}` · `logs.{readLocal,openFolder}` · `onNavigate`.
+`appInfo` · `setLanguage` · `setWindowTheme` · `pickFolder` · `pickBackupFile` · `desktop.{get,set}` · `openPath` · `showItemInFolder` · `service.{status,start,stop,restart,install,uninstall,repair,onStatus}` · `logs.{readLocal,openFolder}` · `players.{list,setDefault,addCustom,remove,play}`.
 
 `logs.readLocal` exists so the recovery screen can show recent lines when there is no API to ask.
 

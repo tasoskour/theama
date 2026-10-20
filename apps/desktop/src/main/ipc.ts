@@ -11,6 +11,7 @@ import {
   PlayRequest,
   ServiceInstallRequest,
   SetLanguageRequest,
+  WindowThemeRequest,
   type AppInfo,
   type DesktopSettings,
   type ServiceActionResult,
@@ -42,6 +43,7 @@ export interface IpcDeps {
   players: PlayerManager
   desktopSettings(): DesktopSettings
   setDesktopSettings(patch: DesktopSettingsPatch): DesktopSettings
+  setWindowTheme(theme: 'dark' | 'light'): void
 }
 
 function isTrusted(event: IpcMainInvokeEvent, trusted: string[]): boolean {
@@ -101,6 +103,7 @@ export function registerIpc(deps: IpcDeps): void {
 
   handle(IPC.desktopGet, none, () => deps.desktopSettings())
   handle(IPC.desktopSet, DesktopSettingsPatch, (patch) => deps.setDesktopSettings(patch))
+  handle(IPC.windowSetTheme, WindowThemeRequest, ({ theme }) => deps.setWindowTheme(theme))
 
   handle(IPC.playersList, none, () => deps.players.list())
   handle(IPC.playersSetDefault, PlayerIdRequest, ({ id }) => deps.players.setDefault(id))

@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiContentCopy, mdiFolderOpenOutline } from '@mdi/js'
+import { mdiContentCopy, mdiEyeOffOutline, mdiFolderOpenOutline } from '@mdi/js'
 import { FileSubtitles, type MediaFile } from '@theama/contracts'
 import { getBridge } from '@/api/bridge'
 import { useConnectionStore } from '@/stores/connection'
+import { useLibraryStore } from '@/stores/library'
 import { formatBytes, formatDuration, resolutionLabel } from '@/utils/format'
 
 const props = defineProps<{ file: MediaFile }>()
+const emit = defineEmits<{ hidden: [] }>()
 const { locale, d } = useI18n()
 const bridge = getBridge()
 const connection = useConnectionStore()
+const library = useLibraryStore()
 
 /** Subtitle files next to the video are read from disk when asked, so a file added since the last scan shows up. */
 const subtitles = ref<FileSubtitles | null>(null)
@@ -64,6 +67,10 @@ const facts = computed(() => {
 async function copyPath(): Promise<void> {
   await navigator.clipboard.writeText(props.file.path)
 }
+
+async function hideFile(): Promise<void> {
+  if (await library.hideFile(props.file.id)) emit('hidden')
+}
 </script>
 
 <template>
@@ -99,6 +106,7 @@ async function copyPath(): Promise<void> {
         {{ $t('detail.openFolder') }}
       </v-btn>
       <v-btn size="small" variant="text" :prepend-icon="mdiContentCopy" @click="copyPath">{{ $t('detail.copyPath') }}</v-btn>
+      <v-btn size="small" variant="text" color="error" :prepend-icon="mdiEyeOffOutline" @click="hideFile">{{ $t('files.hide') }}</v-btn>
     </div>
   </div>
 </template>

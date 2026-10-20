@@ -2,12 +2,14 @@ import { cpus } from 'node:os'
 import type { Logger } from 'pino'
 import type { LibraryStatus, ScanJob, ScanProgress, ServerEvent } from '@theama/contracts'
 import { LibrarySourceRepo, checkAvailability, pathKey } from '../library/sources'
+import type { LibraryExclusionRepo } from '../library/exclusions'
 import type { ProbeFn } from './probe'
 import { runScan, type ScanOutcome } from './scanner'
 import type { MediaFileRepo, ScanJobRepo } from './store'
 
 export interface ScanManagerDeps {
   library: LibrarySourceRepo
+  exclusions?: LibraryExclusionRepo
   files: MediaFileRepo
   jobs: ScanJobRepo
   /** null when FFprobe is not installed. */
@@ -158,6 +160,7 @@ export class ScanManager {
       outcome = await (deps.scan ?? runScan)({
         source,
         nestedRoots,
+        exclusions: deps.exclusions?.list(source.id) ?? [],
         files: deps.files,
         probe: deps.probe,
         probeConcurrency: deps.probeConcurrency ?? Math.max(1, Math.min(4, cpus().length - 1)),

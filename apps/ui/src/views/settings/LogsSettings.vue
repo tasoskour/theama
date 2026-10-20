@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiContentCopy, mdiFolderOpenOutline, mdiRefresh } from '@mdi/js'
+import { mdiContentCopy, mdiFolderOpenOutline, mdiMagnify, mdiRefresh } from '@mdi/js'
 import { LOG_LEVEL_ORDER } from '@theama/contracts'
 import LogList from '@/components/logs/LogList.vue'
 import { getBridge } from '@/api/bridge'
@@ -50,11 +50,11 @@ async function openFolder(): Promise<void> {
     <h3 class="th-display title">{{ $t('logs.title') }}</h3>
     <p class="th-muted mb-4">{{ $t('logs.description') }}</p>
 
-    <div class="filters">
-      <v-text-field v-model="logs.filters.q" :label="$t('logs.filters.search')" clearable class="f-search" />
-      <v-select v-model="logs.filters.level" :items="levelItems" :label="$t('logs.filters.level')" class="f-select" />
-      <v-select v-model="logs.filters.source" :items="sourceItems" :label="$t('logs.filters.source')" class="f-select" />
-      <v-select v-model="logs.filters.range" :items="rangeItems" :label="$t('logs.filters.range')" class="f-select" />
+    <div class="filters th-filter-panel">
+      <v-text-field v-model="logs.filters.q" :prepend-inner-icon="mdiMagnify" :label="$t('logs.filters.search')" clearable variant="solo-filled" bg-color="surface-bright" hide-details autocomplete="off" spellcheck="false" data-gramm="false" class="f-search th-search-control" />
+      <v-select v-model="logs.filters.level" :items="levelItems" :label="$t('logs.filters.level')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
+      <v-select v-model="logs.filters.source" :items="sourceItems" :label="$t('logs.filters.source')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
+      <v-select v-model="logs.filters.range" :items="rangeItems" :label="$t('logs.filters.range')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
     </div>
 
     <div class="toolbar">
@@ -98,7 +98,7 @@ async function openFolder(): Promise<void> {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 .f-search {
   flex: 2 1 240px;

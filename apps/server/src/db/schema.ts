@@ -43,6 +43,20 @@ export const librarySource = sqliteTable('library_source', {
   createdAt: text('created_at').notNull(),
 })
 
+export const libraryExclusion = sqliteTable(
+  'library_exclusion',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    sourceId: integer('source_id')
+      .notNull()
+      .references(() => librarySource.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    kind: text('kind', { enum: ['file', 'folder'] }).notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [index('idx_library_exclusion_source').on(t.sourceId)],
+)
+
 export const scanJob = sqliteTable(
   'scan_job',
   {
@@ -103,6 +117,8 @@ export const mediaFile = sqliteTable(
     titleKey: text('title_key'),
     /** JSON: audio and subtitle streams from FFprobe; null until the file was read by a build that stores them. */
     tracks: text('tracks'),
+    /** Kept in the database so removing an exclusion restores history, but omitted everywhere in the UI. */
+    excluded: integer('excluded', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [
     index('idx_media_file_kind_title').on(t.kind, t.guessedTitle, t.id),

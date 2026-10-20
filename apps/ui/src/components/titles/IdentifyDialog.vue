@@ -72,14 +72,19 @@ function problem(code: string, fallback: string): string {
       <v-card-title id="identify-title" class="th-display">{{ $t('match.dialog.title') }}</v-card-title>
       <v-card-subtitle class="subtitle">{{ $t('match.dialog.subtitle', { name: initialQuery }) }}</v-card-subtitle>
       <v-card-text>
-        <form class="search" role="search" @submit.prevent="search">
+        <form class="search th-filter-panel" role="search" @submit.prevent="search">
           <v-text-field
             v-model="query"
             :label="$t(kind === 'series' ? 'match.dialog.searchSeries' : 'match.dialog.searchMovie')"
             :prepend-inner-icon="mdiMagnify"
             autofocus
             hide-details
+            variant="solo-filled"
+            bg-color="surface-bright"
+            autocomplete="off"
             spellcheck="false"
+            data-gramm="false"
+            class="th-search-control"
           />
           <v-btn type="submit" color="primary" :loading="searching" :disabled="!query.trim()">{{ $t('common.search') }}</v-btn>
         </form>

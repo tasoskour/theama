@@ -5,7 +5,6 @@ import { pathToFileURL } from 'node:url'
 import { IPC, LaunchInfo, type DesktopSettings, type DesktopSettingsPatch, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
 import { defaultDataDir, resolveDataPaths } from '@theama/logs'
 import { registerIpc } from './ipc'
-import { buildMenu, type ServiceMenuAction } from './menu'
 import { menuStrings } from './menu-strings'
 import { originOf } from './origin'
 import { launchDetached, PlayerManager } from './players'
@@ -41,6 +40,13 @@ let controller: ServiceController
 let prefs: PrefsStore
 let lastStatus: ServiceStatus | null = null
 let busy = false
+
+type ServiceMenuAction = 'start' | 'stop' | 'restart' | 'install' | 'repair' | 'uninstall'
+
+const WINDOW_THEME = {
+  dark: { background: '#0F0E0C', surface: '#171510', symbols: '#EFE8DA' },
+  light: { background: '#F6F1E7', surface: '#FCF9F2', symbols: '#1C1A16' },
+} as const
 
 // Cheap cache: the connection is read on every API request header injection.
 let cachedConn: { at: number; value: ApiConnection | null } = { at: 0, value: null }
@@ -159,19 +165,10 @@ function showWindow(): void {
   mainWindow.focus()
 }
 
-function rebuildMenu(): void {
-  const menu = buildMenu(
-    { language: prefs.language, status: lastStatus, dev, busy },
-    {
-      navigate: (route) => mainWindow?.webContents.send(IPC.evNavigate, route),
-      back: () => mainWindow?.webContents.navigationHistory.goBack(),
-      service: (action) => void runServiceAction(action),
-      openLogsFolder: () => void shell.openPath(paths.logsDir),
-      quit: () => app.quit(),
-    },
-  )
-  Menu.setApplicationMenu(menu)
-  tray?.refresh(prefs.language, lastStatus)
+function setWindowTheme(theme: 'dark' | 'light'): void {
+  const colors = WINDOW_THEME[theme]
+  mainWindow?.setBackgroundColor(colors.background)
+  mainWindow?.setTitleBarOverlay({ color: colors.surface, symbolColor: colors.symbols, height: 64 })
 }
 
 function publishStatus(status: ServiceStatus): void {
@@ -179,7 +176,7 @@ function publishStatus(status: ServiceStatus): void {
   lastStatus = status
   if (changed) {
     mainWindow?.webContents.send(IPC.evServiceStatus, status)
-    rebuildMenu()
+    tray?.refresh(prefs.language, status)
   }
 }
 
@@ -211,7 +208,6 @@ async function runServiceAction(
   }
 
   busy = true
-  rebuildMenu()
   try {
     const accountChoice = { kind: account }
     const result =
@@ -227,7 +223,6 @@ async function runServiceAction(
     return result
   } finally {
     busy = false
-    rebuildMenu()
   }
 }
 
@@ -282,6 +277,9 @@ function createWindow(): void {
     minHeight: 560,
     show: false,
     backgroundColor: '#0F0E0C',
+    autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: WINDOW_THEME.dark.surface, symbolColor: WINDOW_THEME.dark.symbols, height: 64 },
     title: 'Theama',
     icon: existsSync(icon) ? icon : undefined,
     webPreferences: {
@@ -371,8 +369,9 @@ async function main(): Promise<void> {
     setDesktopSettings,
     setLanguage: (lang) => {
       prefs.setLanguage(lang)
-      rebuildMenu()
+      tray?.refresh(prefs.language, lastStatus)
     },
+    setWindowTheme,
     pickFolderTitle: () => menuStrings(prefs.language).pickFolder,
     // Honoured only in unpackaged builds, so a released app can never be steered by an environment variable.
     testPickFolder: dev ? process.env.THEAMA_TEST_PICK_FOLDER : undefined,
@@ -380,7 +379,8 @@ async function main(): Promise<void> {
     currentStatus: refreshStatus,
   })
 
-  rebuildMenu()
+  // Navigation lives in the themed app header; there is no native File/Edit/etc. strip.
+  Menu.setApplicationMenu(null)
   applyBehaviour()
   createWindow()
 

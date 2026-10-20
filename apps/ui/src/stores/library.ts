@@ -4,6 +4,10 @@ import { z } from 'zod'
 import {
   LibrarySource,
   LibrarySourceList,
+  LibraryExclusion,
+  LibraryExclusionList,
+  HiddenResult,
+  type ExclusionKind,
   type LibraryType,
   type UpdateSourceRequest,
 } from '@theama/contracts'
@@ -18,6 +22,7 @@ export const useLibraryStore = defineStore('library', () => {
   const loaded = ref(false)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const exclusions = ref<Record<number, LibraryExclusion[]>>({})
 
   const count = computed(() => sources.value.length)
   const offlineCount = computed(() => sources.value.filter((s) => s.availability === 'offline').length)
@@ -63,6 +68,64 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
+  async function loadExclusions(sourceId: number): Promise<void> {
+    if (!connection.client) return
+    try {
+      exclusions.value = {
+        ...exclusions.value,
+        [sourceId]: (await connection.client.get(`/library/sources/${sourceId}/exclusions`, LibraryExclusionList)).items,
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  async function addExclusion(sourceId: number, path: string, kind: ExclusionKind): Promise<boolean> {
+    if (!connection.client) return false
+    try {
+      await connection.client.post(`/library/sources/${sourceId}/exclusions`, { path, kind }, LibraryExclusion)
+      await loadExclusions(sourceId)
+      return true
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err)
+      return false
+    }
+  }
+
+  async function removeExclusion(exclusion: LibraryExclusion): Promise<boolean> {
+    if (!connection.client) return false
+    try {
+      await connection.client.delete(`/library/exclusions/${exclusion.id}`, z.object({ deleted: z.boolean() }))
+      await loadExclusions(exclusion.sourceId)
+      return true
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err)
+      return false
+    }
+  }
+
+  async function hideTitle(key: string): Promise<boolean> {
+    if (!connection.client) return false
+    try {
+      await connection.client.post('/library/titles/hide', { key }, HiddenResult)
+      return true
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err)
+      return false
+    }
+  }
+
+  async function hideFile(id: number): Promise<boolean> {
+    if (!connection.client) return false
+    try {
+      await connection.client.post(`/library/files/${id}/hide`, undefined, HiddenResult)
+      return true
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err)
+      return false
+    }
+  }
+
   /** Removes the folder from Theama only; the server never touches files on disk. */
   async function remove(id: number): Promise<boolean> {
     if (!connection.client) return false
@@ -87,5 +150,5 @@ export const useLibraryStore = defineStore('library', () => {
     if (e.type === 'library.changed') void load()
   })
 
-  return { sources, loaded, loading, error, count, offlineCount, load, add, update, remove }
+  return { sources, exclusions, loaded, loading, error, count, offlineCount, load, add, update, remove, loadExclusions, addExclusion, removeExclusion, hideTitle, hideFile }
 })

@@ -11,7 +11,7 @@ Warm charcoal and ivory, with a muted bronze accent. Vuetify themes `theamaDark`
 | Token | Dark | Light | Use |
 |---|---|---|---|
 | `background` | `#0F0E0C` | `#F6F1E7` | Page |
-| `surface` | `#171510` | `#FCF9F2` | Cards, sidebar, lists |
+| `surface` | `#171510` | `#FCF9F2` | Cards, top navigation, lists and window controls overlay |
 | `surface-light` / `surface-variant` | `#1F1C16` / `#2A261E` | `#F0EADB` / `#E6DEC9` | Hover rows, tonal fills |
 | `on-surface` | `#EFE8DA` | `#1C1A16` | Primary text |
 | `on-surface-variant` | `#B9AF9C` | `#5B5446` | Secondary text |
@@ -39,7 +39,7 @@ Both fonts are bundled locally through `@fontsource-variable/*` (the app works f
 Scale: fluid titles with `clamp()` (e.g. page title `clamp(2rem, 4vw, 3rem)`), body 1 rem / 1.6, captions 0.75–0.85 rem.
 
 ## 3. Spacing, shape, elevation
-4 px base grid; page gutters `clamp(16px, 4vw, 56px)`; content max-width 1400 px; radius 10 px (`--th-radius`), buttons/cards `lg`; **no drop shadows** in dark, a restrained 1 px hairline instead; flat Vuetify elevations throughout (defaults set in `createVuetify`).
+4 px base grid; page gutters `clamp(16px, 4vw, 56px)`; standard content max-width 1400 px and media-browsing max-width 1800 px; radius 10 px (`--th-radius`), buttons/cards `lg`; **no drop shadows** in dark, a restrained 1 px hairline instead; flat Vuetify elevations throughout (defaults set in `createVuetify`).
 
 ## 4. Focus
 Single, consistent ring: `2px solid primary`, `outline-offset: 2px`, applied through `:focus-visible` globally. Poster focus (Phase 3) adds the same slight lift as hover. Focus must never be hidden by `overflow` clipping: rails reserve padding for the ring.
@@ -48,7 +48,7 @@ Single, consistent ring: `2px solid primary`, `outline-offset: 2px`, applied thr
 Short (160 ms, ease-out) fades for page changes and focus; no parallax, no looping animation. `prefers-reduced-motion: reduce` collapses all animation/transition durations globally (implemented in `global.css`). Hero image crossfades and poster elevation arrive with Phase 3 and follow the same rule.
 
 ## 6. Components
-Implemented: `TheamaAppShell`, `TheamaSidebar`, `TheamaBottomNavigation`, `BrandLogo`, `ConnectionChip`, `EmptyLibraryState`, `SectionPage`, `ServiceStatusCard`, `ServiceControls`, `ServiceInstallDialog`, `RecoveryScreen`, `LogList`.
+Implemented: `TheamaAppShell`, `TheamaTopNavigation`, `TheamaBottomNavigation`, `BrandLogo`, `ConnectionChip`, `EmptyLibraryState`, `SectionPage`, `ServiceStatusCard`, `ServiceControls`, `ServiceInstallDialog`, `RecoveryScreen`, `LogList`.
 Planned (brief §13): `MediaPosterCard`, `MediaLandscapeCard`, `MediaCarousel`, `FeaturedHero`, `MediaDetailsHero`, `MetadataChips`, `CastCarousel`, `CollectionCarousel`, `SeasonSelector`, `EpisodeCard`, `ContinueWatchingCard`, `ScanProgressIndicator`, `PlayerSelectionDialog`, `MediaMatchingDialog`, `RenamePreviewDialog`, `SubtitleManager`, `LibrarySourceManager`. Cards get an **availability** variant (dimmed artwork + badge) for offline media.
 
 ## 7. Logo and icon
@@ -57,7 +57,7 @@ Planned (brief §13): `MediaPosterCard`, `MediaLandscapeCard`, `MediaCarousel`, 
 
 | Asset | Source (`packages/brand/src`) | Output (`packages/brand/assets`) | Used for |
 |---|---|---|---|
-| Mark | `logo-mark.svg` | same (SVG) | In-app brand mark (sidebar, splash) |
+| Mark | `logo-mark.svg` | same (SVG) | In-app brand mark (top navigation, app bar, splash) |
 | Lock-up | `logo-full.svg` | same | README/docs, marketing; mark + THEAMA / ΘΕΑΜΑ wordmark |
 | App icon | `icon.svg` (rounded square, dark radial background) | `icon-16…1024.png`, **`theama.ico`** (16–256) | Window, taskbar, installer, favicon |
 | Monochrome | `icon-monochrome.svg` | `tray-16/24/32.png` | Tray / small single-color uses |

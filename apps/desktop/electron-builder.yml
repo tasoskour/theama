@@ -26,8 +26,12 @@ win:
   target:
     - target: nsis
       arch: [x64]
-  # Not code-signed: Windows SmartScreen will warn on first run until a certificate is added (see docs/11-risks.md).
+  # Signed only when CSC_LINK (+ CSC_KEY_PASSWORD) are set in the environment; "yarn dist:signed" checks them first and
+  # "yarn verify:signature" checks the result. Without them the installer is unsigned and SmartScreen warns (docs/11-risks.md).
   signAndEditExecutable: true
+  signtoolOptions:
+    signingHashAlgorithms: [sha256]
+    rfc3161TimeStampServer: http://timestamp.digicert.com
 
 nsis:
   oneClick: false

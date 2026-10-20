@@ -59,6 +59,33 @@ test('opens, connects to the backend and shows the shell', async () => {
   await expect(page.getByRole('heading', { name: 'Welcome to Theama' })).toBeVisible()
 })
 
+test('uses the integrated desktop header without a native menu', async () => {
+  await expect(page.locator('.topnav')).toBeVisible()
+  await expect(page.locator('.v-navigation-drawer')).toHaveCount(0)
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link')).toHaveCount(7)
+  const chrome = await app.evaluate(({ BrowserWindow, Menu }) => ({
+    applicationMenu: Menu.getApplicationMenu() !== null,
+    menuVisible: BrowserWindow.getAllWindows()[0]?.isMenuBarVisible() ?? true,
+    background: BrowserWindow.getAllWindows()[0]?.getBackgroundColor(),
+  }))
+  expect(chrome.applicationMenu).toBe(false)
+  expect(chrome.menuVisible).toBe(false)
+  expect(['#0F0E0C', '#F6F1E7']).toContain(chrome.background)
+})
+
+test('desktop navigation shortcuts work without the native menu', async () => {
+  await page.keyboard.press('Control+2')
+  await expect(page).toHaveURL(/#\/movies$/)
+  await page.keyboard.press('Control+5')
+  await expect(page).toHaveURL(/#\/collections$/)
+  await page.keyboard.press('Control+,')
+  await expect(page).toHaveURL(/#\/settings\/general$/)
+  await page.keyboard.press('Control+Shift+L')
+  await expect(page).toHaveURL(/#\/settings\/advanced\/logs$/)
+  await page.keyboard.press('Control+1')
+  await expect(page).toHaveURL(/#\/$/)
+})
+
 test('the renderer is sandboxed and exposes only the typed bridge', async () => {
   const exposed = await page.evaluate(() => ({
     bridge: typeof (window as unknown as { theama?: unknown }).theama,
@@ -103,9 +130,23 @@ test('adds a media folder (Greek name), shows it online, changes its type and re
     await expect(film).toBeVisible({ timeout: 30_000 })
     await expect(film.getByText('Offline')).toHaveCount(0)
 
+    // A populated section keeps the add action visible, so more media folders can be added.
+    const addAnotherFolder = page.locator('.page-header').getByRole('button', { name: 'Add folder' })
+    await expect(addAnotherFolder).toBeVisible()
+    await addAnotherFolder.click()
+    await expect(page.getByRole('dialog', { name: 'Add a media folder' })).toBeVisible()
+    await page.getByRole('dialog', { name: 'Add a media folder' }).getByRole('button', { name: 'Cancel' }).click()
+
     // Open it: details with the guessed title, the file's facts, and a way back that restores focus to the card.
     await film.click()
     await expect(page.getByRole('heading', { name: 'Interstellar', level: 1 })).toBeVisible()
+    const detailColumns = await page.locator('.hero').evaluate((hero) => {
+      const poster = hero.querySelector('.hero__poster')!.getBoundingClientRect()
+      const info = hero.querySelector('.hero__info')!.getBoundingClientRect()
+      return { posterRight: poster.right, infoLeft: info.left, infoWidth: info.width }
+    })
+    expect(detailColumns.posterRight).toBeLessThan(detailColumns.infoLeft)
+    expect(detailColumns.infoWidth).toBeGreaterThan(300)
     await expect(page.getByText('Interstellar (2014).mkv').first()).toBeVisible()
     await expect(page.locator('[data-test="play"]')).toBeEnabled() // a real Play button now (the shell here has pretend players)
     await page.keyboard.press('Escape')
@@ -160,7 +201,7 @@ test('adds a media folder (Greek name), shows it online, changes its type and re
     await page.goto(page.url().split('#')[0] + '#/settings/library')
 
     // The same folder cannot be added twice.
-    await page.getByRole('button', { name: 'Add folder' }).first().click()
+    await page.locator('.head').getByRole('button', { name: 'Add folder' }).click()
     await page.getByRole('dialog', { name: 'Add a media folder' }).getByRole('button', { name: 'Add folder' }).click()
     await expect(page.getByText('That folder has already been added.')).toBeVisible()
     await page.getByRole('dialog', { name: 'Add a media folder' }).getByRole('button', { name: 'Cancel' }).click()
@@ -570,12 +611,16 @@ test('toggles between dark and light themes', async () => {
   await page.waitForTimeout(500)
   await page.getByRole('button', { name: 'Ανοιχτό' }).click()
   await expect(page.locator('.v-application')).toHaveClass(/v-theme--theamaLight/)
+  await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getBackgroundColor())).toBe('#F6F1E7')
   await page.getByRole('button', { name: 'Σκούρο' }).click()
   await expect(page.locator('.v-application')).toHaveClass(/v-theme--theamaDark/)
+  await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getBackgroundColor())).toBe('#0F0E0C')
 })
 
 test('mobile width switches to bottom navigation', async () => {
   await page.setViewportSize({ width: 420, height: 800 })
   await expect(page.locator('.v-bottom-navigation')).toBeVisible()
+  await expect(page.locator('.topnav')).toHaveCount(0)
+  await expect(page.locator('.appbar')).toBeVisible()
   await expect(page.locator('.v-navigation-drawer')).toHaveCount(0)
 })

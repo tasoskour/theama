@@ -29,6 +29,8 @@ export interface WalkOptions {
   recursive: boolean
   /** Roots of other library folders nested inside this one: they belong to their own source. */
   excludeRoots?: readonly string[]
+  /** Individual files deliberately hidden by the person. */
+  excludeFiles?: readonly string[]
   extensions?: ReadonlySet<string>
   isCancelled?: () => boolean
   onFile: (file: WalkedFile) => void
@@ -42,6 +44,7 @@ const MAX_DEPTH = 64
 export async function walkTree(options: WalkOptions): Promise<WalkReport> {
   const report: WalkReport = { unreadableDirs: [], diagnostics: [], aborted: false }
   const excluded = new Set((options.excludeRoots ?? []).map(pathKey))
+  const excludedFiles = new Set((options.excludeFiles ?? []).map(pathKey))
   let found = 0
 
   const note = (message: string): void => {
@@ -81,6 +84,7 @@ export async function walkTree(options: WalkOptions): Promise<WalkReport> {
       }
       if (!entry.isFile() || !isVideoFileName(entry.name, options.extensions)) continue
       const path = join(dir, entry.name)
+      if (excludedFiles.has(pathKey(path))) continue
       try {
         const st = await withTimeout(fs.stat(path, { bigint: true }))
         found++

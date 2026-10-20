@@ -82,7 +82,7 @@ All automated metadata tests use `tools/fake-tmdb/server.mjs`, a small local ser
 - **Tray** (installed app): enable *Keep Theama in the notification area*, close the window, find the icon near the clock (it may be in the hidden-icons flyout), click it, use *Quit*; sign out and in with *Start Theama when I sign in* on.
 
 ## 6. Manual checklist for the installer (not automated: needs an administrator's approval)
-1. `yarn dist`, copy `build/installer/Theama-Setup-<version>.exe` to a clean Windows 10/11 VM. SmartScreen warns (unsigned): *More info → Run anyway*.
+1. `yarn dist` (or `yarn dist:signed`, see below), copy `build/installer/Theama-Setup-<version>.exe` to a clean Windows 10/11 VM. Unsigned, SmartScreen warns: *More info → Run anyway*. Signed, check *Properties → Digital Signatures* shows your name and a timestamp.
 2. Install (UAC). Start menu and desktop shortcuts exist; the app opens and offers to install the service; install it (account choice, UAC) and check *Running*.
 3. Add a folder, let it scan, make a backup. Reboot: the service starts and the library is intact.
 4. Install a **newer** build over it: the service is stopped, files replaced, the service started again, the library intact, a *Before an upgrade* backup exists if the database layout changed.

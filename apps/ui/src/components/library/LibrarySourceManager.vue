@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiFolderPlusOutline, mdiTrashCanOutline } from '@mdi/js'
-import type { LibrarySource, LibraryType, SourceAvailability } from '@theama/contracts'
+import { mdiClose, mdiEyeOffOutline, mdiFolderOpenOutline, mdiFolderPlusOutline, mdiTrashCanOutline } from '@mdi/js'
+import type { ExclusionKind, LibrarySource, LibraryType, SourceAvailability } from '@theama/contracts'
+import { getBridge } from '@/api/bridge'
 import { useAddFolder } from '@/composables/useAddFolder'
 import { useLibraryStore } from '@/stores/library'
 import { useScansStore } from '@/stores/scans'
@@ -13,11 +14,19 @@ const { t, d, te } = useI18n()
 const library = useLibraryStore()
 const scans = useScansStore()
 // Opening this page re-checks every drive, so "Offline" is never stale here.
-onMounted(() => void library.load())
+onMounted(async () => {
+  await library.load()
+  await Promise.all(library.sources.map((source) => library.loadExclusions(source.id)))
+})
 const flow = useAddFolder()
+const bridge = getBridge()
 const snackbar = ref<string | null>(null)
 const pendingRemoval = ref<LibrarySource | null>(null)
 const removeOpen = ref(false)
+const exclusionSource = ref<number | null>(null)
+const exclusionPath = ref('')
+const exclusionKind = ref<ExclusionKind>('folder')
+const exclusionBusy = ref(false)
 
 const TYPES: LibraryType[] = ['movies', 'series', 'videos', 'auto']
 const STATUS_COLOR: Record<SourceAvailability, string> = { online: 'success', offline: 'error', unknown: 'secondary' }
@@ -36,6 +45,27 @@ async function confirmRemove(): Promise<void> {
   const source = pendingRemoval.value
   removeOpen.value = false
   if (source && (await library.remove(source.id))) snackbar.value = t('library.removed')
+}
+
+async function toggleExclusions(sourceId: number): Promise<void> {
+  exclusionSource.value = exclusionSource.value === sourceId ? null : sourceId
+  exclusionPath.value = ''
+  if (exclusionSource.value !== null) await library.loadExclusions(sourceId)
+}
+
+async function browseExclusion(): Promise<void> {
+  const picked = await bridge?.pickFolder(t('library.exclusions.pickFolder'))
+  if (picked) exclusionPath.value = picked
+}
+
+async function addExclusion(sourceId: number): Promise<void> {
+  if (!exclusionPath.value.trim() || exclusionBusy.value) return
+  exclusionBusy.value = true
+  if (await library.addExclusion(sourceId, exclusionPath.value, exclusionKind.value)) {
+    exclusionPath.value = ''
+    snackbar.value = t('library.exclusions.added')
+  }
+  exclusionBusy.value = false
 }
 </script>
 
@@ -98,10 +128,44 @@ async function confirmRemove(): Promise<void> {
             inset
             @update:model-value="(v: boolean | null) => change(s, { enabled: v === true })"
           />
+          <v-btn variant="text" size="small" :prepend-icon="mdiEyeOffOutline" @click="toggleExclusions(s.id)">
+            {{ $t('library.exclusions.manage') }}
+            <v-badge v-if="library.exclusions[s.id]?.length" inline :content="library.exclusions[s.id]?.length ?? 0" color="secondary" />
+          </v-btn>
           <v-btn icon variant="text" color="error" :aria-label="`${$t('library.remove')}: ${s.path}`" @click="askRemove(s)">
             <v-icon :icon="mdiTrashCanOutline" />
           </v-btn>
         </div>
+        <v-expand-transition>
+          <div v-if="exclusionSource === s.id" class="source__exclusions">
+            <p class="text-body-2 mb-3">{{ $t('library.exclusions.hint') }}</p>
+            <div class="exclusion-form">
+              <v-btn-toggle v-model="exclusionKind" mandatory density="compact" color="primary">
+                <v-btn value="folder">{{ $t('library.exclusions.folder') }}</v-btn>
+                <v-btn value="file">{{ $t('library.exclusions.file') }}</v-btn>
+              </v-btn-toggle>
+              <v-text-field v-model="exclusionPath" :label="$t('library.exclusions.path')" density="compact" hide-details class="exclusion-path" @keyup.enter="addExclusion(s.id)" />
+              <v-btn v-if="bridge && exclusionKind === 'folder'" variant="tonal" :prepend-icon="mdiFolderOpenOutline" @click="browseExclusion">
+                {{ $t('library.browse') }}
+              </v-btn>
+              <v-btn color="primary" variant="tonal" :loading="exclusionBusy" :disabled="!exclusionPath.trim()" @click="addExclusion(s.id)">
+                {{ $t('library.exclusions.add') }}
+              </v-btn>
+            </div>
+            <p v-if="!library.exclusions[s.id]?.length" class="th-muted text-caption mt-3 mb-0">{{ $t('library.exclusions.none') }}</p>
+            <v-chip
+              v-for="e in library.exclusions[s.id] ?? []"
+              :key="e.id"
+              class="mt-3 mr-2 exclusion-chip"
+              closable
+              :close-icon="mdiClose"
+              :title="e.path"
+              @click:close="library.removeExclusion(e)"
+            >
+              {{ e.path }}
+            </v-chip>
+          </div>
+        </v-expand-transition>
       </li>
     </ul>
 
@@ -187,6 +251,23 @@ async function confirmRemove(): Promise<void> {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+}
+.source__exclusions {
+  flex: 1 0 100%;
+  padding-top: 16px;
+  border-top: 1px solid rgb(var(--v-theme-hairline));
+}
+.exclusion-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.exclusion-path {
+  flex: 1 1 280px;
+}
+.exclusion-chip {
+  max-width: min(100%, 640px);
 }
 .type-select {
   min-width: 170px;

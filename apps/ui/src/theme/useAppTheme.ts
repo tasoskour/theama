@@ -1,6 +1,7 @@
 import { watchEffect, onScopeDispose, ref } from 'vue'
 import { useTheme } from 'vuetify'
 import type { ThemePreference } from '@theama/contracts'
+import { getBridge } from '@/api/bridge'
 import { THEME_DARK, THEME_LIGHT } from './vuetify'
 
 /** Applies a theme preference ('system' follows the OS and reacts to changes). */
@@ -16,5 +17,6 @@ export function useAppTheme(preference: () => ThemePreference): void {
     const pref = preference()
     const dark = pref === 'system' ? systemDark.value : pref === 'dark'
     theme.change(dark ? THEME_DARK : THEME_LIGHT)
+    void getBridge()?.setWindowTheme(dark ? 'dark' : 'light').catch(() => undefined)
   })
 }

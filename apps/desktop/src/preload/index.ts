@@ -12,6 +12,7 @@ const bridge: TheamaBridge = {
     get: () => ipcRenderer.invoke(IPC.desktopGet),
     set: (patch) => ipcRenderer.invoke(IPC.desktopSet, patch),
   },
+  setWindowTheme: (theme) => ipcRenderer.invoke(IPC.windowSetTheme, { theme }),
   openPath: (path) => ipcRenderer.invoke(IPC.openPath, { path }),
   showItemInFolder: (path) => ipcRenderer.invoke(IPC.showItemInFolder, { path }),
   service: {
@@ -38,11 +39,6 @@ const bridge: TheamaBridge = {
     addCustom: () => ipcRenderer.invoke(IPC.playersAddCustom),
     remove: (id) => ipcRenderer.invoke(IPC.playersRemove, { id }),
     play: (request) => ipcRenderer.invoke(IPC.playersPlay, request),
-  },
-  onNavigate: (listener) => {
-    const handler = (_e: unknown, route: string) => listener(route)
-    ipcRenderer.on(IPC.evNavigate, handler)
-    return () => ipcRenderer.off(IPC.evNavigate, handler)
   },
 }
 

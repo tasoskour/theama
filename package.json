@@ -29,6 +29,8 @@
     "tmdb:fake": "node tools/fake-tmdb/server.mjs",
     "perf": "tsx tools/perf/perf.ts",
     "dist": "yarn build && yarn workspace @theama/desktop run dist",
+    "dist:signed": "node tools/package/signing.mjs check && yarn dist && node tools/package/signing.mjs verify",
+    "verify:signature": "node tools/package/signing.mjs verify",
     "pack:dir": "yarn build && yarn workspace @theama/desktop run pack:dir",
     "test:packaged": "yarn pack:dir && yarn workspace @theama/desktop run test:packaged"
   },

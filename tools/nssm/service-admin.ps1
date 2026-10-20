@@ -78,7 +78,10 @@ function Install-TheamaService {
   if ($LASTEXITCODE -ne 0) { throw "Setting permissions on $DataDir failed (icacls exit code $LASTEXITCODE)." }
 
   $logs = Join-Path $DataDir 'logs'
-  Invoke-Nssm install $ServiceName $NodeExe $ServerEntry
+  Invoke-Nssm install $ServiceName $NodeExe
+  # NSSM does not quote what follows the program, and PowerShell 5.1 mangles embedded quotes passed to a native command, so
+  # a path with a space ("C:\Program Files\Theama\...") would reach Node as "C:\Program". Write the quoted value to the service's registry key.
+  Set-ItemProperty -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName\Parameters" -Name AppParameters -Value ('"' + $ServerEntry + '"')
   Invoke-Nssm set $ServiceName AppDirectory (Split-Path -Parent $ServerEntry)
   Invoke-Nssm set $ServiceName DisplayName 'Theama Library Service'
   Invoke-Nssm set $ServiceName Description 'Indexes and serves the Theama media library. Safe to leave running when the Theama window is closed.'

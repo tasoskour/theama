@@ -8,6 +8,7 @@ import { openDatabase } from './db/client'
 import { createLogger } from './log/logger'
 import { EventsHub } from './events-hub'
 import { LibrarySourceRepo } from './library/sources'
+import { LibraryExclusionRepo } from './library/exclusions'
 import { applyPendingRestore, backupBeforeMigration, BackupService } from './backup/backup'
 import { CollectionRepo } from './collections/store'
 import { FileJournal } from './files/journal'
@@ -60,6 +61,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   // The saved log detail applies unless the environment sets a level explicitly (as development scripts and tests do).
   if (!config.logLevelPinned) logger.level = settings.get().logDetail
   const library = new LibrarySourceRepo(handle.db)
+  const exclusions = new LibraryExclusionRepo(handle.db, library)
   const files = new MediaFileRepo(handle.db, handle.raw)
   const jobs = new ScanJobRepo(handle.db)
   const metadataRepo = new MetadataRepo(handle.raw)
@@ -98,6 +100,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   })
   const scans = new ScanManager({
     library,
+    exclusions,
     files,
     jobs,
     probe: ffprobePath ? createFfprobeRunner({ command: ffprobePath }) : null,
@@ -128,6 +131,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     settings,
     serviceEvents,
     library,
+    exclusions,
     files,
     titles,
     collections,

@@ -19,12 +19,12 @@ flowchart TD
 
 | Pattern | Desktop (≥ 960 px) | Narrow / mobile (< 960 px) |
 |---|---|---|
-| Primary nav | Persistent left sidebar: Home, Movies, Series, My Videos, Search, Collections; Settings + connection status pinned to the bottom | Top app bar (logo + connection chip) and **bottom navigation**: Home, Movies, Series, My Videos, Search; Collections and Settings live under a "more" menu |
+| Primary nav | Horizontal themed window bar: brand, all primary destinations and connection status; native window controls remain at the right | Top app bar (logo + connection chip) and **bottom navigation**: Home, Movies, Series, My Videos, Search; Collections and Settings live under a "more" menu |
 | Settings | Section list on the left, content on the right | Section list becomes a horizontal scroller above the content |
 | Details | Hero with backdrop, side-by-side layout | Stacked, thumb-reachable primary action |
 | Hover actions | Quick details + play + more on hover **and** focus | Never hover-dependent; actions always reachable by tap |
 
-Implemented: sidebar, bottom navigation, app bar, settings layout, recovery screen, **Home rails, poster grids for Movies / Series / My Videos, title details (movies and series with seasons), and Search**. Posters are generated placeholders until Phase 4 brings real artwork.
+Implemented: desktop horizontal navigation integrated with themed window controls, mobile bottom navigation and app bar, settings layout, recovery screen, **Home rails, poster grids for Movies / Series / My Videos, title details (movies and series with seasons), and Search**. Media browsing pages expand to 1800 px so wide windows show more cards. Posters are generated placeholders until Phase 4 brings real artwork.
 
 ## 2. Screen specifications
 
@@ -36,7 +36,7 @@ Implemented: sidebar, bottom navigation, app bar, settings layout, recovery scre
 
 **Search** — focus the field on open; debounced, grouped results (titles, series, episodes, people, genres, tags, collections), keyboard-navigable, recent searches in local storage. *(Built: route + field + empty state; indexing is Phase 3.)*
 
-**Notification area (built).** Settings → General → *Desktop app*: *Keep Theama in the notification area when I close the window* (the close button hides the window; the tray icon's click or *Open Theama* brings it back; *Quit* in the tray or the File menu really quits; the tray's tooltip and menu name the service's state) and *Start Theama when I sign in to Windows* (starts to the tray if the first option is on; only the installed app can register this). The background service runs whichever you choose. **Log detail** (Errors only / Warnings and errors / Normal / Detailed) changes how much the service logs at once; a level set in the environment wins over it.
+**Notification area (built).** Settings → General → *Desktop app*: *Keep Theama in the notification area when I close the window* (the close button hides the window; the tray icon's click or *Open Theama* brings it back; *Quit* in the tray really quits; the tray's tooltip and menu name the service's state) and *Start Theama when I sign in to Windows* (starts to the tray if the first option is on; only the installed app can register this). The background service runs whichever you choose. **Log detail** (Errors only / Warnings and errors / Normal / Detailed) changes how much the service logs at once; a level set in the environment wins over it.
 
 **Accessibility (built, audited).** Every page and dialog is audited with axe-core in both themes and both languages (`apps/desktop/e2e/a11y.spec.ts`). Things it found and that are now rules of the app: navigation lists hold links, so they are not marked as lists; a card's accessible name contains its visible words (the generated poster's words are painted with CSS, not written into the page, and small badges are painted from `data-text`); a button's name starts with its visible text ("This one: Doctor Who 2005"); every select has a name; on the light theme secondary text uses 72 % emphasis (Vuetify's 60 % was 3.5:1 on the warm paper colour).
 
@@ -65,10 +65,10 @@ Global shortcuts (implemented in `useGlobalShortcuts`):
 | `/` or `Ctrl+F` | Open search (`/` ignored while typing in a field) |
 | `Alt+←` | Back |
 | `Backspace` / `Esc` | Back, **only** when no field is focused and no dialog/menu is open |
-| `Ctrl+1…5`, `Ctrl+,`, `Ctrl+Shift+L` | Native menu accelerators: sections, settings, log history |
+| `Ctrl+1…5`, `Ctrl+,`, `Ctrl+Shift+L` | Sections, settings, log history |
 | `Tab` / `Shift+Tab` | Standard focus order; every control has a visible focus ring (2 px bronze, offset) |
 
-Rails and grids (**built**): each rail or grid is one tab stop; `←/→` move within it, `↑/↓` move between rails keeping the column index, `Enter` opens, `Space` plays when a play action exists. Grids use `←/→/↑/↓`, `Home/End`, `PageUp/PageDown` (Down from a short last row lands on the last card). Returning with Back / Alt+←/ Esc restores the list, scroll position and focused card; opening a page fresh from the sidebar does not (the router tells us which it was). Esc/Backspace from a details page returns to the list. Down from the search box jumps into the first result.
+Rails and grids (**built**): each rail or grid is one tab stop; `←/→` move within it, `↑/↓` move between rails keeping the column index, `Enter` opens, `Space` plays when a play action exists. Grids use `←/→/↑/↓`, `Home/End`, `PageUp/PageDown` (Down from a short last row lands on the last card). Returning with Back / Alt+←/ Esc restores the list, scroll position and focused card; opening a page fresh from the top navigation does not (the router tells us which it was). Esc/Backspace from a details page returns to the list. Down from the search box jumps into the first result.
 
 **Identification (built).** Cards show the provider's poster once a title is identified (the generated poster stays until the image has loaded, and if it never does). A small `?` marks titles Theama could not settle; the card's accessible name says *Not identified*. The title page shows a banner for *ambiguous* ("Which one is this?" → **Choose**) and *unmatched* titles, a quiet line for matched ones ("Identified automatically using TMDB", with a *Locked* chip after a manual choice), and an **Identification** menu: *Change match…*, *Refresh details*, *Clear match*, *Unlock*. The **Identify** dialog starts from the name found in the files, searches straight away, and lists poster, title, year, original title and a three-line description per candidate; choosing one locks it. Home shows a dismissible card inviting the user to add a TMDB key while none is set.
 

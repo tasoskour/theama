@@ -3,7 +3,7 @@ import { rename, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { LibraryStatus, MediaFilePage, ScanJob, ScanJobList } from '@theama/contracts'
+import { LibraryExclusionList, LibraryStatus, MediaFilePage, ScanJob, ScanJobList, TitlePage } from '@theama/contracts'
 import { startServer, type RunningServer } from '../bootstrap'
 import { loadConfig } from '../config'
 
@@ -103,6 +103,28 @@ describe('scanning through the API', () => {
     await waitForScans()
     const latest = ScanJobList.parse(await get('/scans')).items[0]!
     expect(latest.summary).toMatchObject({ new: 1, moved: 1, missing: 0 })
+    expect((await files()).total).toBe(6)
+  })
+
+  it('hides titles and subfolders across rescans, then restores them without touching disk', async () => {
+    const titles = TitlePage.parse(await get('/library/titles?limit=200')).items
+    const dune = titles.find((title) => title.title === 'Dune Part Two')!
+    expect((await post('/library/titles/hide', { key: dune.key })).status).toBe(200)
+    expect((await files()).items.some((file) => file.title === 'Dune Part Two')).toBe(false)
+
+    const darkFolder = join(media, 'Dark')
+    expect((await post(`/library/sources/${sourceId}/exclusions`, { path: darkFolder, kind: 'folder' })).status).toBe(201)
+    expect((await files()).items.some((file) => file.title === 'Dark')).toBe(false)
+    expect((await post(`/library/sources/${sourceId}/scan`)).status).toBe(202)
+    await waitForScans()
+    expect((await files()).items.map((file) => file.title)).not.toContain('Dark')
+
+    const saved = LibraryExclusionList.parse(await get(`/library/sources/${sourceId}/exclusions`)).items
+    expect(saved).toHaveLength(2)
+    for (const exclusion of saved) {
+      expect((await fetch(`${base}/library/exclusions/${exclusion.id}`, { method: 'DELETE', headers: auth() })).status).toBe(200)
+      await waitForScans()
+    }
     expect((await files()).total).toBe(6)
   })
 

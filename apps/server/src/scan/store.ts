@@ -256,7 +256,7 @@ export class MediaFileRepo {
   }
 
   countAvailable(): number {
-    return (this.raw.prepare("SELECT COUNT(*) AS n FROM media_file WHERE kind <> 'extra' AND state = 'available'").get() as { n: number }).n
+    return (this.raw.prepare("SELECT COUNT(*) AS n FROM media_file WHERE kind <> 'extra' AND state = 'available' AND excluded = 0").get() as { n: number }).n
   }
 
   list(query: MediaFileQuery): MediaFilePage {
@@ -264,6 +264,7 @@ export class MediaFileRepo {
     const where: string[] = []
     const params: (string | number)[] = []
 
+    where.push('f.excluded = 0')
     if (query.kind) {
       where.push('f.kind = ?')
       params.push(query.kind)

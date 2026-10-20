@@ -12,6 +12,7 @@ export const IPC = {
   pickBackupFile: 'dialog:pickBackup',
   desktopGet: 'desktop:get',
   desktopSet: 'desktop:set',
+  windowSetTheme: 'window:setTheme',
   openPath: 'shell:openPath',
   showItemInFolder: 'shell:showItemInFolder',
   appInfo: 'app:info',
@@ -32,8 +33,6 @@ export const IPC = {
   playersPlay: 'players:play',
   /** Main to renderer push: service status changed. */
   evServiceStatus: 'ev:service-status',
-  /** Main to renderer push: native menu asked to navigate. */
-  evNavigate: 'ev:navigate',
 } as const
 
 export const AppInfo = z.object({
@@ -64,6 +63,8 @@ export const DesktopSettings = z.object({
 export type DesktopSettings = z.infer<typeof DesktopSettings>
 export const DesktopSettingsPatch = z.object({ closeToTray: z.boolean().optional(), startWithWindows: z.boolean().optional() })
 export type DesktopSettingsPatch = z.infer<typeof DesktopSettingsPatch>
+export const WindowThemeRequest = z.object({ theme: z.enum(['dark', 'light']) })
+export type WindowTheme = z.infer<typeof WindowThemeRequest>['theme']
 
 export const PlayerKind = z.enum(['vlc', 'mpv', 'mpc-hc', 'mpc-be', 'potplayer', 'system', 'custom'])
 export type PlayerKind = z.infer<typeof PlayerKind>
@@ -106,7 +107,7 @@ export type ServiceActionResult = z.infer<typeof ServiceActionResult>
 /** The object exposed to the renderer as window.theama. */
 export interface TheamaBridge {
   appInfo(): Promise<AppInfo>
-  /** Tells the main process which language to use for native menus and dialogs. */
+  /** Tells the main process which language to use for native dialogs and tray UI. */
   setLanguage(language: UiLanguage): Promise<void>
   pickFolder(title?: string): Promise<string | null>
   /** A native file picker for a Theama backup (.db). Resolves to the chosen path, or null if cancelled. */
@@ -115,6 +116,8 @@ export interface TheamaBridge {
     get(): Promise<DesktopSettings>
     set(patch: DesktopSettingsPatch): Promise<DesktopSettings>
   }
+  /** Keeps Electron's native window controls in step with the resolved UI theme. */
+  setWindowTheme(theme: WindowTheme): Promise<void>
   openPath(path: string): Promise<void>
   showItemInFolder(path: string): Promise<void>
   service: {
@@ -140,5 +143,4 @@ export interface TheamaBridge {
     remove(id: string): Promise<PlayerInfo[]>
     play(request: PlayRequest): Promise<PlayResult>
   }
-  onNavigate(listener: (route: string) => void): () => void
 }

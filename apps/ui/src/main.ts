@@ -8,7 +8,6 @@ import App from './App.vue'
 import { i18n, setLanguage } from './i18n'
 import { router } from './router'
 import { vuetify } from './theme/vuetify'
-import { getBridge } from './api/bridge'
 import { useConnectionStore } from './stores/connection'
 
 const app = createApp(App)
@@ -36,6 +35,3 @@ app.config.errorHandler = (err) => {
 }
 window.addEventListener('error', (e) => reportError('error', e.error ?? e.message))
 window.addEventListener('unhandledrejection', (e) => reportError('unhandledrejection', e.reason))
-
-// The native Service / View menus ask the renderer to navigate.
-getBridge()?.onNavigate((route) => void router.push(route))

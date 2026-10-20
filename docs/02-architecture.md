@@ -74,7 +74,7 @@ Interactive actions (launch VLC, open Explorer, folder picker) are done by the *
 - `DevProcessController` — development/e2e; runs the server as a child process with the same start/stop/status semantics (graceful stop via a stdin message).
 
 ### Packaged layout (Phase 7)
-`yarn dist` stages everything under `build/stage` (`tools/package/stage.mjs`) and electron-builder makes `build/installer/Theama-Setup-<version>.exe` (NSIS, per-machine, not signed). Installed, next to `Theama.exe`:
+`yarn dist` stages everything under `build/stage` (`tools/package/stage.mjs`) and electron-builder makes `build/installer/Theama-Setup-<version>.exe` (NSIS, per-machine; unsigned unless a certificate is configured, see *Signing* below). Installed, next to `Theama.exe`:
 
 ```
 resources/app.asar          the desktop shell (main + preload bundles; no node_modules)
@@ -86,6 +86,8 @@ resources/ffprobe/          ffprobe.exe + FFmpeg's licence and readme
 resources/THIRD-PARTY-NOTICES.txt, icon.ico
 ```
 User data stays in `%ProgramData%\Theama` (database, backups, logs, secrets, artwork cache), so upgrades and uninstalls never touch it unless the person asks. `THEAMA_CONTROLLER=process` runs the packaged Node + server as a plain child of the app (no Windows service); it is what the packaged smoke test uses.
+
+**Signing.** The certificate is never in the repository. With `CSC_LINK` (path to a .pfx, or an https URL) and `CSC_KEY_PASSWORD` in the environment, `yarn dist:signed` builds, signs every executable electron-builder touches (Theama.exe, the bundled node/nssm/ffprobe, the uninstaller, the installer) with SHA-256 and an RFC 3161 timestamp (`signtoolOptions` in `electron-builder.yml`), then runs `yarn verify:signature` (`tools/package/signing.mjs`), which fails if the installer is unsigned. Plain `yarn dist` still produces an unsigned installer.
 
 ## 4. Local trust model
 

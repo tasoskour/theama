@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { mdiFolderPlusOutline } from '@mdi/js'
 import type { LibraryType, TitleKind } from '@theama/contracts'
 import { useAddFolder } from '@/composables/useAddFolder'
 import { useTitles } from '@/composables/useTitles'
@@ -35,13 +36,28 @@ const { total, q, hideUnavailable, loaded } = list
 const showList = computed(() => kind !== null && (total.value > 0 || q.value.trim() !== '' || hideUnavailable.value))
 const showContent = computed(() => kind === null && props.hasContent === true)
 const nothingOfKind = computed(() => kind !== null && loaded.value && !showList.value && library.count > 0 && !scans.scanning)
+const canAddMediaFolder = computed(() => ['home', 'movies', 'series', 'videos'].includes(props.sectionKey))
+// Once onboarding is over, keep folder management within reach instead of
+// hiding its only entry point with the empty state.
+const showHeaderAdd = computed(() => canAddMediaFolder.value && library.count > 0)
 </script>
 
 <template>
-  <div class="th-page">
-    <header class="mb-6">
-      <p class="th-eyebrow mb-2">{{ $t('app.tagline') }}</p>
-      <h1 class="th-display page-title">{{ $t(titleKey) }}</h1>
+  <div class="th-page th-page--wide">
+    <header class="page-header mb-6">
+      <div>
+        <p class="th-eyebrow mb-2">{{ $t('app.tagline') }}</p>
+        <h1 class="th-display page-title">{{ $t(titleKey) }}</h1>
+      </div>
+      <v-btn
+        v-if="showHeaderAdd"
+        color="primary"
+        variant="tonal"
+        :prepend-icon="mdiFolderPlusOutline"
+        @click="flow.begin()"
+      >
+        {{ $t('library.add') }}
+      </v-btn>
     </header>
     <slot name="toolbar" />
 
@@ -78,6 +94,12 @@ const nothingOfKind = computed(() => kind !== null && loaded.value && !showList.
 </template>
 
 <style scoped>
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
 .page-title {
   font-size: clamp(2rem, 4vw, 3rem);
   margin: 0;
@@ -103,5 +125,10 @@ const nothingOfKind = computed(() => kind !== null && loaded.value && !showList.
 .scanning__title {
   font-size: 1.5rem;
   margin: 12px 0 0;
+}
+@media (max-width: 600px) {
+  .page-header {
+    align-items: flex-start;
+  }
 }
 </style>

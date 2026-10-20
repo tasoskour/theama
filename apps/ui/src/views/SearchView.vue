@@ -73,24 +73,31 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
 </script>
 
 <template>
-  <div class="th-page">
+  <div class="th-page th-page--wide">
     <header class="mb-6">
       <p class="th-eyebrow mb-2">{{ $t('app.tagline') }}</p>
       <h1 class="th-display page-title">{{ $t('nav.search') }}</h1>
     </header>
 
-    <v-text-field
-      ref="input"
-      v-model="text"
-      :prepend-inner-icon="mdiMagnify"
-      :label="$t('search.label')"
-      :hint="$t('search.hint')"
-      persistent-hint
-      clearable
-      autofocus
-      class="field"
-      @keydown.down.prevent="toResults"
-    />
+    <div class="search-panel th-filter-panel" role="search">
+      <v-text-field
+        ref="input"
+        v-model="text"
+        :prepend-inner-icon="mdiMagnify"
+        :label="$t('search.label')"
+        :hint="$t('search.hint')"
+        persistent-hint
+        clearable
+        autofocus
+        variant="solo-filled"
+        bg-color="surface-bright"
+        autocomplete="off"
+        spellcheck="false"
+        data-gramm="false"
+        class="field th-search-control"
+        @keydown.down.prevent="toResults"
+      />
+    </div>
 
     <section v-if="!searching" class="start">
       <template v-if="recent.length > 0">
@@ -110,13 +117,13 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
     <template v-else>
       <p class="th-muted mb-2" aria-live="polite">{{ loading && !loaded ? $t('common.loading') : $t('titles.count', total) }}</p>
       <p v-if="loaded && !loading && total === 0 && foundCollections.items.value.length === 0" class="none th-muted">{{ $t('titles.noMatches') }}</p>
-      <section v-if="foundCollections.items.value.length > 0" class="group" data-test="collection-results">
+      <section v-if="foundCollections.items.value.length > 0" class="group th-results-enter" data-test="collection-results">
         <h2 class="th-display group__title">{{ $t('nav.collections') }}</h2>
         <ul class="found" role="list" :aria-label="$t('nav.collections')" @keydown="moveBetweenCards($event, '[data-collection-id]')">
           <li v-for="c in foundCollections.items.value" :key="c.id"><CollectionCard :collection="c" /></li>
         </ul>
       </section>
-      <section v-for="g in groups" :key="g.kind" class="group">
+      <section v-for="g in groups" :key="g.kind" class="group th-results-enter">
         <h2 class="th-display group__title">{{ $t(g.labelKey) }}</h2>
         <PosterGrid :titles="g.titles" :label="$t(g.labelKey)" />
       </section>
@@ -130,8 +137,11 @@ watch(input, (el) => el?.$el.querySelector('input')?.focus(), { once: true })
   margin: 0;
 }
 .field {
-  max-width: 640px;
-  margin-bottom: 16px;
+  width: 100%;
+}
+.search-panel {
+  max-width: 720px;
+  margin-bottom: 20px;
 }
 .start__head {
   display: flex;

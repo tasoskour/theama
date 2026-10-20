@@ -46,7 +46,7 @@ function created(detail: CollectionDetail): void {
 </script>
 
 <template>
-  <div class="th-page">
+  <div class="th-page th-page--wide">
     <header class="head">
       <div>
         <p class="th-eyebrow mb-2">{{ $t('app.tagline') }}</p>

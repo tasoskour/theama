@@ -4,7 +4,7 @@ import { useDisplay } from 'vuetify'
 import BrandLogo from './BrandLogo.vue'
 import ConnectionChip from './ConnectionChip.vue'
 import TheamaBottomNavigation from './TheamaBottomNavigation.vue'
-import TheamaSidebar from './TheamaSidebar.vue'
+import TheamaTopNavigation from './TheamaTopNavigation.vue'
 import RecoveryScreen from '@/components/service/RecoveryScreen.vue'
 import { useGlobalShortcuts } from '@/composables/useGlobalShortcuts'
 import { useConnectionStore } from '@/stores/connection'
@@ -33,7 +33,7 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
 </script>
 
 <template>
-  <TheamaSidebar v-if="!mobile" />
+  <TheamaTopNavigation v-if="!mobile" />
   <v-app-bar v-if="mobile" flat color="surface" class="th-hairline appbar" density="comfortable">
     <div class="px-4"><BrandLogo :size="28" /></div>
     <v-spacer />

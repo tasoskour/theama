@@ -133,7 +133,7 @@ const heroStyle = computed(() => {
 </script>
 
 <template>
-  <div class="th-page detail">
+  <div class="th-page th-page--wide detail">
     <v-btn variant="text" :prepend-icon="mdiArrowLeft" class="back" @click="back">{{ $t('collections.back') }}</v-btn>
 
     <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-4">{{ error }}</v-alert>

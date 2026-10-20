@@ -4,8 +4,8 @@ import type { TitleSummary } from '@theama/contracts'
 import { columnsFromOffsets, nextGridIndex, type NavKey } from '@/utils/gridNav'
 import PosterCard from './PosterCard.vue'
 
-const props = defineProps<{ titles: TitleSummary[]; label: string; hasMore?: boolean; loading?: boolean }>()
-const emit = defineEmits<{ loadMore: [] }>()
+const props = defineProps<{ titles: TitleSummary[]; label: string; hasMore?: boolean; loading?: boolean; hideable?: boolean }>()
+const emit = defineEmits<{ loadMore: []; hide: [title: TitleSummary] }>()
 
 const root = ref<HTMLElement | null>(null)
 const sentinel = ref<HTMLElement | null>(null)
@@ -20,7 +20,7 @@ function cards(): HTMLElement[] {
 
 function indexOfEvent(target: EventTarget | null): number {
   if (!(target instanceof HTMLElement)) return -1
-  const card = target.closest<HTMLElement>('[data-title-key]')
+  const card = target.closest<HTMLElement>('[data-title-key]') ?? target.closest<HTMLElement>('.card')?.querySelector<HTMLElement>('[data-title-key]') ?? null
   return card ? cards().indexOf(card) : -1
 }
 
@@ -72,7 +72,7 @@ watch(
   <div>
     <ul ref="root" class="grid" role="list" :aria-label="label" @keydown="onKeydown" @focusin="onFocusin">
       <li v-for="(t, i) in titles" :key="t.key" class="cell">
-        <PosterCard :title="t" :tabindex="i === active ? 0 : -1" />
+        <PosterCard :title="t" :tabindex="i === active ? 0 : -1" :hideable="hideable" @hide="emit('hide', t)" />
       </li>
     </ul>
     <div ref="sentinel" class="sentinel" aria-hidden="true" />

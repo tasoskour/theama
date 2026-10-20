@@ -46,6 +46,11 @@ async function load(): Promise<void> {
   }
 }
 
+async function onFileHidden(): Promise<void> {
+  await load()
+  if (missing.value) back()
+}
+
 watch([() => connection.phase, key], () => connection.phase === 'connected' && void load().then(() => nextTick(() => heading.value?.focus())), { immediate: true })
 const off = connection.onEvent((e) => {
   if (e.type === 'library.changed' || e.type === 'scan.finished') void load()
@@ -69,7 +74,7 @@ const posterSrc = computed(() => connection.assetUrl(meta.value?.posterUrl ?? su
 const heroStyle = computed(() => {
   const backdrop = connection.assetUrl(meta.value?.backdropUrl)
   if (!backdrop) return {}
-  const veil = 'linear-gradient(90deg, rgba(var(--v-theme-surface), 0.96), rgba(var(--v-theme-surface), 0.72))'
+  const veil = 'linear-gradient(90deg, rgba(var(--v-theme-surface), 0.76), rgba(var(--v-theme-surface), 0.94) 48%, rgba(var(--v-theme-surface), 0.98))'
   return { backgroundImage: `${veil}, url("${backdrop}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
 })
 const ratingText = computed(() => {
@@ -471,7 +476,7 @@ const metaChips = computed(() => {
                     <p v-if="infoFor(r.file)?.airDate" class="th-muted text-caption">{{ $t('match.aired', { date: infoFor(r.file)?.airDate }) }}</p>
                   </div>
                 </div>
-                <FileFacts :file="r.file" />
+                <FileFacts :file="r.file" @hidden="onFileHidden" />
               </div>
             </li>
           </template>
@@ -497,7 +502,7 @@ const metaChips = computed(() => {
               @played="onPlayed"
             />
           </div>
-          <FileFacts :file="f" />
+          <FileFacts :file="f" @hidden="onFileHidden" />
         </div>
       </section>
 
@@ -511,6 +516,7 @@ const metaChips = computed(() => {
 <style scoped>
 .detail {
   padding-top: 16px;
+  max-width: 1600px;
 }
 .back {
   margin-left: -12px;
@@ -518,17 +524,36 @@ const metaChips = computed(() => {
 }
 .hero {
   display: grid;
-  grid-template-columns: minmax(150px, 260px) minmax(0, 1fr);
-  gap: clamp(20px, 4vw, 48px);
-  align-items: end;
-  padding: clamp(16px, 3vw, 32px);
-  border-radius: calc(var(--th-radius) + 4px);
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+  padding: clamp(20px, 3vw, 40px);
+  border-radius: calc(var(--th-radius) + 8px);
   background: linear-gradient(135deg, rgb(var(--v-theme-surface-light)), rgb(var(--v-theme-surface)));
   border: 1px solid rgb(var(--v-theme-hairline));
+  overflow: hidden;
+}
+.hero__poster {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 240px;
+  min-width: 0;
+  align-self: start;
+}
+.hero__info {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  align-self: center;
+  padding-block: clamp(4px, 2vw, 24px);
 }
 .hero__title {
-  font-size: clamp(2rem, 4.5vw, 3.4rem);
-  margin: 4px 0 16px;
+  max-width: 22ch;
+  font-size: clamp(2.25rem, 4.5vw, 4rem);
+  line-height: 1.02;
+  overflow-wrap: anywhere;
+  margin: 6px 0 14px;
   outline: none;
 }
 .chips {
@@ -578,9 +603,10 @@ const metaChips = computed(() => {
   opacity: 0.85;
 }
 .overview {
-  max-width: 68ch;
-  margin: 16px 0 0;
-  line-height: 1.55;
+  max-width: 72ch;
+  margin: 20px 0 0;
+  line-height: 1.65;
+  text-wrap: pretty;
 }
 .match {
   margin-top: 16px;
@@ -641,8 +667,10 @@ const metaChips = computed(() => {
 }
 .cta {
   margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(var(--v-theme-hairline), 0.72);
   display: grid;
-  gap: 6px;
+  gap: 8px;
   justify-items: start;
 }
 .cta p {
@@ -678,7 +706,7 @@ const metaChips = computed(() => {
 .cta__row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 .ep__line {
@@ -773,13 +801,33 @@ const metaChips = computed(() => {
   text-align: center;
   padding: 64px 0;
 }
-@media (max-width: 700px) {
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(150px, 200px) minmax(0, 1fr);
+    gap: 24px;
+  }
+  .hero__poster {
+    max-width: 200px;
+  }
+  .hero__title {
+    font-size: clamp(2rem, 6vw, 3rem);
+  }
+}
+@media (max-width: 640px) {
   .hero {
     grid-template-columns: 1fr;
     align-items: start;
   }
   .hero__poster {
-    max-width: 200px;
+    width: min(58vw, 220px);
+    max-width: none;
+  }
+  .hero__info {
+    width: 100%;
+    padding-block: 0;
+  }
+  .hero__title {
+    max-width: none;
   }
   .ep__row {
     flex-wrap: wrap;

@@ -37,3 +37,27 @@ export const UpdateSourceRequest = z.object({
   enabled: z.boolean().optional(),
 })
 export type UpdateSourceRequest = z.infer<typeof UpdateSourceRequest>
+
+export const ExclusionKind = z.enum(['file', 'folder'])
+export type ExclusionKind = z.infer<typeof ExclusionKind>
+
+/** A file or subfolder deliberately left out of a library source. */
+export const LibraryExclusion = z.object({
+  id: z.number().int(),
+  sourceId: z.number().int(),
+  path: z.string(),
+  kind: ExclusionKind,
+  createdAt: IsoDate,
+})
+export type LibraryExclusion = z.infer<typeof LibraryExclusion>
+
+export const LibraryExclusionList = z.object({ items: z.array(LibraryExclusion) })
+export type LibraryExclusionList = z.infer<typeof LibraryExclusionList>
+
+export const CreateExclusionRequest = z.object({
+  path: z.string().min(1).max(32_000),
+  kind: ExclusionKind,
+})
+
+export const HiddenResult = z.object({ hidden: z.number().int().nonnegative() })
+export type HiddenResult = z.infer<typeof HiddenResult>

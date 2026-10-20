@@ -1,5 +1,5 @@
 import { win32 } from 'node:path'
-import { EMPTY_SUMMARY, type LibrarySource, type ScanPhase, type ScanSummary } from '@theama/contracts'
+import { EMPTY_SUMMARY, type LibraryExclusion, type LibrarySource, type ScanPhase, type ScanSummary } from '@theama/contracts'
 import { pathKey } from '../library/sources'
 import { parseMediaPath, titleKeyFor } from './filename'
 import { runPool, type ProbeFn } from './probe'
@@ -10,6 +10,7 @@ export interface ScanContext {
   source: LibrarySource
   /** Roots of other library folders nested inside this one; they are scanned as their own source. */
   nestedRoots: string[]
+  exclusions?: readonly LibraryExclusion[]
   files: MediaFileRepo
   /** null when FFprobe is not installed: files are listed without technical info. */
   probe: ProbeFn | null
@@ -78,7 +79,8 @@ export async function runScan(ctx: ScanContext): Promise<ScanOutcome> {
   const report = await walkTree({
     root: source.path,
     recursive: source.recursive,
-    excludeRoots: ctx.nestedRoots,
+    excludeRoots: [...ctx.nestedRoots, ...(ctx.exclusions ?? []).filter((e) => e.kind === 'folder').map((e) => e.path)],
+    excludeFiles: (ctx.exclusions ?? []).filter((e) => e.kind === 'file').map((e) => e.path),
     extensions: ctx.extensions,
     isCancelled: ctx.isCancelled,
     onFile: (f) => walked.push(f),
@@ -158,7 +160,7 @@ export async function runScan(ctx: ScanContext): Promise<ScanOutcome> {
   }
 
   // 3. Files that disappeared: flag, never delete, and only when we are sure the folder is still there.
-  const candidates = unseen.filter((r) => r.state === 'available' && !movedRowIds.has(r.id) && !report.unreadableDirs.some((d) => isUnder(r.path, d)))
+  const candidates = unseen.filter((r) => !r.excluded && r.state === 'available' && !movedRowIds.has(r.id) && !report.unreadableDirs.some((d) => isUnder(r.path, d)))
   let stillOnline = true
   if (candidates.length > 0) {
     stillOnline = await ctx.checkOnline()

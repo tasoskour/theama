@@ -110,6 +110,17 @@
     "removeTitle": "Remove this folder from Theama?",
     "removeBody": "Your files on disk are not touched. Titles from this folder will no longer appear in Theama.",
     "removeConfirm": "Remove folder",
+    "exclusions": {
+      "manage": "Exclusions",
+      "hint": "Excluded files and subfolders stay on disk and are ignored on every scan. Remove an exclusion to show them again.",
+      "folder": "Subfolder",
+      "file": "File",
+      "path": "Full file or subfolder path",
+      "pickFolder": "Choose a subfolder to exclude",
+      "add": "Exclude",
+      "added": "Exclusion added",
+      "none": "No exclusions for this folder."
+    },
     "errors": {
       "not_found": "That folder does not exist, or its drive is not connected.",
       "not_a_directory": "That path is a file, not a folder.",
@@ -140,6 +151,7 @@
   },
   "files": {
     "hideUnavailable": "Hide unavailable",
+    "hide": "Hide this file",
     "offline": "Offline",
     "offlineHint": "Its folder or drive is not connected right now. The title stays in your library and returns when the drive does.",
     "missing": "Missing",
@@ -179,6 +191,9 @@
       "year": "Year (newest first)"
     },
     "noMatches": "Nothing matches.",
+    "hide": "Hide {title}",
+    "hideHint": "Hide this title and exclude its files from future scans",
+    "hidden": "{title} hidden. You can restore it from Settings → Library → Exclusions.",
     "partlyHint": "Some files of this title are not available right now.",
     "partial": "{available} of {total} files available"
   },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PROFILES, SAMPLE_FRAMES, SLOW_FRAME_MS, isStruggling, pixelRatioFor, slowLimitFor, stepDown } from './quality'
+import { PROFILES, SAMPLE_FRAMES, SLOW_FRAME_MS, fxAllowed, isStruggling, pixelRatioFor, slowLimitFor, stepDown } from './quality'
 
 describe('quality profiles', () => {
   it('asks for more at each level', () => {
@@ -19,6 +19,21 @@ describe('quality profiles', () => {
     expect(stepDown('high')).toBe('medium')
     expect(stepDown('medium')).toBe('low')
     expect(stepDown('low')).toBeNull()
+  })
+})
+
+describe('fxAllowed', () => {
+  it('drops the costly full-screen effects on Low, but keeps the cheap vignette', () => {
+    for (const fx of ['aurora', 'nebula', 'fog', 'grid'] as const) {
+      expect(fxAllowed(fx, PROFILES.low)).toBe(false)
+      expect(fxAllowed(fx, PROFILES.medium)).toBe(true)
+      expect(fxAllowed(fx, PROFILES.high)).toBe(true)
+    }
+    expect(fxAllowed('flicker', PROFILES.low)).toBe(true)
+  })
+  it('follows the light-shaft switch for shafts', () => {
+    expect(fxAllowed('shafts', PROFILES.low)).toBe(false)
+    expect(fxAllowed('shafts', PROFILES.medium)).toBe(true)
   })
 })
 

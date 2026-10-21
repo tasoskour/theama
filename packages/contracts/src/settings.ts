@@ -16,6 +16,36 @@ export type VisualMode = z.infer<typeof VisualMode>
 export const GraphicsQuality = z.enum(['low', 'medium', 'high'])
 export type GraphicsQuality = z.infer<typeof GraphicsQuality>
 
+/**
+ * The 3D backdrop scenes. `classic` is the original one and the default; the kind scenes (movie, series, video)
+ * and the genre scenes are chosen by hand or, with `auto`, follow what is on screen.
+ */
+export const SCENE_IDS = [
+  'classic',
+  'movie',
+  'series',
+  'video',
+  'action',
+  'animation',
+  'comedy',
+  'crime',
+  'documentary',
+  'drama',
+  'family',
+  'fantasy',
+  'horror',
+  'romance',
+  'scifi',
+  'history',
+  'western',
+] as const
+export const SceneId = z.enum(SCENE_IDS)
+export type SceneId = z.infer<typeof SceneId>
+
+/** A fixed scene, or `auto` to follow the genre and the kind of title being looked at. */
+export const BackdropScene = z.enum(['auto', ...SCENE_IDS])
+export type BackdropScene = z.infer<typeof BackdropScene>
+
 /** Days of rotated NDJSON log files kept on disk. */
 /** How much the service writes to the log history. `debug` is for finding a problem and makes the logs large. */
 export const LogDetail = z.enum(['error', 'warn', 'info', 'debug'])
@@ -30,6 +60,11 @@ export const AppSettings = z.object({
   theme: ThemePreference.default('system'),
   visualMode: VisualMode.default('standard'),
   graphicsQuality: GraphicsQuality.default('medium'),
+  backdropScene: BackdropScene.default('classic'),
+  /** With `auto`: let the genre of what is on screen pick the scene. */
+  backdropByGenre: z.boolean().default(true),
+  /** With `auto`: let movie / series / video pick the scene. */
+  backdropByKind: z.boolean().default(true),
   logRetentionDays: LogRetentionDays.default(14),
   logDetail: LogDetail.default('info'),
   /** Language requested from the metadata provider; independent of the interface language. */
@@ -47,6 +82,9 @@ export const AppSettingsPatch = z.object({
   theme: ThemePreference.optional(),
   visualMode: VisualMode.optional(),
   graphicsQuality: GraphicsQuality.optional(),
+  backdropScene: BackdropScene.optional(),
+  backdropByGenre: z.boolean().optional(),
+  backdropByKind: z.boolean().optional(),
   logRetentionDays: LogRetentionDays.optional(),
   logDetail: LogDetail.optional(),
   metadataLanguage: MetadataLanguage.optional(),

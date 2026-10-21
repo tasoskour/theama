@@ -8,6 +8,7 @@ import SearchField from '@/components/common/SearchField.vue'
 import CollectionCard from '@/components/collections/CollectionCard.vue'
 import { useCollections } from '@/composables/useCollections'
 import { useGenres } from '@/composables/useGenres'
+import { useSceneHint } from '@/composables/useSceneHint'
 import { useTitles } from '@/composables/useTitles'
 import { moveBetweenCards } from '@/utils/gridNav'
 
@@ -37,6 +38,7 @@ const input = ref<{ focus: () => void } | null>(null)
 const genres = ref<string[]>([])
 const genreMode = ref<GenreMode>('any')
 const { genres: genreItems } = useGenres(() => undefined)
+useSceneHint(() => ({ genres: genres.value, genreOrder: 'listed' }))
 
 const hasText = computed(() => text.value.trim().length > 0)
 // Picking genres alone is a search too: it lists everything of those genres.

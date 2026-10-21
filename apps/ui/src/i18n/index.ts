@@ -1,5 +1,5 @@
 import { createI18n } from 'vue-i18n'
-import type { GraphicsQuality, UiLanguage, VisualMode } from '@theama/contracts'
+import type { BackdropScene, GraphicsQuality, UiLanguage, VisualMode } from '@theama/contracts'
 import en from './locales/en.json'
 import el from './locales/el.json'
 
@@ -15,6 +15,9 @@ export interface CachedPrefs {
   theme?: 'system' | 'dark' | 'light'
   visualMode?: VisualMode
   graphicsQuality?: GraphicsQuality
+  backdropScene?: BackdropScene
+  backdropByGenre?: boolean
+  backdropByKind?: boolean
 }
 
 /** Last-known preferences, read before the API answers so first paint is correct. */

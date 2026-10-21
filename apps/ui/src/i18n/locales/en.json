@@ -304,6 +304,91 @@
       "about": "About",
       "backup": "Backup"
     },
+    "backdrop": {
+      "title": "Backdrop scene",
+      "hint": "Pick the 3D scene behind the app. Classic is the default. Automatic changes the scene with what you are looking at.",
+      "gallery": "Backdrop scenes",
+      "default": "Default",
+      "auto": {
+        "name": "Automatic",
+        "hint": "Follows the genre, and whether you are in movies or series."
+      },
+      "byGenre": "Follow the genre",
+      "byGenreHint": "A horror film gets the horror scene, a comedy the comedy scene, and so on.",
+      "byKind": "Follow movies and series",
+      "byKindHint": "Movies, series and My videos each get their own scene when no genre applies.",
+      "autoOnly": "These apply when Automatic is selected.",
+      "scenes": {
+        "classic": {
+          "name": "Classic",
+          "hint": "Dust, soft light and drifting posters."
+        },
+        "movie": {
+          "name": "Cinema",
+          "hint": "A projector beam over a slow carousel of posters."
+        },
+        "series": {
+          "name": "Episode wall",
+          "hint": "Columns of cards drifting up and down in cool screen light."
+        },
+        "video": {
+          "name": "Home video",
+          "hint": "Warm, out-of-focus lights."
+        },
+        "action": {
+          "name": "Action",
+          "hint": "Rising embers and sparks."
+        },
+        "animation": {
+          "name": "Animation",
+          "hint": "Bright, colourful bokeh."
+        },
+        "comedy": {
+          "name": "Comedy",
+          "hint": "Falling confetti."
+        },
+        "crime": {
+          "name": "Crime & thriller",
+          "hint": "Neon rain and fog."
+        },
+        "documentary": {
+          "name": "Documentary",
+          "hint": "Calm, muted and slow."
+        },
+        "drama": {
+          "name": "Drama",
+          "hint": "Deep amber light."
+        },
+        "family": {
+          "name": "Family",
+          "hint": "Floating bubbles."
+        },
+        "fantasy": {
+          "name": "Fantasy",
+          "hint": "Fireflies under an aurora."
+        },
+        "horror": {
+          "name": "Horror",
+          "hint": "Red fog and a flickering dark."
+        },
+        "romance": {
+          "name": "Romance",
+          "hint": "Drifting petals and soft rose light."
+        },
+        "scifi": {
+          "name": "Sci-fi",
+          "hint": "A nebula over a glowing grid."
+        },
+        "history": {
+          "name": "History & war",
+          "hint": "Falling ash and sepia haze."
+        },
+        "western": {
+          "name": "Western",
+          "hint": "Warm dust and a low sun."
+        }
+      }
+    },
     "general": {
       "language": "Language",
       "languageHint": "Applies immediately; no restart needed.",

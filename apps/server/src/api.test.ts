@@ -133,6 +133,27 @@ describe('system and settings', () => {
     })
     expect(bad.status).toBe(400)
   })
+
+  it('persists the backdrop scene settings and keeps classic as the default', async () => {
+    const fresh = await body(await fetch(`${base}/settings`, { headers: auth() }))
+    expect(fresh.backdropScene).toBe('classic')
+    expect(fresh.backdropByGenre).toBe(true)
+    const put = await fetch(`${base}/settings`, {
+      method: 'PUT',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backdropScene: 'horror', backdropByGenre: false }),
+    })
+    expect(put.status).toBe(200)
+    const settings = await body(await fetch(`${base}/settings`, { headers: auth() }))
+    expect(settings.backdropScene).toBe('horror')
+    expect(settings.backdropByGenre).toBe(false)
+    const bad = await fetch(`${base}/settings`, {
+      method: 'PUT',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backdropScene: 'nope' }),
+    })
+    expect(bad.status).toBe(400)
+  })
 })
 
 describe('log history', () => {

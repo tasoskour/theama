@@ -2,11 +2,15 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useTheme } from 'vuetify'
+import type { SceneId, TitleKind } from '@theama/contracts'
 import { useImmersive } from '@/composables/useImmersive'
+import { sceneHint } from '@/composables/useSceneHint'
 import { useTitles } from '@/composables/useTitles'
 import { useConnectionStore } from '@/stores/connection'
+import { useSettingsStore } from '@/stores/settings'
 import { paletteFor } from '@/utils/artwork'
 import { stepDown } from './quality'
+import { kindFromRoute, resolveScene } from './resolve'
 import type { ImmersiveScene, PosterSource } from './scene'
 
 /** Gives up on 3D for the session after the graphics context has been lost this many times. */
@@ -17,9 +21,25 @@ const POSTER_POOL = 16
 const canvas = ref<HTMLCanvasElement | null>(null)
 const immersive = useImmersive()
 const connection = useConnectionStore()
+const settings = useSettingsStore()
 const route = useRoute()
 const theme = useTheme()
-const recent = useTitles({ kind: () => undefined, sort: 'added', limit: POSTER_POOL })
+
+/** What the page says about itself, with the kind its route implies when the page says nothing. */
+const context = computed(() => ({ ...sceneHint.value, kind: sceneHint.value.kind ?? kindFromRoute(route.name) }))
+const sceneId = computed<SceneId>(() =>
+  resolveScene(context.value, {
+    backdropScene: settings.settings.backdropScene,
+    backdropByGenre: settings.settings.backdropByGenre,
+    backdropByKind: settings.settings.backdropByKind,
+  }),
+)
+
+/** The movie, series and video scenes float posters of that kind; every other scene mixes (or, on Automatic, follows the page). */
+const KIND_OF_SCENE: Partial<Record<SceneId, TitleKind>> = { movie: 'movie', series: 'series', video: 'video' }
+const posterKind = computed<TitleKind | undefined>(() => KIND_OF_SCENE[sceneId.value] ?? (settings.settings.backdropScene === 'auto' ? (context.value.kind ?? undefined) : undefined))
+const recent = useTitles({ kind: () => posterKind.value, sort: 'added', limit: POSTER_POOL })
+watch(posterKind, () => void recent.reload())
 
 let scene: ImmersiveScene | null = null
 let unmounted = false
@@ -56,6 +76,7 @@ onMounted(async () => {
       canvas: el,
       profile: immersive.profile.value,
       dark: dark.value,
+      scene: sceneId.value,
       accent: accent.value,
       onStruggle: () => {
         const lower = stepDown(immersive.quality.value)
@@ -78,7 +99,8 @@ onMounted(async () => {
 })
 
 watch(() => immersive.profile.value, (p) => scene?.setProfile(p))
-watch(dark, (d) => scene?.setTheme(d))
+watch(dark, (d) => scene?.setDark(d))
+watch(sceneId, (id) => scene?.setScene(id))
 watch(accent, (a) => scene?.setAccent(a))
 watch(posters, (p) => scene?.setPosters(p))
 watch(
@@ -97,7 +119,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <canvas ref="canvas" class="backdrop" aria-hidden="true" data-test="immersive-backdrop" />
+  <canvas ref="canvas" class="backdrop" aria-hidden="true" data-test="immersive-backdrop" :data-scene="sceneId" />
 </template>
 
 <style scoped>

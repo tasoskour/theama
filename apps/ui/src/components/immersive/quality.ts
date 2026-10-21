@@ -12,12 +12,25 @@ export interface QualityProfile {
   lightShafts: boolean
   /** Frame-rate ceiling; 0 means the display's own rate. */
   maxFps: number
+  /** Full-screen shader effects that cost fill-rate (aurora, nebula, fog, grid). Off on Low. */
+  richLayers: boolean
 }
 
 export const PROFILES: Record<GraphicsQuality, QualityProfile> = {
-  low: { maxPixelRatio: 1, particles: 250, posterPlanes: 6, lightShafts: false, maxFps: 30 },
-  medium: { maxPixelRatio: 1.5, particles: 900, posterPlanes: 10, lightShafts: true, maxFps: 60 },
-  high: { maxPixelRatio: 2, particles: 2200, posterPlanes: 16, lightShafts: true, maxFps: 0 },
+  low: { maxPixelRatio: 1, particles: 250, posterPlanes: 6, lightShafts: false, maxFps: 30, richLayers: false },
+  medium: { maxPixelRatio: 1.5, particles: 900, posterPlanes: 10, lightShafts: true, maxFps: 60, richLayers: true },
+  high: { maxPixelRatio: 2, particles: 2200, posterPlanes: 16, lightShafts: true, maxFps: 0, richLayers: true },
+}
+
+/** The full-screen effects a scene can layer behind the posters. */
+export type BackdropFx = 'shafts' | 'aurora' | 'nebula' | 'fog' | 'grid' | 'flicker'
+
+const RICH_FX: ReadonlySet<BackdropFx> = new Set(['aurora', 'nebula', 'fog', 'grid'])
+
+/** Whether a profile can afford an effect: shafts follow their own switch, the heavy ones follow richLayers. */
+export function fxAllowed(fx: BackdropFx, profile: QualityProfile): boolean {
+  if (fx === 'shafts') return profile.lightShafts
+  return RICH_FX.has(fx) ? profile.richLayers : true
 }
 
 const ORDER: readonly GraphicsQuality[] = ['low', 'medium', 'high']

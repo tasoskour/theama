@@ -12,6 +12,7 @@ import RenameDialog from '@/components/files/RenameDialog.vue'
 import IdentifyDialog from '@/components/titles/IdentifyDialog.vue'
 import PlayButton from '@/components/titles/PlayButton.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
+import { useSceneHint } from '@/composables/useSceneHint'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
 import { usePlayersStore } from '@/stores/players'
@@ -68,6 +69,8 @@ const isSeries = computed(() => summary.value?.kind === 'series')
 const offline = computed(() => summary.value !== null && summary.value.availableCount === 0)
 
 const meta = computed(() => detail.value?.metadata ?? null)
+// The 3D backdrop (immersive mode) can follow this title's kind and its most characteristic genre.
+useSceneHint(() => ({ kind: summary.value?.kind ?? null, genres: meta.value?.genres ?? [], genreOrder: 'priority' }))
 const match = computed(() => detail.value?.match ?? null)
 const canIdentify = computed(() => summary.value !== null && summary.value.kind !== 'video')
 const posterSrc = computed(() => connection.assetUrl(meta.value?.posterUrl ?? summary.value?.posterUrl))

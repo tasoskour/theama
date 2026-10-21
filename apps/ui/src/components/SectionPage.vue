@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { mdiFolderPlusOutline } from '@mdi/js'
 import type { LibraryType, TitleKind } from '@theama/contracts'
 import { useAddFolder } from '@/composables/useAddFolder'
+import { useSceneHint } from '@/composables/useSceneHint'
 import { useTitles } from '@/composables/useTitles'
 import { useLibraryStore } from '@/stores/library'
 import { useScansStore } from '@/stores/scans'
@@ -35,6 +36,8 @@ const SECTION_KIND: Partial<Record<Section, TitleKind>> = { movies: 'movie', ser
 const kind = SECTION_KIND[props.sectionKey] ?? null
 const list = useTitles({ kind: () => kind, remember: true })
 const { total, q, genres, hideUnavailable, loaded, error } = list
+// The 3D backdrop (immersive mode) can follow the kind of title listed and the genres picked in the filter.
+useSceneHint(() => (kind ? { kind, genres: genres.value, genreOrder: 'listed' } : {}))
 
 /** Until the first answer is in, show a placeholder rather than a (wrong) empty state. */
 const pending = computed(() => props.loading ?? (kind !== null && !loaded.value && error.value === null))

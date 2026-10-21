@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { DesktopSettings, GraphicsQuality, LogDetail, ThemePreference, UiLanguage, VisualMode } from '@theama/contracts'
 import { getBridge } from '@/api/bridge'
 import { useImmersive } from '@/composables/useImmersive'
+import BackdropGallery from './BackdropGallery.vue'
 import { SUPPORTED_LANGUAGES } from '@/i18n'
 import { useConnectionStore } from '@/stores/connection'
 import { useSettingsStore } from '@/stores/settings'
@@ -105,6 +106,10 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
       <p v-if="immersive.wanted.value && immersive.block.value" class="hint" role="status" data-test="immersive-unavailable">
         {{ $t(`settings.general.immersiveUnavailable.${immersive.block.value}`) }}
       </p>
+    </div>
+
+    <div v-if="immersive.active.value" class="field th-form-section" data-test="backdrop-section">
+      <BackdropGallery @choose="(patch) => save(patch)" />
     </div>
 
     <div v-if="store.settings.visualMode === 'immersive'" class="field th-form-section" data-test="graphics-quality">

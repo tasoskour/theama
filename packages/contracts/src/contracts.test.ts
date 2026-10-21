@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { AppSettings, AppSettingsPatch, DEFAULT_SETTINGS, LogQuery, ServerEvent } from './index'
+import { AppSettings, AppSettingsPatch, DEFAULT_SETTINGS, LogQuery, SCENE_IDS, ServerEvent } from './index'
 
 describe('settings contract', () => {
   it('fills defaults', () => {
-    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'system', visualMode: 'standard', graphicsQuality: 'medium', logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}' })
+    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'system', visualMode: 'standard', graphicsQuality: 'medium', backdropScene: 'classic', backdropByGenre: true, backdropByKind: true, logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}' })
   })
   it('rejects unknown language', () => {
     expect(AppSettings.safeParse({ language: 'fr' }).success).toBe(false)
@@ -15,6 +15,24 @@ describe('settings contract', () => {
     expect(AppSettingsPatch.parse({ visualMode: 'immersive', graphicsQuality: 'high' })).toEqual({ visualMode: 'immersive', graphicsQuality: 'high' })
     expect(AppSettingsPatch.safeParse({ visualMode: '3d' }).success).toBe(false)
     expect(AppSettingsPatch.safeParse({ graphicsQuality: 'ultra' }).success).toBe(false)
+  })
+})
+
+describe('backdrop scene settings', () => {
+  it('keeps the original scene as the default', () => {
+    expect(DEFAULT_SETTINGS.backdropScene).toBe('classic')
+    expect(SCENE_IDS[0]).toBe('classic')
+  })
+  it('accepts auto and every scene, and nothing else', () => {
+    for (const id of ['auto', ...SCENE_IDS]) expect(AppSettingsPatch.parse({ backdropScene: id })).toEqual({ backdropScene: id })
+    expect(AppSettingsPatch.safeParse({ backdropScene: 'cartoon' }).success).toBe(false)
+  })
+  it('has unique scene ids', () => {
+    expect(new Set(SCENE_IDS).size).toBe(SCENE_IDS.length)
+  })
+  it('takes the two follow toggles as booleans', () => {
+    expect(AppSettingsPatch.parse({ backdropByGenre: false, backdropByKind: false })).toEqual({ backdropByGenre: false, backdropByKind: false })
+    expect(AppSettingsPatch.safeParse({ backdropByGenre: 'no' }).success).toBe(false)
   })
 })
 

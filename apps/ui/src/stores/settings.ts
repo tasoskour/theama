@@ -14,6 +14,9 @@ export const useSettingsStore = defineStore('settings', () => {
     theme: cached.theme ?? DEFAULT_SETTINGS.theme,
     visualMode: cached.visualMode ?? DEFAULT_SETTINGS.visualMode,
     graphicsQuality: cached.graphicsQuality ?? DEFAULT_SETTINGS.graphicsQuality,
+    backdropScene: cached.backdropScene ?? DEFAULT_SETTINGS.backdropScene,
+    backdropByGenre: cached.backdropByGenre ?? DEFAULT_SETTINGS.backdropByGenre,
+    backdropByKind: cached.backdropByKind ?? DEFAULT_SETTINGS.backdropByKind,
   })
   const loaded = ref(false)
   const saving = ref(false)
@@ -22,7 +25,15 @@ export const useSettingsStore = defineStore('settings', () => {
   function apply(next: AppSettings): void {
     settings.value = next
     setLanguage(next.language)
-    writeCachedPrefs({ language: next.language, theme: next.theme, visualMode: next.visualMode, graphicsQuality: next.graphicsQuality })
+    writeCachedPrefs({
+      language: next.language,
+      theme: next.theme,
+      visualMode: next.visualMode,
+      graphicsQuality: next.graphicsQuality,
+      backdropScene: next.backdropScene,
+      backdropByGenre: next.backdropByGenre,
+      backdropByKind: next.backdropByKind,
+    })
     void getBridge()?.setLanguage(next.language)
   }
 

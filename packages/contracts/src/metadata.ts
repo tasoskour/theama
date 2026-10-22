@@ -40,12 +40,19 @@ export const TitleMatch = z.object({
 })
 export type TitleMatch = z.infer<typeof TitleMatch>
 
-export const CastMember = z.object({ name: z.string(), character: z.string().nullable() })
+export const CastMember = z.object({ externalId: z.string(), name: z.string(), character: z.string().nullable() })
 export type CastMember = z.infer<typeof CastMember>
+
+export const Director = z.object({ externalId: z.string(), name: z.string() })
+export type Director = z.infer<typeof Director>
 
 /** A rating always says who gave it; a TMDB rating is never shown as an IMDb rating. */
 export const Rating = z.object({ source: z.string(), value: z.number(), votes: z.number().int() })
 export type Rating = z.infer<typeof Rating>
+
+/** A provider-selected trailer. Only YouTube is opened by the desktop shell. */
+export const ExternalVideo = z.object({ site: z.literal('youtube'), key: z.string().regex(/^[A-Za-z0-9_-]{11}$/) })
+export type ExternalVideo = z.infer<typeof ExternalVideo>
 
 export const TitleMetadata = z.object({
   provider: z.string(),
@@ -61,7 +68,9 @@ export const TitleMetadata = z.object({
   posterUrl: z.string().nullable(),
   backdropUrl: z.string().nullable(),
   cast: z.array(CastMember),
+  directors: z.array(Director),
   imdbId: z.string().nullable(),
+  trailer: ExternalVideo.nullable(),
   status: z.string().nullable(),
   /** Provider id of the official collection this movie belongs to, if any. */
   collectionId: z.string().nullable(),

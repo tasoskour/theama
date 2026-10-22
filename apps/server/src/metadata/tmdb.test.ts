@@ -42,10 +42,13 @@ describe('TmdbProvider', () => {
       year: 2014,
       runtimeMinutes: 169,
       imdbId: 'tt0816692',
+      trailer: { site: 'youtube', key: 'zSWdZVtXT7E' },
       genres: ['Adventure', 'Drama', 'Science Fiction'],
       rating: { value: 8.4, votes: 35000 },
     })
-    expect(t.cast[0]).toEqual({ name: 'Matthew McConaughey', character: 'Cooper' })
+    expect(t.cast[0]).toMatchObject({ name: 'Matthew McConaughey', character: 'Cooper' })
+    expect(t.directors[0]).toMatchObject({ name: 'Christopher Nolan' })
+    expect(fake.requests.at(-1)?.query).toMatchObject({ append_to_response: 'credits,external_ids,videos', include_video_language: 'en,null' })
   })
 
   it('fills fields missing in Greek from English, per field, and keeps Greek names', async () => {
@@ -60,7 +63,7 @@ describe('TmdbProvider', () => {
   it('reads a series with its seasons and episodes', async () => {
     const p = provider()
     const show = await p.fetchTitle('series', '95396', 'en-US')
-    expect(show).toMatchObject({ title: 'Severance', year: 2022, runtimeMinutes: 50, seasons: [1, 2] })
+    expect(show).toMatchObject({ title: 'Severance', year: 2022, runtimeMinutes: 50, imdbId: 'tt11280740', trailer: { site: 'youtube', key: 'xEQP4VVuyrY' }, seasons: [1, 2] })
     const s1 = await p.fetchSeason('95396', 1, 'en-US')
     expect(s1.map((e) => e.name)).toEqual(['Good News About Hell', 'Half Loop', 'In Perpetuity'])
     expect(s1[0]).toMatchObject({ season: 1, episode: 1, airDate: '2022-02-18', runtimeMinutes: 50 })

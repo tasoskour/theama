@@ -16,7 +16,7 @@ const fold = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
 /** @type {Record<string, any>[]} */
 const MOVIES = [
-  { id: 157336, title: 'Interstellar', original_title: 'Interstellar', release_date: '2014-11-05', runtime: 169, popularity: 140, vote_average: 8.4, vote_count: 35000, poster_path: '/interstellar.png', backdrop_path: '/interstellar-bg.png', imdb_id: 'tt0816692', genres: ['Adventure', 'Drama', 'Science Fiction'], tagline: 'Mankind was born on Earth. It was never meant to die here.', overview: 'A team of explorers travel through a wormhole in space.', cast: [['Matthew McConaughey', 'Cooper'], ['Anne Hathaway', 'Brand']], el: { overview: '', tagline: '', title: 'Interstellar' } },
+  { id: 157336, title: 'Interstellar', original_title: 'Interstellar', release_date: '2014-11-05', runtime: 169, popularity: 140, vote_average: 8.4, vote_count: 35000, poster_path: '/interstellar.png', backdrop_path: '/interstellar-bg.png', imdb_id: 'tt0816692', genres: ['Adventure', 'Drama', 'Science Fiction'], tagline: 'Mankind was born on Earth. It was never meant to die here.', overview: 'A team of explorers travel through a wormhole in space.', cast: [['Matthew McConaughey', 'Cooper'], ['Anne Hathaway', 'Brand']], directors: ['Christopher Nolan'], videos: [{ key: 'teaser00001', site: 'YouTube', type: 'Teaser', official: true }, { key: 'zSWdZVtXT7E', site: 'YouTube', type: 'Trailer', official: true }], el: { overview: '', tagline: '', title: 'Interstellar' } },
   { id: 841, title: 'Dune', original_title: 'Dune', release_date: '1984-12-14', runtime: 137, popularity: 30, vote_average: 6.1, vote_count: 1900, poster_path: '/dune84.png', imdb_id: 'tt0087182', genres: ['Science Fiction'], overview: 'A Duke’s son leads desert warriors.' },
   { id: 438631, title: 'Dune', original_title: 'Dune', release_date: '2021-09-15', runtime: 155, popularity: 100, vote_average: 7.8, vote_count: 11000, poster_path: '/dune21.png', imdb_id: 'tt1160419', genres: ['Science Fiction', 'Adventure'], overview: 'Paul Atreides travels to the dangerous planet Arrakis.' },
   { id: 693134, title: 'Dune: Part Two', original_title: 'Dune: Part Two', release_date: '2024-02-27', runtime: 167, popularity: 150, vote_average: 8.2, vote_count: 6000, poster_path: '/dune2.png', genres: ['Science Fiction'], overview: 'Paul Atreides unites with the Fremen.' },
@@ -35,7 +35,7 @@ const COLLECTIONS = {
 
 /** @type {Record<string, any>[]} */
 const SHOWS = [
-  { id: 95396, name: 'Severance', original_name: 'Severance', first_air_date: '2022-02-17', episode_run_time: [50], popularity: 160, vote_average: 8.4, vote_count: 3000, poster_path: '/severance.png', backdrop_path: '/severance-bg.png', genres: ['Drama', 'Sci-Fi & Fantasy'], tagline: 'Work-life balance, redefined.', overview: 'Mark leads a team of office workers whose memories have been surgically divided.', status: 'Returning Series', cast: [['Adam Scott', 'Mark Scout']], seasons: { 1: [['Good News About Hell', '2022-02-18'], ['Half Loop', '2022-02-18'], ['In Perpetuity', '2022-02-18']], 2: [['Hello, Ms. Cobel', '2025-01-17'], ['The Future Episode', '2099-01-01']] } },
+  { id: 95396, name: 'Severance', original_name: 'Severance', first_air_date: '2022-02-17', episode_run_time: [50], popularity: 160, vote_average: 8.4, vote_count: 3000, poster_path: '/severance.png', backdrop_path: '/severance-bg.png', imdb_id: 'tt11280740', genres: ['Drama', 'Sci-Fi & Fantasy'], tagline: 'Work-life balance, redefined.', overview: 'Mark leads a team of office workers whose memories have been surgically divided.', status: 'Returning Series', cast: [['Adam Scott', 'Mark Scout']], directors: ['Ben Stiller'], videos: [{ key: 'xEQP4VVuyrY', site: 'YouTube', type: 'Trailer', official: true }], seasons: { 1: [['Good News About Hell', '2022-02-18'], ['Half Loop', '2022-02-18'], ['In Perpetuity', '2022-02-18']], 2: [['Hello, Ms. Cobel', '2025-01-17'], ['The Future Episode', '2099-01-01']] } },
   { id: 70523, name: 'Dark', original_name: 'Dark', first_air_date: '2017-12-01', episode_run_time: [60], popularity: 90, vote_average: 8.4, vote_count: 5000, poster_path: '/dark.png', genres: ['Drama'], overview: 'A missing child sets four families on a frantic hunt.', seasons: { 1: [['Secrets', '2017-12-01'], ['Lies', '2017-12-01']] } },
   { id: 1000, name: 'Doctor Who', original_name: 'Doctor Who', first_air_date: '1963-11-23', episode_run_time: [25], popularity: 40, vote_average: 7.4, vote_count: 2400, poster_path: '/dw63.png', genres: ['Sci-Fi & Fantasy'], overview: 'The original series.', seasons: { 1: [['An Unearthly Child', '1963-11-23']] } },
   { id: 57243, name: 'Doctor Who', original_name: 'Doctor Who', first_air_date: '2005-03-26', episode_run_time: [45], popularity: 120, vote_average: 7.5, vote_count: 3000, poster_path: '/dw05.png', genres: ['Sci-Fi & Fantasy'], overview: 'The revived series.', seasons: { 1: [['Rose', '2005-03-26']] } },
@@ -47,6 +47,8 @@ function matches(query, ...names) {
   const hay = fold(names.filter(Boolean).join(' '))
   return words.length > 0 && words.every((w) => hay.includes(w))
 }
+
+const personId = (name) => [...name].reduce((id, ch) => (id * 31 + ch.codePointAt(0)) % 2_000_000_000, 17)
 
 /**
  * @param {{ port?: number }} [options]
@@ -135,8 +137,12 @@ export async function startFakeTmdb(options = {}) {
         backdrop_path: m.backdrop_path ?? null,
         imdb_id: m.imdb_id ?? null,
         status: 'Released',
-        credits: { cast: (m.cast ?? []).map(([name, character], order) => ({ name, character, order })) },
+        credits: {
+          cast: (m.cast ?? []).map(([name, character], order) => ({ id: personId(name), name, character, order })),
+          crew: (m.directors ?? []).map((name) => ({ id: personId(name), name, job: 'Director' })),
+        },
         external_ids: { imdb_id: m.imdb_id ?? null },
+        videos: { results: m.videos ?? [] },
         belongs_to_collection: m.collection ? { id: m.collection, name: COLLECTIONS[m.collection].name } : null,
       })
     }
@@ -174,8 +180,12 @@ export async function startFakeTmdb(options = {}) {
         poster_path: s.poster_path,
         backdrop_path: s.backdrop_path ?? null,
         status: s.status ?? 'Ended',
-        credits: { cast: (s.cast ?? []).map(([name, character], order) => ({ name, character, order })) },
-        external_ids: { imdb_id: null },
+        credits: {
+          cast: (s.cast ?? []).map(([name, character], order) => ({ id: personId(name), name, character, order })),
+          crew: (s.directors ?? []).map((name) => ({ id: personId(name), name, job: 'Director' })),
+        },
+        external_ids: { imdb_id: s.imdb_id ?? null },
+        videos: { results: s.videos ?? [] },
         seasons: Object.keys(s.seasons).map((n) => ({ season_number: Number(n) })),
       })
     }

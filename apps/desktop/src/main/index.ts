@@ -9,6 +9,7 @@ import { menuStrings } from './menu-strings'
 import { originOf } from './origin'
 import { launchDetached, PlayerManager } from './players'
 import { trackPlayback } from './position-tracking'
+import { TrailerView } from './trailer-view'
 import { PrefsStore } from './prefs'
 import { restoreWindowState } from './window-state'
 import { shouldHideOnClose, shouldStartHidden } from './behaviour'
@@ -261,6 +262,7 @@ function hardenSession(): void {
   app.on('web-contents-created', (_event, contents) => {
     contents.setWindowOpenHandler(() => ({ action: 'deny' }))
     contents.on('will-navigate', (event, url) => {
+      if (contents.session !== session.defaultSession) return // the trailer view has its own, stricter, guard
       const origin = originOf(url)
       if (origin === null || !trustedOrigins().includes(origin)) event.preventDefault()
     })
@@ -371,6 +373,14 @@ async function main(): Promise<void> {
           })
         },
   })
+  const trailer = new TrailerView({
+    // Honoured only in unpackaged builds, like the other test hooks.
+    testUrl: dev ? process.env.THEAMA_TEST_TRAILER_URL : undefined,
+    onEscape: () => {
+      trailer.hide()
+      mainWindow?.webContents.send(IPC.evTrailerClosed)
+    },
+  })
   registerIpc({
     players,
     getWindow: () => mainWindow,
@@ -390,6 +400,7 @@ async function main(): Promise<void> {
     pickFolderTitle: () => menuStrings(prefs.language).pickFolder,
     // Honoured only in unpackaged builds, so a released app can never be steered by an environment variable.
     testPickFolder: dev ? process.env.THEAMA_TEST_PICK_FOLDER : undefined,
+    trailer,
     runService: (action, account) => runServiceAction(action, account),
     currentStatus: refreshStatus,
   })

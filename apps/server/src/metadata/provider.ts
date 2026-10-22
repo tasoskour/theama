@@ -46,8 +46,10 @@ export interface ProviderTitle {
   rating: { value: number; votes: number } | null
   posterPath: string | null
   backdropPath: string | null
-  cast: { name: string; character: string | null }[]
+  cast: { externalId: string; name: string; character: string | null }[]
+  directors: { externalId: string; name: string }[]
   imdbId: string | null
+  trailer: { site: 'youtube'; key: string } | null
   status: string | null
   /** Series only: season numbers that exist, including 0 for specials. */
   seasons: number[]

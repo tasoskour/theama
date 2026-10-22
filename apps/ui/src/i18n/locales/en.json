@@ -265,7 +265,23 @@
       "languageUnknown": "Language unknown",
       "usedWhenPlaying": "Used when playing"
     },
-    "renameFiles": "Rename files…"
+    "renameFiles": "Rename files…",
+    "imdb": "IMDb",
+    "trailer": "Trailer",
+    "trailerTitle": "Trailer · {title}",
+    "trailerBack": "Back",
+    "trailerClose": "Close trailer",
+    "trailerYoutube": "Open on YouTube",
+    "trailerYoutubeHint": "Open the trailer on YouTube in your browser",
+    "openTmdb": "Open this title on TMDB in your browser",
+    "openTmdbRating": "{rating}. Open this title on TMDB in your browser",
+    "castAndCrew": "Cast & crew",
+    "directors": "Directors",
+    "director": "Director",
+    "actor": "Actor",
+    "otherWith": "Other available titles with {name}",
+    "otherAvailableTitles": "Other available titles in your library",
+    "noOtherTitles": "No other available movies or series with this person are in your library."
   },
   "search": {
     "label": "Search your library",

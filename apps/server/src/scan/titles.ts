@@ -378,6 +378,16 @@ export class TitleRepo {
             new Date().toISOString().slice(0, 10),
           )
         : null
+    const metadata = this.metadata?.getMetadata(key) ?? null
+    const creditLinks = this.metadata?.creditLinks(key) ?? []
+    const related = this.summaries([...new Set(creditLinks.flatMap((credit) => credit.relatedKeys))])
+    const credits = creditLinks.map(({ relatedKeys, ...credit }) => ({
+      ...credit,
+      relatedTitles: relatedKeys
+        .flatMap((relatedKey) => related.get(relatedKey) ?? [])
+        .filter((title) => title.availableCount > 0 && (title.kind === 'movie' || title.kind === 'series'))
+        .sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || a.title.localeCompare(b.title)),
+    }))
     return {
       summary,
       files: rows.map(toMediaFile),
@@ -392,7 +402,8 @@ export class TitleRepo {
             candidates: stored.candidates,
           }
         : null,
-      metadata: this.metadata?.getMetadata(key) ?? null,
+      metadata,
+      credits,
       episodes: covered?.episodes ?? [],
       coverage: covered?.coverage ?? null,
       collections: collectionRefsFor(this.raw, key),

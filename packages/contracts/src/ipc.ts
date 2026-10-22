@@ -15,6 +15,10 @@ export const IPC = {
   windowSetTheme: 'window:setTheme',
   openPath: 'shell:openPath',
   showItemInFolder: 'shell:showItemInFolder',
+  openExternal: 'shell:openExternal',
+  trailerShow: 'trailer:show',
+  trailerBounds: 'trailer:bounds',
+  trailerHide: 'trailer:hide',
   appInfo: 'app:info',
   setLanguage: 'app:setLanguage',
   serviceStatus: 'service:status',
@@ -31,6 +35,8 @@ export const IPC = {
   playersAddCustom: 'players:addCustom',
   playersRemove: 'players:remove',
   playersPlay: 'players:play',
+  /** Main to renderer push: the trailer was closed from inside the video (Escape). */
+  evTrailerClosed: 'ev:trailer-closed',
   /** Main to renderer push: service status changed. */
   evServiceStatus: 'ev:service-status',
 } as const
@@ -48,6 +54,23 @@ export type AppInfo = z.infer<typeof AppInfo>
 export const SetLanguageRequest = z.object({ language: z.enum(['en', 'el']) })
 export const PickFolderRequest = z.object({ title: z.string().max(200).optional() })
 export const PathRequest = z.object({ path: z.string().min(1).max(32_000) })
+export const ExternalLinkRequest = z.discriminatedUnion('service', [
+  z.object({ service: z.literal('tmdb'), kind: z.enum(['movie', 'series']), id: z.string().regex(/^\d+$/) }),
+  z.object({ service: z.literal('imdb'), id: z.string().regex(/^tt\d{5,12}$/) }),
+  z.object({ service: z.literal('youtube'), id: z.string().regex(/^[A-Za-z0-9_-]{11}$/) }),
+])
+export type ExternalLinkRequest = z.infer<typeof ExternalLinkRequest>
+/** Where the trailer container's video area is in the window, in CSS pixels (the page measures it). */
+export const TrailerBounds = z.object({
+  x: z.number().int().min(0).max(20_000),
+  y: z.number().int().min(0).max(20_000),
+  width: z.number().int().min(1).max(20_000),
+  height: z.number().int().min(1).max(20_000),
+})
+export type TrailerBounds = z.infer<typeof TrailerBounds>
+/** A YouTube video id (the shell builds the embed address itself) and where to play it. */
+export const TrailerShowRequest = z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{11}$/), bounds: TrailerBounds })
+export type TrailerShowRequest = z.infer<typeof TrailerShowRequest>
 export const ServiceInstallRequest = z.object({ account: ServiceAccountChoice })
 export const LocalLogsRequest = z.object({ limit: z.number().int().min(1).max(500).default(200) })
 
@@ -127,6 +150,18 @@ export interface TheamaBridge {
   setWindowTheme(theme: WindowTheme): Promise<void>
   openPath(path: string): Promise<void>
   showItemInFolder(path: string): Promise<void>
+  /** Opens a known metadata/video destination in the default browser. Arbitrary URLs are not accepted. */
+  openExternal(request: ExternalLinkRequest): Promise<void>
+  trailer: {
+    /** Plays a YouTube trailer inside the app, on the given area of the window. */
+    show(request: TrailerShowRequest): Promise<void>
+    /** The video area moved or was resized. */
+    setBounds(bounds: TrailerBounds): Promise<void>
+    /** Stops the trailer and removes the video. */
+    hide(): Promise<void>
+    /** The person closed the trailer from inside the video (Escape). */
+    onClosed(listener: () => void): () => void
+  }
   service: {
     status(): Promise<ServiceStatus>
     start(): Promise<ServiceActionResult>

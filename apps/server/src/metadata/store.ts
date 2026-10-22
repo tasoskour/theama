@@ -12,7 +12,7 @@ import { artworkUrl } from './artwork'
 import type { ProviderEpisode, ProviderTitle } from './provider'
 
 /** Bumped when a new build stores more provider fields; older rows are then refreshed in the background. */
-export const METADATA_VERSION = 2
+export const METADATA_VERSION = 4
 
 /** Series that can still gain episodes, so their data is refreshed now and then. */
 const IN_PRODUCTION = ['Returning Series', 'In Production', 'Planned', 'Pilot']
@@ -180,9 +180,9 @@ export class MetadataRepo {
         .prepare(
           `INSERT OR REPLACE INTO title_metadata (title_key, provider, external_id, language, title, original_title, year, tagline,
              overview, runtime_min, genres, rating, votes, poster_path, poster_file, backdrop_path, backdrop_file, cast_json,
-             imdb_id, status, fetched_at, collection_external_id, version)
+             imdb_id, trailer_site, trailer_key, status, fetched_at, collection_external_id, version)
            VALUES (@key, @provider, @externalId, @language, @title, @originalTitle, @year, @tagline, @overview, @runtime, @genres,
-             @rating, @votes, @posterPath, @posterFile, @backdropPath, @backdropFile, @cast, @imdb, @status, @now, @collection, @version)`,
+             @rating, @votes, @posterPath, @posterFile, @backdropPath, @backdropFile, @cast, @imdb, @trailerSite, @trailerKey, @status, @now, @collection, @version)`,
         )
         .run({
           key: w.key,
@@ -204,12 +204,21 @@ export class MetadataRepo {
           backdropFile: w.backdropFile,
           cast: JSON.stringify(t.cast),
           imdb: t.imdbId,
+          trailerSite: t.trailer?.site ?? null,
+          trailerKey: t.trailer?.key ?? null,
           status: t.status,
           now,
           collection: t.collection?.externalId ?? null,
           version: METADATA_VERSION,
         })
       this.raw.prepare('DELETE FROM episode_metadata WHERE title_key = ?').run(w.key)
+      this.raw.prepare('DELETE FROM title_credit WHERE title_key = ?').run(w.key)
+      const insertCredit = this.raw.prepare(
+        `INSERT INTO title_credit (title_key, provider, person_external_id, name, category, role, billing_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      t.directors.forEach((person, order) => insertCredit.run(w.key, w.provider, person.externalId, person.name, 'director', null, order))
+      t.cast.forEach((person, order) => insertCredit.run(w.key, w.provider, person.externalId, person.name, 'actor', person.character, order))
       const insert = this.raw.prepare(
         `INSERT OR REPLACE INTO episode_metadata (title_key, season, episode, name, overview, air_date, runtime_min, still_path, still_file)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -247,13 +256,56 @@ export class MetadataRepo {
       rating: r.rating === null || r.rating === undefined ? null : { source: String(r.provider), value: Number(r.rating), votes: Number(r.votes ?? 0) },
       posterUrl: artworkUrl((r.poster_file as string | null) ?? null),
       backdropUrl: artworkUrl((r.backdrop_file as string | null) ?? null),
-      cast: parseArray<{ name: string; character: string | null }>(r.cast_json, []),
+      cast: parseArray<{ externalId?: string; name?: string; character?: string | null }>(r.cast_json, [])
+        .filter((c): c is { externalId?: string; name: string; character?: string | null } => typeof c.name === 'string')
+        .map((c) => ({ externalId: c.externalId ?? `legacy:${c.name}`, name: c.name, character: c.character ?? null })),
+      directors: this.raw
+        .prepare("SELECT person_external_id, name FROM title_credit WHERE title_key = ? AND category = 'director' ORDER BY billing_order")
+        .all(key)
+        .map((c) => ({ externalId: String((c as Record<string, unknown>).person_external_id), name: String((c as Record<string, unknown>).name) })),
       imdbId: (r.imdb_id as string | null) ?? null,
+      trailer:
+        r.trailer_site === 'youtube' && typeof r.trailer_key === 'string' && /^[A-Za-z0-9_-]{11}$/.test(r.trailer_key)
+          ? { site: 'youtube', key: r.trailer_key }
+          : null,
       status: (r.status as string | null) ?? null,
       collectionId: (r.collection_external_id as string | null) ?? null,
       language: String(r.language),
       fetchedAt: String(r.fetched_at),
     }
+  }
+
+  creditLinks(key: string): { externalId: string; name: string; category: 'actor' | 'director'; character: string | null; relatedKeys: string[] }[] {
+    const rows = this.raw
+      .prepare(
+        `SELECT c.person_external_id, c.name, c.category, c.role, c.billing_order, related.title_key AS related_key
+           FROM title_credit c
+           LEFT JOIN title_credit related
+             ON related.provider = c.provider AND related.person_external_id = c.person_external_id AND related.title_key <> c.title_key
+          WHERE c.title_key = ?
+          ORDER BY CASE c.category WHEN 'director' THEN 0 ELSE 1 END, c.billing_order, lower(c.name)`,
+      )
+      .all(key) as {
+      person_external_id: string
+      name: string
+      category: 'actor' | 'director'
+      role: string | null
+      related_key: string | null
+    }[]
+    const grouped = new Map<string, { externalId: string; name: string; category: 'actor' | 'director'; character: string | null; relatedKeys: string[] }>()
+    for (const row of rows) {
+      const id = `${row.category}:${row.person_external_id}`
+      const credit = grouped.get(id) ?? {
+        externalId: row.person_external_id,
+        name: row.name,
+        category: row.category,
+        character: row.category === 'actor' ? row.role : null,
+        relatedKeys: [],
+      }
+      if (row.related_key && !credit.relatedKeys.includes(row.related_key)) credit.relatedKeys.push(row.related_key)
+      grouped.set(id, credit)
+    }
+    return [...grouped.values()]
   }
 
   episodes(key: string): StoredEpisode[] {

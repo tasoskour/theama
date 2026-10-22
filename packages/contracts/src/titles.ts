@@ -115,12 +115,23 @@ export const SeriesCoverage = z.object({
 })
 export type SeriesCoverage = z.infer<typeof SeriesCoverage>
 
+/** One person credited on this title, plus their other currently playable titles in this library. */
+export const TitleCredit = z.object({
+  externalId: z.string(),
+  name: z.string(),
+  category: z.enum(['director', 'actor']),
+  character: z.string().nullable(),
+  relatedTitles: z.array(TitleSummary),
+})
+export type TitleCredit = z.infer<typeof TitleCredit>
+
 export const TitleDetail = z.object({
   summary: TitleSummary,
   /** Every file of the title, episodes ordered by season then episode. */
   files: z.array(MediaFile),
   match: TitleMatch.nullable(),
   metadata: TitleMetadata.nullable(),
+  credits: z.array(TitleCredit),
   /** Episode names and details from the provider; empty until the series is identified. */
   episodes: z.array(EpisodeInfo),
   /** Null unless the series is identified and the provider has its episodes. */

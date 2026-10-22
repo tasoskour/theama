@@ -32,7 +32,7 @@ test.beforeAll(async () => {
   mkdirSync(mediaFolder)
   writeFileSync(join(mediaFolder, 'Interstellar (2014).mkv'), 'x')
   // VS Code (and some CI shells) export ELECTRON_RUN_AS_NODE, which turns electron.exe into plain Node.
-  const env: NodeJS.ProcessEnv = { ...process.env, THEAMA_DATA_DIR: dataDir, THEAMA_PORT: '0', THEAMA_CONTROLLER: 'dev', THEAMA_TEST_PICK_FOLDER: mediaFolder, THEAMA_FFPROBE: 'none', THEAMA_TEST_PLAYER_LOG: playerLog, THEAMA_TMDB_API_BASE: fake.url, THEAMA_TMDB_IMAGE_BASE: fake.imageUrl }
+  const env: NodeJS.ProcessEnv = { ...process.env, THEAMA_DATA_DIR: dataDir, THEAMA_PORT: '0', THEAMA_CONTROLLER: 'dev', THEAMA_TEST_PICK_FOLDER: mediaFolder, THEAMA_FFPROBE: 'none', THEAMA_TEST_PLAYER_LOG: playerLog, THEAMA_TEST_TRAILER_URL: 'data:text/html,<title>fake trailer</title><body style="background:%23123">', THEAMA_TMDB_API_BASE: fake.url, THEAMA_TMDB_IMAGE_BASE: fake.imageUrl }
   delete env.ELECTRON_RUN_AS_NODE
   app = await electron.launch({
     args: ['.', `--user-data-dir=${userDataDir}`],
@@ -273,8 +273,37 @@ test('identifies titles with TMDB: key set-up, posters, details, and choosing be
   await film.click()
   await expect(page.getByText('A team of explorers travel through a wormhole in space.')).toBeVisible()
   await expect(page.getByText('TMDB 8.4 · 35,000 votes')).toBeVisible()
+  await expect(page.locator('[data-test="rating"]')).toHaveAttribute('role', 'link')
+  await expect(page.locator('[data-test="imdb-link"]')).toHaveText(/IMDb/)
+  await expect(page.locator('[data-test="trailer-play"]')).toHaveText(/Trailer/)
+  await expect(page.locator('[data-test="trailer-link"]')).toHaveAttribute('aria-label', /YouTube/)
+
+  // The trailer opens in a container on this page, with the video laid exactly over its video area, and closes again.
+  const overlays = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.contentView.children.length)
+  const before = await overlays()
+  await page.locator('[data-test="trailer-play"]').click()
+  await expect(page.locator('[data-test="trailer-dialog"]')).toBeVisible()
+  await expect.poll(overlays).toBe(before + 1)
+  const stage = (await page.locator('.trailer__stage').boundingBox())!
+  const videoBounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.contentView.children.at(-1)!.getBounds())
+  expect(Math.abs(videoBounds.x - stage.x)).toBeLessThanOrEqual(1)
+  expect(Math.abs(videoBounds.y - stage.y)).toBeLessThanOrEqual(1)
+  expect(Math.abs(videoBounds.width - stage.width)).toBeLessThanOrEqual(1)
+  expect(Math.abs(videoBounds.height - stage.height)).toBeLessThanOrEqual(1)
+  await page.locator('[data-test="trailer-back"]').click()
+  await expect(page.locator('[data-test="trailer-dialog"]')).toHaveCount(0)
+  await expect.poll(overlays).toBe(before)
+  // Escape closes it too, from the page.
+  await page.locator('[data-test="trailer-play"]').click()
+  await expect.poll(overlays).toBe(before + 1)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-test="trailer-dialog"]')).toHaveCount(0)
+  await expect.poll(overlays).toBe(before)
   await expect(page.getByText('Identified automatically using TMDB')).toBeVisible()
   await expect(page.getByText('Matthew McConaughey')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Christopher Nolan/ })).toBeVisible()
+  await page.getByRole('button', { name: /Matthew McConaughey/ }).hover()
+  await expect(page.getByText('No other available movies or series with this person are in your library.')).toBeVisible()
 
   // A series: provider episode names replace the guess from the file name.
   await nav('Series').click()
@@ -282,6 +311,9 @@ test('identifies titles with TMDB: key set-up, posters, details, and choosing be
   await expect(page.getByRole('heading', { name: 'Severance', level: 1 })).toBeVisible()
   await expect(page.getByText('Good News About Hell').first()).toBeVisible()
   await expect(page.getByText('Mark leads a team of office workers')).toBeVisible()
+  await expect(page.locator('[data-test="rating"]')).toContainText('TMDB 8.4')
+  await expect(page.locator('[data-test="imdb-link"]')).toBeVisible()
+  await expect(page.locator('[data-test="trailer-link"]')).toBeVisible()
 
   // Two different shows share a name: Theama asks instead of guessing, and the answer is locked.
   await nav('Series').click()

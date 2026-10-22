@@ -176,12 +176,30 @@ export const titleMetadata = sqliteTable('title_metadata', {
   backdropFile: text('backdrop_file'),
   castJson: text('cast_json').notNull().default('[]'),
   imdbId: text('imdb_id'),
+  trailerSite: text('trailer_site'),
+  trailerKey: text('trailer_key'),
   status: text('status'),
   fetchedAt: text('fetched_at').notNull(),
   collectionExternalId: text('collection_external_id'),
   /** Bumped when a new build stores more fields; older rows are refreshed in the background. */
   version: integer('version').notNull().default(1),
 })
+
+export const titleCredit = sqliteTable(
+  'title_credit',
+  {
+    titleKey: text('title_key')
+      .notNull()
+      .references(() => titleMetadata.titleKey, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    personExternalId: text('person_external_id').notNull(),
+    name: text('name').notNull(),
+    category: text('category', { enum: ['actor', 'director'] }).notNull(),
+    role: text('role'),
+    billingOrder: integer('billing_order').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.titleKey, t.category, t.personExternalId] }), index('idx_title_credit_person').on(t.provider, t.personExternalId, t.titleKey)],
+)
 
 export const episodeMetadata = sqliteTable(
   'episode_metadata',

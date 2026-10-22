@@ -154,10 +154,17 @@ describe('automatic identification', () => {
       tagline: 'Work-life balance, redefined.',
       genres: ['Drama', 'Sci-Fi & Fantasy'],
       rating: { source: 'tmdb', value: 8.4, votes: 3000 },
-      cast: [{ name: 'Adam Scott', character: 'Mark Scout' }],
+      cast: [expect.objectContaining({ name: 'Adam Scott', character: 'Mark Scout' })],
+      directors: [expect.objectContaining({ name: 'Ben Stiller' })],
+      imdbId: 'tt11280740',
+      trailer: { site: 'youtube', key: 'xEQP4VVuyrY' },
     })
     expect(d.episodes.filter((e) => e.season === 1).map((e) => e.name)).toEqual(['Good News About Hell', 'Half Loop', 'In Perpetuity'])
     expect(d.episodes.some((e) => e.season === 2)).toBe(true)
+    expect(d.credits).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Ben Stiller', category: 'director' }),
+      expect.objectContaining({ name: 'Adam Scott', category: 'actor', character: 'Mark Scout' }),
+    ]))
   })
 
   it('lists the library genres and filters titles by any of the chosen ones', async () => {

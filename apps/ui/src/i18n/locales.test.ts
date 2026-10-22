@@ -56,7 +56,7 @@ describe('locale files', () => {
     const untranslated = elKeys.filter((k) => !greek.test(get(el as Tree, k)!))
     // Product/technical terms that are intentionally identical or Latin-only.
     expect(untranslated.sort()).toEqual(
-      ['settings.about.nodeVersion', 'service.fields.api', 'metadata.tmdb'].sort(),
+      ['settings.about.nodeVersion', 'service.fields.api', 'metadata.tmdb', 'detail.imdb'].sort(),
     )
   })
 })

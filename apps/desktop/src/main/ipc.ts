@@ -5,12 +5,15 @@ import {
   IPC,
   LocalLogsRequest,
   DesktopSettingsPatch,
+  ExternalLinkRequest,
   PathRequest,
   PickFolderRequest,
   PlayerIdRequest,
   PlayRequest,
   ServiceInstallRequest,
   SetLanguageRequest,
+  TrailerBounds,
+  TrailerShowRequest,
   WindowThemeRequest,
   type AppInfo,
   type DesktopSettings,
@@ -20,6 +23,8 @@ import {
 import { readRecentLocal, type DataPaths } from '@theama/logs'
 import { originOf } from './origin'
 import { assertSafeUserPath } from './path-safety'
+import { externalLinkUrl } from './external-link'
+import type { TrailerView } from './trailer-view'
 import type { PlayerManager } from './players'
 import type { ApiConnection } from './runtime'
 import type { ServiceController } from './service/controller'
@@ -37,6 +42,7 @@ export interface IpcDeps {
   pickFolderTitle(): string
   /** Development/test only: answer the folder picker with this path instead of opening a native dialog. */
   testPickFolder?: string
+  trailer: TrailerView
   /** Runs a service action with UI side effects (busy state, status push, confirmations). */
   runService(action: 'start' | 'stop' | 'restart' | 'install' | 'repair' | 'uninstall', account?: 'current-user' | 'local-system'): Promise<ServiceActionResult>
   currentStatus(): Promise<ServiceStatus>
@@ -100,6 +106,13 @@ export function registerIpc(deps: IpcDeps): void {
   })
 
   handle(IPC.showItemInFolder, PathRequest, ({ path }) => shell.showItemInFolder(assertSafeUserPath(path)))
+  handle(IPC.openExternal, ExternalLinkRequest, (link) => shell.openExternal(externalLinkUrl(link)))
+  handle(IPC.trailerShow, TrailerShowRequest, ({ id, bounds }) => {
+    const win = deps.getWindow()
+    if (win) deps.trailer.show(win, id, bounds)
+  })
+  handle(IPC.trailerBounds, TrailerBounds, (bounds) => deps.trailer.setBounds(bounds))
+  handle(IPC.trailerHide, none, () => deps.trailer.hide())
 
   handle(IPC.desktopGet, none, () => deps.desktopSettings())
   handle(IPC.desktopSet, DesktopSettingsPatch, (patch) => deps.setDesktopSettings(patch))

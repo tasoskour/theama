@@ -285,6 +285,25 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE playback_state ADD COLUMN position_seconds INTEGER;
   ALTER TABLE playback_state ADD COLUMN duration_seconds INTEGER;
   `,
+  /* 11 — provider-selected external trailer */
+  `
+  ALTER TABLE title_metadata ADD COLUMN trailer_site TEXT;
+  ALTER TABLE title_metadata ADD COLUMN trailer_key TEXT;
+  `,
+  /* 12 — indexed cast and director credits for local-library connections */
+  `
+  CREATE TABLE title_credit (
+    title_key          TEXT NOT NULL REFERENCES title_metadata(title_key) ON DELETE CASCADE,
+    provider           TEXT NOT NULL,
+    person_external_id TEXT NOT NULL,
+    name               TEXT NOT NULL,
+    category           TEXT NOT NULL CHECK (category IN ('actor','director')),
+    role               TEXT,
+    billing_order      INTEGER NOT NULL,
+    PRIMARY KEY (title_key, category, person_external_id)
+  );
+  CREATE INDEX idx_title_credit_person ON title_credit(provider, person_external_id, title_key);
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

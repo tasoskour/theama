@@ -3,6 +3,7 @@ import { openDatabase, type DbHandle } from '../db/client'
 import { LibrarySourceRepo } from '../library/sources'
 import { titleKeyFor } from '../scan/filename'
 import { MediaFileRepo } from '../scan/store'
+import { TitleRepo } from '../scan/titles'
 import { METADATA_VERSION, MetadataRepo } from './store'
 import type { ProviderTitle } from './provider'
 
@@ -11,7 +12,7 @@ let repo: MetadataRepo
 
 const title = (over: Partial<ProviderTitle> = {}): ProviderTitle => ({
   externalId: '1', kind: 'movie', title: 'Film', originalTitle: null, year: 2000, tagline: null, overview: null, runtimeMinutes: null,
-  genres: [], rating: null, posterPath: null, backdropPath: null, cast: [], imdbId: null, status: null, seasons: [], collection: null, ...over,
+  genres: [], rating: null, posterPath: null, backdropPath: null, cast: [], directors: [], imdbId: null, trailer: null, status: null, seasons: [], collection: null, ...over,
 })
 
 function addFile(name: string, kind: 'movie' | 'episode' = 'movie'): string {
@@ -77,5 +78,29 @@ describe('MetadataRepo.stale', () => {
   it('ignores titles that no longer have files', () => {
     store('movie:ghost:2000')
     expect(repo.stale('el', 10, now)).toEqual([])
+  })
+})
+
+describe('MetadataRepo.creditLinks', () => {
+  it('connects cast and directors to their other locally stored titles by provider person id', () => {
+    const first = addFile('First Film')
+    const second = addFile('Second Film')
+    store(first, {
+      cast: [{ externalId: '42', name: 'Shared Actor', character: 'Lead' }],
+      directors: [{ externalId: '77', name: 'Shared Director' }],
+    })
+    store(second, {
+      cast: [{ externalId: '42', name: 'Shared Actor', character: 'Another role' }],
+      directors: [{ externalId: '77', name: 'Shared Director' }],
+    })
+
+    expect(repo.creditLinks(first)).toEqual([
+      { externalId: '77', name: 'Shared Director', category: 'director', character: null, relatedKeys: [second] },
+      { externalId: '42', name: 'Shared Actor', category: 'actor', character: 'Lead', relatedKeys: [second] },
+    ])
+    expect(new TitleRepo(handle.raw, repo).detail(first)?.credits).toEqual([
+      expect.objectContaining({ name: 'Shared Director', relatedTitles: [expect.objectContaining({ key: second, availableCount: 1 })] }),
+      expect.objectContaining({ name: 'Shared Actor', relatedTitles: [expect.objectContaining({ key: second, availableCount: 1 })] }),
+    ])
   })
 })

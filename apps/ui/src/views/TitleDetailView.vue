@@ -2,15 +2,17 @@
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { mdiArrowLeft, mdiCheckCircle, mdiCheckCircleOutline, mdiCloudOffOutline, mdiDotsVertical, mdiEye, mdiStar } from '@mdi/js'
+import { mdiArrowLeft, mdiCheckCircle, mdiCheckCircleOutline, mdiCloudOffOutline, mdiDotsVertical, mdiEye, mdiOpenInNew, mdiPlayCircleOutline, mdiStar, mdiYoutube } from '@mdi/js'
 import { z } from 'zod'
-import { TitleDetail, type EpisodeInfo, type EpisodeStatus, type MediaFile } from '@theama/contracts'
+import { TitleDetail, type EpisodeInfo, type EpisodeStatus, type ExternalLinkRequest, type MediaFile } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
 import AddToCollectionMenu from '@/components/collections/AddToCollectionMenu.vue'
 import FileFacts from '@/components/titles/FileFacts.vue'
+import CreditPopover from '@/components/titles/CreditPopover.vue'
 import RenameDialog from '@/components/files/RenameDialog.vue'
 import IdentifyDialog from '@/components/titles/IdentifyDialog.vue'
 import PlayButton from '@/components/titles/PlayButton.vue'
+import TrailerDialog from '@/components/titles/TrailerDialog.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { useSceneHint } from '@/composables/useSceneHint'
 import { useConnectionStore } from '@/stores/connection'
@@ -85,6 +87,39 @@ const ratingText = computed(() => {
   if (!r) return ''
   return t('match.rating', { source: r.source.toUpperCase(), value: r.value.toFixed(1), votes: new Intl.NumberFormat(locale.value).format(r.votes) })
 })
+const tmdbLink = computed<ExternalLinkRequest | null>(() => {
+  const m = meta.value
+  const s = summary.value
+  return m?.provider === 'tmdb' && s && s.kind !== 'video' && /^\d+$/.test(m.externalId)
+    ? { service: 'tmdb', kind: s.kind, id: m.externalId }
+    : null
+})
+const imdbLink = computed<ExternalLinkRequest | null>(() =>
+  meta.value?.imdbId && /^tt\d{5,12}$/.test(meta.value.imdbId) ? { service: 'imdb', id: meta.value.imdbId } : null,
+)
+const trailerLink = computed<ExternalLinkRequest | null>(() =>
+  meta.value?.trailer?.site === 'youtube' ? { service: 'youtube', id: meta.value.trailer.key } : null,
+)
+
+/** The desktop app can play the trailer inside the page; a browser tab can only link to YouTube. */
+const trailerInApp = typeof window !== 'undefined' && window.theama !== undefined
+const trailerOpen = ref(false)
+
+function externalUrl(link: ExternalLinkRequest): string {
+  if (link.service === 'tmdb') return `https://www.themoviedb.org/${link.kind === 'series' ? 'tv' : 'movie'}/${link.id}`
+  if (link.service === 'imdb') return `https://www.imdb.com/title/${link.id}/`
+  return `https://www.youtube.com/watch?v=${link.id}`
+}
+
+async function openExternal(link: ExternalLinkRequest): Promise<void> {
+  actionError.value = null
+  try {
+    if (window.theama) await window.theama.openExternal(link)
+    else window.open(externalUrl(link), '_blank', 'noopener,noreferrer')
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : String(err)
+  }
+}
 
 // --- playing and watching -----------------------------------------------------
 const playable = (f: MediaFile): boolean => f.state === 'available'
@@ -317,7 +352,21 @@ const metaChips = computed(() => {
               <v-chip size="small" label variant="tonal" color="warning" data-test="missing-chip">{{ $t('series.missingN', { n: summary.missingEpisodes }) }}</v-chip>
             </li>
             <li v-if="ratingText">
-              <v-chip size="small" label variant="tonal" color="primary" :prepend-icon="mdiStar" data-test="rating">{{ ratingText }}</v-chip>
+              <v-chip
+                size="small"
+                label
+                variant="tonal"
+                color="primary"
+                :prepend-icon="mdiStar"
+                :link="Boolean(tmdbLink)"
+                :role="tmdbLink ? 'link' : undefined"
+                :aria-label="tmdbLink ? $t('detail.openTmdbRating', { rating: ratingText }) : undefined"
+                data-test="rating"
+                @click="tmdbLink && openExternal(tmdbLink)"
+              >{{ ratingText }}</v-chip>
+            </li>
+            <li v-else-if="tmdbLink">
+              <v-chip size="small" label variant="tonal" color="primary" link role="link" :aria-label="$t('detail.openTmdb')" data-test="tmdb-link" @click="openExternal(tmdbLink)">TMDB</v-chip>
             </li>
             <li v-for="g in meta?.genres ?? []" :key="g"><v-chip size="small" label variant="outlined">{{ g }}</v-chip></li>
           </ul>
@@ -342,6 +391,26 @@ const metaChips = computed(() => {
                   </template>
                 </v-list>
               </v-menu>
+              <v-btn v-if="imdbLink" variant="outlined" class="th-btn-quiet" :append-icon="mdiOpenInNew" data-test="imdb-link" @click="openExternal(imdbLink)">
+                {{ $t('detail.imdb') }}
+              </v-btn>
+              <template v-if="trailerLink">
+                <!-- Both ways to watch it: inside Theama (desktop app) and on YouTube in the browser. -->
+                <v-btn-group v-if="trailerInApp" variant="outlined" divided density="comfortable" class="th-btn-quiet">
+                  <v-btn :prepend-icon="mdiPlayCircleOutline" data-test="trailer-play" @click="trailerOpen = true">{{ $t('detail.trailer') }}</v-btn>
+                  <v-btn
+                    :aria-label="$t('detail.trailerYoutubeHint')"
+                    :title="$t('detail.trailerYoutubeHint')"
+                    data-test="trailer-link"
+                    @click="openExternal(trailerLink)"
+                  >
+                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path :d="mdiYoutube" fill="currentColor" /></svg>
+                  </v-btn>
+                </v-btn-group>
+                <v-btn v-else variant="outlined" class="th-btn-quiet" :prepend-icon="mdiYoutube" :append-icon="mdiOpenInNew" data-test="trailer-link" @click="openExternal(trailerLink)">
+                  {{ $t('detail.trailer') }}
+                </v-btn>
+              </template>
               <AddToCollectionMenu :title-key="summary.key" :member-of="detail?.collections ?? []" @changed="load" />
               <v-btn v-if="summary.kind !== 'video'" variant="text" class="th-btn-quiet th-btn-quiet--text cta__rename" data-test="rename-files" @click="renameOpen = true">{{ $t('detail.renameFiles') }}</v-btn>
             </div>
@@ -389,6 +458,13 @@ const metaChips = computed(() => {
         <v-alert v-if="actionError" type="error" variant="tonal" density="compact" class="mt-2">{{ actionError }}</v-alert>
       </section>
 
+      <TrailerDialog
+        v-if="trailerInApp && meta?.trailer"
+        v-model="trailerOpen"
+        :video-id="meta.trailer.key"
+        :title="summary.title"
+        @youtube="trailerLink && openExternal(trailerLink)"
+      />
       <RenameDialog v-if="summary.kind !== 'video'" v-model="renameOpen" :title-key="summary.key" :kind="summary.kind" @renamed="load" />
 
       <IdentifyDialog
@@ -401,12 +477,18 @@ const metaChips = computed(() => {
         @identified="onIdentified"
       />
 
-      <section v-if="meta && meta.cast.length" class="cast" :aria-label="$t('match.cast')">
-        <h2 class="th-display files__title">{{ $t('match.cast') }}</h2>
+      <section v-if="detail?.credits.length" class="cast" :aria-label="$t('detail.castAndCrew')">
+        <h2 class="th-display files__title">{{ $t('detail.castAndCrew') }}</h2>
+        <h3 v-if="detail.credits.some((credit) => credit.category === 'director')" class="cast__group">{{ $t('detail.directors') }}</h3>
         <ul class="cast__list" role="list">
-          <li v-for="c in meta.cast" :key="`${c.name}-${c.character}`" class="cast__item">
-            <span class="cast__name">{{ c.name }}</span>
-            <span v-if="c.character" class="th-muted cast__role">{{ c.character }}</span>
+          <li v-for="credit in detail.credits.filter((item) => item.category === 'director')" :key="`director-${credit.externalId}`" class="cast__item">
+            <CreditPopover :credit="credit" />
+          </li>
+        </ul>
+        <h3 v-if="detail.credits.some((credit) => credit.category === 'actor')" class="cast__group">{{ $t('match.cast') }}</h3>
+        <ul class="cast__list" role="list">
+          <li v-for="credit in detail.credits.filter((item) => item.category === 'actor')" :key="`actor-${credit.externalId}`" class="cast__item">
+            <CreditPopover :credit="credit" />
           </li>
         </ul>
       </section>
@@ -649,14 +731,16 @@ const metaChips = computed(() => {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 8px 24px;
 }
+.cast__group {
+  margin: 18px 0 8px;
+  font-size: 0.82rem;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: rgb(var(--v-theme-on-surface-variant));
+}
 .cast__item {
-  display: grid;
-}
-.cast__name {
-  font-weight: 600;
-}
-.cast__role {
-  font-size: 0.85rem;
+  min-width: 0;
 }
 .ep__about {
   display: flex;

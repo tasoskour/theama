@@ -265,7 +265,23 @@
       "languageUnknown": "Άγνωστη γλώσσα",
       "usedWhenPlaying": "Χρησιμοποιείται στην αναπαραγωγή"
     },
-    "renameFiles": "Μετονομασία αρχείων…"
+    "renameFiles": "Μετονομασία αρχείων…",
+    "imdb": "IMDb",
+    "trailer": "Τρέιλερ",
+    "trailerTitle": "Τρέιλερ · {title}",
+    "trailerBack": "Πίσω",
+    "trailerClose": "Κλείσιμο τρέιλερ",
+    "trailerYoutube": "Άνοιγμα στο YouTube",
+    "trailerYoutubeHint": "Άνοιγμα του τρέιλερ στο YouTube, στον περιηγητή σας",
+    "openTmdb": "Άνοιγμα αυτού του τίτλου στο TMDB στο πρόγραμμα περιήγησης",
+    "openTmdbRating": "{rating}. Άνοιγμα αυτού του τίτλου στο TMDB στο πρόγραμμα περιήγησης",
+    "castAndCrew": "Ηθοποιοί και συντελεστές",
+    "directors": "Σκηνοθέτες",
+    "director": "Σκηνοθέτης",
+    "actor": "Ηθοποιός",
+    "otherWith": "Άλλοι διαθέσιμοι τίτλοι με {name}",
+    "otherAvailableTitles": "Άλλοι διαθέσιμοι τίτλοι στη βιβλιοθήκη σας",
+    "noOtherTitles": "Δεν υπάρχουν άλλες διαθέσιμες ταινίες ή σειρές με αυτό το άτομο στη βιβλιοθήκη σας."
   },
   "search": {
     "label": "Αναζήτηση στη βιβλιοθήκη σας",

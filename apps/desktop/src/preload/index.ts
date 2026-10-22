@@ -15,6 +15,17 @@ const bridge: TheamaBridge = {
   setWindowTheme: (theme) => ipcRenderer.invoke(IPC.windowSetTheme, { theme }),
   openPath: (path) => ipcRenderer.invoke(IPC.openPath, { path }),
   showItemInFolder: (path) => ipcRenderer.invoke(IPC.showItemInFolder, { path }),
+  openExternal: (request) => ipcRenderer.invoke(IPC.openExternal, request),
+  trailer: {
+    show: (request) => ipcRenderer.invoke(IPC.trailerShow, request),
+    setBounds: (bounds) => ipcRenderer.invoke(IPC.trailerBounds, bounds),
+    hide: () => ipcRenderer.invoke(IPC.trailerHide),
+    onClosed: (listener) => {
+      const handler = (): void => listener()
+      ipcRenderer.on(IPC.evTrailerClosed, handler)
+      return () => ipcRenderer.removeListener(IPC.evTrailerClosed, handler)
+    },
+  },
   service: {
     status: () => ipcRenderer.invoke(IPC.serviceStatus),
     start: () => ipcRenderer.invoke(IPC.serviceStart),

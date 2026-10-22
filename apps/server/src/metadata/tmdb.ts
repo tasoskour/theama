@@ -75,8 +75,25 @@ const Detail = z.object({
   status: text,
   imdb_id: text,
   external_ids: z.object({ imdb_id: text }).nullish(),
+  videos: z
+    .object({
+      results: z
+        .array(
+          z.object({
+            key: z.string(),
+            site: z.string(),
+            type: z.string(),
+            official: z.boolean().nullish(),
+          }),
+        )
+        .nullish(),
+    })
+    .nullish(),
   credits: z
-    .object({ cast: z.array(z.object({ name: z.string(), character: text, order: z.number().nullish() })).nullish() })
+    .object({
+      cast: z.array(z.object({ id: z.number().int(), name: z.string(), character: text, order: z.number().nullish() })).nullish(),
+      crew: z.array(z.object({ id: z.number().int(), name: z.string(), job: z.string() })).nullish(),
+    })
     .nullish(),
   seasons: z
     .array(z.object({ season_number: z.number().int() }))
@@ -198,14 +215,19 @@ export class TmdbProvider implements MetadataProvider {
 
   private async detail(kind: MatchKind, id: string, language: string): Promise<ProviderTitle> {
     const tv = kind === 'series'
+    const videoLanguages = [...new Set([language.slice(0, 2).toLowerCase(), 'en', 'null'])].join(',')
     const d = parse(
       Detail,
       await this.call(`/${tv ? 'tv' : 'movie'}/${encodeURIComponent(id)}`, {
         language,
-        append_to_response: 'credits,external_ids',
+        append_to_response: 'credits,external_ids,videos',
+        include_video_language: videoLanguages,
       }),
     )
     const runtime = tv ? (d.episode_run_time[0] ?? null) : d.runtime
+    const trailer = (d.videos?.results ?? []).find(
+      (v) => v.official === true && v.site.toLowerCase() === 'youtube' && v.type.toLowerCase() === 'trailer' && /^[A-Za-z0-9_-]{11}$/.test(v.key),
+    )
     return {
       externalId: String(d.id),
       kind,
@@ -222,9 +244,15 @@ export class TmdbProvider implements MetadataProvider {
       cast: (d.credits?.cast ?? [])
         .slice()
         .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+        .filter((c, i, all) => all.findIndex((other) => other.id === c.id) === i)
         .slice(0, 15)
-        .map((c) => ({ name: c.name, character: c.character })),
+        .map((c) => ({ externalId: String(c.id), name: c.name, character: c.character })),
+      directors: (d.credits?.crew ?? [])
+        .filter((c) => c.job === 'Director')
+        .filter((c, i, all) => all.findIndex((other) => other.id === c.id) === i)
+        .map((c) => ({ externalId: String(c.id), name: c.name })),
       imdbId: d.imdb_id ?? d.external_ids?.imdb_id ?? null,
+      trailer: trailer ? { site: 'youtube', key: trailer.key } : null,
       status: d.status,
       seasons: d.seasons.map((s) => s.season_number),
       collection: !tv && d.belongs_to_collection ? { externalId: String(d.belongs_to_collection.id), name: d.belongs_to_collection.name ?? '' } : null,
@@ -251,6 +279,7 @@ export class TmdbProvider implements MetadataProvider {
       genres: primary.genres.length ? primary.genres : english.genres,
       posterPath: primary.posterPath ?? english.posterPath,
       backdropPath: primary.backdropPath ?? english.backdropPath,
+      trailer: primary.trailer ?? english.trailer,
     }
   }
 

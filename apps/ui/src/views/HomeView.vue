@@ -5,6 +5,8 @@ import { mdiHomeOutline } from '@mdi/js'
 import MetadataNudge from '@/components/MetadataNudge.vue'
 import SectionPage from '@/components/SectionPage.vue'
 import PosterRail from '@/components/titles/PosterRail.vue'
+import GenreRail from '@/components/titles/GenreRail.vue'
+import { useGenres } from '@/composables/useGenres'
 import { useTitles } from '@/composables/useTitles'
 import { useContinueWatching } from '@/composables/useContinueWatching'
 import { formatClock } from '@/utils/format'
@@ -18,6 +20,8 @@ const recent = useTitles({ kind: () => undefined, sort: 'added', limit: RAIL })
 const movies = useTitles({ kind: () => 'movie', sort: 'added', limit: RAIL })
 const series = useTitles({ kind: () => 'series', sort: 'added', limit: RAIL })
 const videos = useTitles({ kind: () => 'video', sort: 'added', limit: RAIL })
+
+const { genres } = useGenres(() => undefined)
 
 const resume = useContinueWatching()
 const collections = useCollections()
@@ -60,5 +64,6 @@ const loading = computed(() => !recent.loaded.value && recent.error.value === nu
       :see-all="{ name: 'videos' }"
       :total="videos.total.value"
     />
+    <GenreRail v-for="g in genres" :key="g" :genre="g" />
   </SectionPage>
 </template>

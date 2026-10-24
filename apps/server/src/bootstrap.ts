@@ -11,6 +11,8 @@ import { LibrarySourceRepo } from './library/sources'
 import { LibraryExclusionRepo } from './library/exclusions'
 import { applyPendingRestore, backupBeforeMigration, BackupService } from './backup/backup'
 import { CollectionRepo } from './collections/store'
+import { DownloadMonitor } from './downloads/monitor'
+import { DownloadsService } from './downloads/service'
 import { FileJournal } from './files/journal'
 import { RenameService } from './files/rename'
 import { PlaybackRepo } from './playback/store'
@@ -85,6 +87,16 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     ...(config.tmdbApiBase ? { apiBase: config.tmdbApiBase } : {}),
     ...(config.tmdbImageBase ? { imageBase: config.tmdbImageBase } : {}),
   })
+  const downloads = new DownloadsService({
+    store: new CredentialStore(config.downloadClientFile),
+    indexerStore: new CredentialStore(config.indexerFile),
+    logger,
+    manageAll: () => settings.get().downloadsShowAll,
+    savePath: (kind) => {
+      const id = kind === 'movie' ? settings.get().downloadMovieSourceId : settings.get().downloadSeriesSourceId
+      return id === null ? null : (library.get(id)?.path ?? null)
+    },
+  })
   const artwork = new ArtworkCache(config.artworkDir, provider.http, (path, size) => provider.imageUrl(path, size))
   const metadata = new MetadataManager({
     provider,
@@ -112,6 +124,18 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     logger,
   })
   const auto = new AutoScanner({ library, manager: scans, logger })
+  const downloadMonitor = new DownloadMonitor({
+    list: () => downloads.list(),
+    emit: (list) => events.broadcast({ type: 'downloads.changed', list }),
+    // The file is where qBittorrent was told to put it, so look in that library folder now rather than wait for the watcher.
+    onFinished: (item) => {
+      const current = settings.get()
+      const sourceId = item.kind === 'movie' ? current.downloadMovieSourceId : item.kind === 'series' ? current.downloadSeriesSourceId : null
+      if (sourceId !== null && scans.enqueue(sourceId, 'download finished')) logger.info({ kind: item.kind }, 'A download finished; scanning its library folder')
+    },
+    watched: () => events.clientCount > 0,
+    logger,
+  })
   scans.recoverInterrupted()
 
   if (recordCrashIfUncleanShutdown(serviceEvents)) {
@@ -146,6 +170,8 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     metadata,
     credentials,
     provider,
+    downloads,
+    downloadMonitor,
     artwork,
     events,
     token,
@@ -165,6 +191,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
 
   events.startHeartbeat()
   auto.start()
+  downloadMonitor.start()
   metadata.start()
   backups.start()
   void renamer.recover().catch((err: unknown) => logger.error({ err }, 'Could not settle interrupted renames'))
@@ -188,6 +215,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     stopping ??= (async () => {
       logger.info({ reason }, 'Shutting down')
       auto.stop()
+      downloadMonitor.stop()
       backups.stop()
       await metadata.stop()
       await scans.close()

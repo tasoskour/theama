@@ -27,6 +27,16 @@ import {
   IdentifyRequest,
   MetadataSearchQuery,
   SetCredentialsRequest,
+  SetDownloadClientRequest,
+  SetIndexerRequest,
+  type DownloadList,
+  type DownloadFileList,
+  SetDownloadFilesRequest,
+  AddDownloadRequest,
+  ReleaseQuery,
+  type ReleaseList,
+  type IndexerStatus,
+  type DownloadClientStatus,
   TitleKeyRequest,
   LogQuery,
   MediaFileQuery,
@@ -76,6 +86,9 @@ import type { ServiceEventRepo } from './repo/service-events'
 import type { EventsHub } from './events-hub'
 import { ARTWORK_FILE, artworkContentType, type ArtworkCache } from './metadata/artwork'
 import type { CredentialStore } from './metadata/credentials'
+import { DownloadClientError } from './downloads/qbittorrent'
+import type { DownloadMonitor } from './downloads/monitor'
+import { DownloadNotFound, FilesNotReady, InvalidFileSelection, ReleaseExpired, type DownloadsService } from './downloads/service'
 import { MetadataProblem, type MetadataManager } from './metadata/manager'
 import { ProviderError, type MetadataProvider } from './metadata/provider'
 import type { AutoScanner } from './scan/auto'
@@ -117,6 +130,8 @@ export interface AppDeps {
   metadata: MetadataManager
   credentials: CredentialStore
   provider: MetadataProvider
+  downloads: DownloadsService
+  downloadMonitor: DownloadMonitor
   artwork: ArtworkCache
   events: EventsHub
   token: string
@@ -129,7 +144,7 @@ function apiError(code: string, message: string, details?: unknown): ApiError {
 }
 
 export async function buildApp(deps: AppDeps) {
-  const { config, logger, logHub, settings, serviceEvents, library, exclusions, files, titles, collections, playback, renamer, journal, backups, ffprobeFound, jobs, scans, auto, metadata, credentials, provider, artwork, events, token, startedAt } = deps
+  const { config, logger, logHub, settings, serviceEvents, library, exclusions, files, titles, collections, playback, renamer, journal, backups, ffprobeFound, jobs, scans, auto, metadata, credentials, provider, downloads, downloadMonitor, artwork, events, token, startedAt } = deps
   const app = Fastify({
     loggerInstance: logger,
     logController: new LogController({ disableRequestLogging: true }),
@@ -163,10 +178,12 @@ export async function buildApp(deps: AppDeps) {
       return reply.code(400).send(apiError('invalid_request', 'Request validation failed', err.issues))
     }
     const status = (err as { statusCode?: number }).statusCode ?? 500
-    if (status >= 500) logger.error({ err }, 'Unhandled request error')
+    // An ApiProblem is a failure we named on purpose (e.g. a download client that is down), so its message is safe to show.
+    const deliberate = err instanceof ApiProblem
+    if (status >= 500 && !deliberate) logger.error({ err }, 'Unhandled request error')
     const message = err instanceof Error ? err.message : 'Bad request'
-    const code = err instanceof ApiProblem ? err.apiCode : status >= 500 ? 'internal_error' : 'bad_request'
-    return reply.code(status).send(apiError(code, status >= 500 ? 'Internal error' : message))
+    const code = deliberate ? err.apiCode : status >= 500 ? 'internal_error' : 'bad_request'
+    return reply.code(status).send(apiError(code, status >= 500 && !deliberate ? 'Internal error' : message))
   })
 
   app.setNotFoundHandler((_req, reply) => reply.code(404).send(apiError('not_found', 'No such endpoint')))
@@ -210,6 +227,8 @@ export async function buildApp(deps: AppDeps) {
     if (patch.logDetail !== undefined && !config.logLevelPinned) logger.level = updated.logDetail
     // Titles fetched in another language are refreshed in the background.
     if (patch.metadataLanguage !== undefined) metadata.kick()
+    // Which torrents are listed depends on this switch.
+    if (patch.downloadsShowAll !== undefined) downloadMonitor.nudge()
     events.broadcast({ type: 'settings.changed', settings: updated })
     return updated
   })
@@ -400,7 +419,106 @@ export async function buildApp(deps: AppDeps) {
     return metadata.status()
   })
 
-  app.post(`${API_PREFIX}/metadata/retry`, async (): Promise<MetadataStatus> => {
+  // --- downloads (qBittorrent) ---
+
+  app.get(`${API_PREFIX}/downloads/status`, async (): Promise<DownloadClientStatus> => downloads.status())
+
+  // A wrong user name or password is a 400 (never 401: that means our own API token); a qBittorrent that is
+  // merely not running is saved and reported through the status.
+  app.put(`${API_PREFIX}/downloads/client`, async (req): Promise<DownloadClientStatus> => {
+    const { qbittorrent } = SetDownloadClientRequest.parse(req.body ?? {})
+    const status = await downloads.connect(qbittorrent)
+    if (status.state === 'auth_failed') throw new ApiProblem('invalid_credentials', status.message ?? 'qBittorrent did not accept these credentials', 400)
+    if (status.state === 'forbidden') throw new ApiProblem('client_forbidden', status.message ?? 'qBittorrent refused the connection', 403)
+    return status
+  })
+
+  app.get(`${API_PREFIX}/downloads/indexer`, async (): Promise<IndexerStatus> => downloads.indexerStatus())
+
+  app.put(`${API_PREFIX}/downloads/indexer`, async (req): Promise<IndexerStatus> => {
+    const { prowlarr } = SetIndexerRequest.parse(req.body ?? {})
+    const status = await downloads.connectIndexer(prowlarr)
+    if (status.state === 'auth_failed') throw new ApiProblem('invalid_credentials', status.message ?? 'Prowlarr did not accept this API key', 400)
+    return status
+  })
+
+  /** Maps the download client's failures to HTTP. None is a 401: that means our own API token. */
+  function downloadFailure(err: unknown): never {
+    if (err instanceof DownloadClientError) {
+      const status = { unreachable: 503, auth: 400, forbidden: 403, unavailable: 502 }[err.kind]
+      const code = { unreachable: 'client_unreachable', auth: 'invalid_credentials', forbidden: 'client_forbidden', unavailable: 'client_error' }[err.kind]
+      throw new ApiProblem(code, err.message, status)
+    }
+    throw err
+  }
+
+  app.get(`${API_PREFIX}/downloads/releases`, async (req): Promise<ReleaseList> => {
+    const q = ReleaseQuery.parse(req.query)
+    const ready = q.source === 'prowlarr' ? downloads.indexerConnection() : q.source === 'qbittorrent' ? downloads.connection() : (downloads.indexerConnection() ?? downloads.connection())
+    if (!ready) throw new ApiProblem('not_configured', 'Set up qBittorrent or Prowlarr in Settings → Downloads first', 409)
+    try {
+      return await downloads.findReleases(q)
+    } catch (err) {
+      return downloadFailure(err)
+    }
+  })
+
+  app.post(`${API_PREFIX}/downloads`, async (req, reply) => {
+    const { releaseId, kind } = AddDownloadRequest.parse(req.body ?? {})
+    if (!downloads.connection()) throw new ApiProblem('not_configured', 'qBittorrent is not set up', 409)
+    try {
+      await downloads.download(releaseId, kind)
+    } catch (err) {
+      if (err instanceof ReleaseExpired) throw new ApiProblem('release_expired', err.message, 410)
+      return downloadFailure(err)
+    }
+    downloadMonitor.nudge()
+    return reply.code(201).send({ ok: true })
+  })
+
+  // The downloads Theama added, as qBittorrent reports them right now (open windows are also pushed changes).
+  app.get(`${API_PREFIX}/downloads`, async (): Promise<DownloadList> => downloads.list())
+
+  const HashParams = z.object({ hash: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i) })
+  /** Runs an action on one of our downloads; a hash that is not ours is a 404, however it got here. */
+  async function onDownload(hash: string, action: () => Promise<void>, changes = true): Promise<{ ok: true }> {
+    try {
+      await action()
+    } catch (err) {
+      if (err instanceof DownloadNotFound) throw new ApiProblem('not_found', err.message, 404)
+      if (err instanceof FilesNotReady) throw new ApiProblem('files_not_ready', err.message, 409)
+      if (err instanceof InvalidFileSelection) throw new ApiProblem('invalid_selection', err.message, 400)
+      return downloadFailure(err)
+    }
+    if (changes) downloadMonitor.nudge()
+    return { ok: true }
+  }
+  app.post(`${API_PREFIX}/downloads/:hash/pause`, async (req) => {
+    const { hash } = HashParams.parse(req.params)
+    return onDownload(hash, () => downloads.setPaused(hash, true))
+  })
+  app.post(`${API_PREFIX}/downloads/:hash/resume`, async (req) => {
+    const { hash } = HashParams.parse(req.params)
+    return onDownload(hash, () => downloads.setPaused(hash, false))
+  })
+  app.get(`${API_PREFIX}/downloads/:hash/files`, async (req): Promise<DownloadFileList> => {
+    const { hash } = HashParams.parse(req.params)
+    let files: DownloadFileList['files'] = []
+    await onDownload(hash, async () => void (files = await downloads.files(hash)), false)
+    return { files }
+  })
+  app.put(`${API_PREFIX}/downloads/:hash/files`, async (req) => {
+    const { hash } = HashParams.parse(req.params)
+    const { wanted } = SetDownloadFilesRequest.parse(req.body ?? {})
+    return onDownload(hash, () => downloads.selectFiles(hash, wanted))
+  })
+  app.delete(`${API_PREFIX}/downloads/:hash`, async (req) => {
+    const { hash } = HashParams.parse(req.params)
+    const { deleteFiles } = z.object({ deleteFiles: z.enum(['true', 'false']).default('false') }).parse(req.query)
+    return onDownload(hash, () => downloads.remove(hash, deleteFiles === 'true'))
+  })
+
+  app.post(`${API_PREFIX}/metadata/retry`, async(): Promise<MetadataStatus> => {
     metadata.retryNow()
     return metadata.status()
   })
@@ -736,7 +854,7 @@ export async function buildApp(deps: AppDeps) {
       serviceEvents: serviceEvents.list(20),
       ffprobeFound,
       logsDir: config.logsDir,
-      secrets: [token, credentials.get()],
+      secrets: [token, credentials.get(), downloads.connection()?.password ?? null, downloads.indexerConnection()?.apiKey ?? null],
       now: new Date(),
     })
     return reply.type('text/plain; charset=utf-8').send(text)

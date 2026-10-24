@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { IsoDate } from './common'
+import { DownloadList } from './downloads'
 import { LogEntry } from './logs'
 import { MetadataStatus } from './metadata'
 import { ScanJob, ScanProgress } from './scan'
@@ -16,6 +17,7 @@ export const ServerEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('scan.progress'), progress: ScanProgress }),
   z.object({ type: z.literal('scan.finished'), job: ScanJob }),
   z.object({ type: z.literal('metadata.status'), status: MetadataStatus }),
+  z.object({ type: z.literal('downloads.changed'), list: DownloadList }),
 ])
 export type ServerEvent = z.infer<typeof ServerEvent>
 

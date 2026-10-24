@@ -19,6 +19,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/TitleDetailView.vue'),
     meta: { titleKey: 'nav.home' },
   },
+  { path: '/downloads', name: 'downloads', component: () => import('@/views/DownloadsView.vue'), meta: { titleKey: 'nav.downloads' } },
   { path: '/search', name: 'search', component: () => import('@/views/SearchView.vue'), meta: { titleKey: 'nav.search' } },
   {
     path: '/collection',
@@ -49,6 +50,11 @@ const routes: RouteRecordRaw[] = [
         path: 'playback',
         name: 'settings-playback',
         component: () => import('@/views/settings/PlaybackSettings.vue'),
+      },
+      {
+        path: 'downloads',
+        name: 'settings-downloads',
+        component: () => import('@/views/settings/DownloadsSettings.vue'),
       },
       { path: 'files', name: 'settings-files', component: () => import('@/views/settings/FilesSettings.vue') },
       {

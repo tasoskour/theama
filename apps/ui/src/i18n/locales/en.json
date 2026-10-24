@@ -11,7 +11,8 @@
     "search": "Search",
     "collections": "Collections",
     "settings": "Settings",
-    "main": "Main navigation"
+    "main": "Main navigation",
+    "downloads": "Downloads"
   },
   "common": {
     "retry": "Retry",
@@ -281,7 +282,8 @@
     "actor": "Actor",
     "otherWith": "Other available titles with {name}",
     "otherAvailableTitles": "Other available titles in your library",
-    "noOtherTitles": "No other available movies or series with this person are in your library."
+    "noOtherTitles": "No other available movies or series with this person are in your library.",
+    "findDownload": "Find a download…"
   },
   "search": {
     "label": "Search your library",
@@ -312,7 +314,8 @@
       "metadata": "Metadata",
       "playback": "Playback",
       "files": "File organization",
-      "advanced": "Advanced"
+      "advanced": "Advanced",
+      "downloads": "Downloads"
     },
     "advancedTabs": {
       "service": "Service",
@@ -630,6 +633,129 @@
       "pick": "This one",
       "choose": "This one: {name} {year}",
       "lockNote": "Your choice is locked: rescans and refreshes will not change it."
+    }
+  },
+  "downloads": {
+    "title": "Downloads",
+    "intro": "Theama can hand downloads to qBittorrent and look for releases of the movies and series you want. It never downloads anything itself: qBittorrent does, and finished files appear in your library when they land in one of its folders.",
+    "state": {
+      "not_configured": "Not set up",
+      "connected": "Connected",
+      "unreachable": "Not reachable",
+      "auth_failed": "Login rejected",
+      "forbidden": "Refused"
+    },
+    "address": "Address",
+    "username": "User name",
+    "password": "Password",
+    "passwordHint": "Kept on this PC only and never shown again. Leave empty if qBittorrent does not ask for one on this computer.",
+    "connect": "Connect",
+    "edit": "Change",
+    "remove": "Remove",
+    "saved": "Connection saved",
+    "removed": "Connection removed",
+    "badAddress": "This is not a valid http:// or https:// address.",
+    "qb": {
+      "name": "qBittorrent",
+      "intro": "The program that does the downloading. Theama talks to its Web UI.",
+      "addressHint": "Usually http://localhost:8080",
+      "rejected": "qBittorrent did not accept this user name or password.",
+      "webUiHint": "In qBittorrent, turn on Tools → Options → Web UI → Web User Interface (Remote control). The login is checked before it is kept."
+    },
+    "prowlarr": {
+      "name": "Prowlarr",
+      "intro": "Optional, and recommended: Prowlarr searches many torrent sites at once and gives better results than qBittorrent's own search plugins. Without it, the plugins installed in qBittorrent are used.",
+      "apiKey": "API key",
+      "apiKeyHint": "In Prowlarr: Settings → General → API Key.",
+      "rejected": "Prowlarr did not accept this API key."
+    },
+    "folders": {
+      "title": "Where downloads are saved",
+      "hint": "Pick one of your library folders for each kind, so finished downloads show up in Theama by themselves. Leave it on the default to use qBittorrent's own folder.",
+      "movies": "Movies",
+      "series": "Series",
+      "default": "qBittorrent's default folder"
+    },
+    "privacy": "What is sent where",
+    "privacyText": "Your title searches go to Prowlarr or qBittorrent, which pass them to the torrent sites you chose there. Theama bundles no sites or plugins, and you are responsible for what you download. Passwords and keys are stored in the secrets folder of Theama's data, not in its database.",
+    "find": {
+      "heading": "Find something to download",
+      "intro": "Search for a movie or series, then pick a release. It is sent to qBittorrent.",
+      "movie": "Movie",
+      "series": "Series",
+      "label": "Title",
+      "year": "Year",
+      "season": "Season",
+      "episode": "Episode",
+      "search": "Search",
+      "matches": "Matches from TMDB",
+      "direct": "Search releases for “{title}”",
+      "noMatches": "TMDB found nothing for this search.",
+      "noKey": "Add a TMDB key in Settings → Metadata to see posters and exact matches. You can still search releases by name.",
+      "setup": "Set up qBittorrent or Prowlarr first to search for releases.",
+      "openSettings": "Open download settings",
+      "findReleases": "Find releases"
+    },
+    "releases": {
+      "title": "Releases for {title}",
+      "searching": "Searching the sites… this can take up to half a minute.",
+      "source": {
+        "prowlarr": "Found with Prowlarr",
+        "qbittorrent": "Found with qBittorrent's search plugins"
+      },
+      "download": "Download",
+      "sent": "Sent to qBittorrent",
+      "seeders": "{count} seeder | {count} seeders",
+      "pack": "Season pack",
+      "expired": "This search has expired. Search again.",
+      "unknownSize": "Unknown size",
+      "nothingReceived": "The search came back empty: {source} returned no results at all. Check that its sites or plugins are working (in qBittorrent: View → Search Engine → Search plugins, and try the same search there).",
+      "noneMatched": "{count} results came back, but none looked like this title, so they were hidden. Try another spelling or add the year.",
+      "name": {
+        "prowlarr": "Prowlarr",
+        "qbittorrent": "qBittorrent"
+      }
+    },
+    "active": {
+      "heading": "Your downloads",
+      "empty": "Nothing is downloading. Find something below and it will show up here.",
+      "unreachable": "qBittorrent is not answering, so progress cannot be shown. Is it running, with its Web UI on?",
+      "checkSettings": "Check the connection",
+      "state": {
+        "downloading": "Downloading",
+        "stalled": "Waiting for sources",
+        "queued": "Queued",
+        "checking": "Checking files",
+        "paused": "Paused",
+        "completed": "Finished",
+        "error": "Error in qBittorrent",
+        "metadata": "Getting the file list"
+      },
+      "left": "{time} left",
+      "pause": "Pause",
+      "resume": "Resume",
+      "remove": "Remove",
+      "keepFiles": "Remove from the list, keep the files",
+      "deleteFiles": "Remove and delete the files",
+      "confirmDeleteTitle": "Delete the downloaded files?",
+      "confirmDeleteBody": "“{name}” and what was downloaded of it will be deleted from the disk. This cannot be undone.",
+      "failed": "That did not work: {message}",
+      "removed": "Removed",
+      "chooseFiles": "Choose files…",
+      "notOurs": "Not added by Theama",
+      "showAll": "Show all my qBittorrent torrents",
+      "showAllHint": "Also lists and lets you pause, remove and choose files for torrents you added to qBittorrent yourself. Off by default so they stay untouched.",
+      "files": {
+        "title": "Files in this download",
+        "intro": "Untick the files you do not want. They are skipped and take no space; files already downloaded stay on disk.",
+        "fetching": "qBittorrent is still fetching the details of this torrent. The list appears here as soon as it has them.",
+        "selectAll": "Select all",
+        "selectNone": "Select none",
+        "summary": "{wanted} of {total} files · {size}",
+        "needOne": "Keep at least one file. To stop the download altogether, remove it instead.",
+        "save": "Save",
+        "saved": "File choice saved"
+      }
     }
   },
   "metadata": {

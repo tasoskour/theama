@@ -55,6 +55,8 @@ const LogRetentionDays = z.number().int().min(1).max(365)
 
 const NextEpisodeCountdown = z.number().int().min(0).max(30)
 
+const LibrarySourceId = z.number().int().positive().nullable()
+
 const SubtitleLanguages = z.array(z.string().regex(/^[a-z]{2}$/)).max(6)
 
 export const AppSettings = z.object({
@@ -79,6 +81,11 @@ export const AppSettings = z.object({
   nextEpisodeCountdownSeconds: NextEpisodeCountdown.default(5),
   renameMovieTemplate: Template.default(DEFAULT_MOVIE_TEMPLATE),
   renameEpisodeTemplate: Template.default(DEFAULT_EPISODE_TEMPLATE),
+  /** The library folders new downloads are saved into; null leaves it to qBittorrent's own default. */
+  downloadMovieSourceId: LibrarySourceId.default(null),
+  downloadSeriesSourceId: LibrarySourceId.default(null),
+  /** List and manage every torrent in qBittorrent, not only the ones Theama added. */
+  downloadsShowAll: z.boolean().default(false),
 })
 export type AppSettings = z.infer<typeof AppSettings>
 
@@ -99,6 +106,9 @@ export const AppSettingsPatch = z.object({
   nextEpisodeCountdownSeconds: NextEpisodeCountdown.optional(),
   renameMovieTemplate: Template.optional(),
   renameEpisodeTemplate: Template.optional(),
+  downloadMovieSourceId: LibrarySourceId.optional(),
+  downloadSeriesSourceId: LibrarySourceId.optional(),
+  downloadsShowAll: z.boolean().optional(),
 })
 export type AppSettingsPatch = z.infer<typeof AppSettingsPatch>
 

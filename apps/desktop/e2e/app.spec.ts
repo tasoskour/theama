@@ -62,7 +62,7 @@ test('opens, connects to the backend and shows the shell', async () => {
 test('uses the integrated desktop header without a native menu', async () => {
   await expect(page.locator('.topnav')).toBeVisible()
   await expect(page.locator('.v-navigation-drawer')).toHaveCount(0)
-  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link')).toHaveCount(7)
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link')).toHaveCount(8)
   const chrome = await app.evaluate(({ BrowserWindow, Menu }) => ({
     applicationMenu: Menu.getApplicationMenu() !== null,
     menuVisible: BrowserWindow.getAllWindows()[0]?.isMenuBarVisible() ?? true,

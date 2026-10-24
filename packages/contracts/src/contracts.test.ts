@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { AppSettings, AppSettingsPatch, DEFAULT_SETTINGS, LogQuery, SCENE_IDS, ServerEvent } from './index'
+import { AppSettings, AppSettingsPatch, DEFAULT_SETTINGS, LogQuery, ReleaseQuery, SCENE_IDS, ServerEvent, SetDownloadClientRequest, SetIndexerRequest } from './index'
 
 describe('settings contract', () => {
   it('fills defaults', () => {
-    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'system', visualMode: 'standard', graphicsQuality: 'medium', backdropScene: 'classic', backdropByGenre: true, backdropByKind: true, logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], autoPlayNext: true, nextEpisodeCountdownSeconds: 5, renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}' })
+    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'system', visualMode: 'standard', graphicsQuality: 'medium', backdropScene: 'classic', backdropByGenre: true, backdropByKind: true, logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], autoPlayNext: true, nextEpisodeCountdownSeconds: 5, renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}', downloadMovieSourceId: null, downloadSeriesSourceId: null, downloadsShowAll: false })
   })
   it('rejects unknown language', () => {
     expect(AppSettings.safeParse({ language: 'fr' }).success).toBe(false)
@@ -33,6 +33,25 @@ describe('backdrop scene settings', () => {
   it('takes the two follow toggles as booleans', () => {
     expect(AppSettingsPatch.parse({ backdropByGenre: false, backdropByKind: false })).toEqual({ backdropByGenre: false, backdropByKind: false })
     expect(AppSettingsPatch.safeParse({ backdropByGenre: 'no' }).success).toBe(false)
+  })
+  it('takes a library folder id (or null) for downloads', () => {
+    expect(AppSettingsPatch.parse({ downloadMovieSourceId: 3, downloadSeriesSourceId: null })).toEqual({ downloadMovieSourceId: 3, downloadSeriesSourceId: null })
+    expect(AppSettingsPatch.safeParse({ downloadMovieSourceId: 0 }).success).toBe(false)
+  })
+})
+
+describe('download contracts', () => {
+  it('only accepts http(s) addresses for the clients', () => {
+    const ok = { qbittorrent: { url: 'http://localhost:8080', username: 'admin', password: 'x' } }
+    expect(SetDownloadClientRequest.safeParse(ok).success).toBe(true)
+    expect(SetDownloadClientRequest.safeParse({ qbittorrent: null }).success).toBe(true)
+    expect(SetDownloadClientRequest.safeParse({ qbittorrent: { ...ok.qbittorrent, url: 'ftp://host' } }).success).toBe(false)
+    expect(SetDownloadClientRequest.safeParse({ qbittorrent: { ...ok.qbittorrent, url: 'javascript:alert(1)' } }).success).toBe(false)
+    expect(SetIndexerRequest.safeParse({ prowlarr: { url: 'http://localhost:9696', apiKey: 'short' } }).success).toBe(false)
+  })
+  it('reads a release query from a query string', () => {
+    expect(ReleaseQuery.parse({ kind: 'series', title: ' Severance ', season: '1', episode: '2' })).toEqual({ kind: 'series', title: 'Severance', season: 1, episode: 2 })
+    expect(ReleaseQuery.safeParse({ kind: 'video', title: 'x' }).success).toBe(false)
   })
 })
 

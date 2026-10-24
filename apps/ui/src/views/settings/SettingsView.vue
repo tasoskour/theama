@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   mdiCogOutline,
+  mdiDownloadOutline,
   mdiFolderMultipleOutline,
   mdiMultimedia,
   mdiPlayCircleOutline,
@@ -13,6 +14,7 @@ const SECTIONS = [
   { to: '/settings/library', key: 'library', icon: mdiFolderMultipleOutline },
   { to: '/settings/metadata', key: 'metadata', icon: mdiMultimedia },
   { to: '/settings/playback', key: 'playback', icon: mdiPlayCircleOutline },
+  { to: '/settings/downloads', key: 'downloads', icon: mdiDownloadOutline },
   { to: '/settings/files', key: 'files', icon: mdiRenameOutline },
   { to: '/settings/advanced', key: 'advanced', icon: mdiTuneVariant },
 ] as const

@@ -16,6 +16,7 @@ import TrailerDialog from '@/components/titles/TrailerDialog.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { useSceneHint } from '@/composables/useSceneHint'
 import { useConnectionStore } from '@/stores/connection'
+import { useDownloadsStore } from '@/stores/downloads'
 import { useMetadataStore } from '@/stores/metadata'
 import { usePlayersStore } from '@/stores/players'
 import { episodeCode, formatBytes, formatClock, formatDuration, resolutionLabel } from '@/utils/format'
@@ -24,6 +25,7 @@ const route = useRoute()
 const router = useRouter()
 const connection = useConnectionStore()
 const metadataStore = useMetadataStore()
+const downloadsStore = useDownloadsStore()
 const players = usePlayersStore()
 const { t, locale } = useI18n()
 
@@ -34,6 +36,12 @@ const season = ref<string>('')
 const heading = ref<HTMLElement | null>(null)
 
 const key = computed(() => String(route.query.key ?? ''))
+
+/** Offered only once qBittorrent or Prowlarr is set up, so it is not a button that leads nowhere. */
+const canFindDownload = computed(() => {
+  const { client, indexer } = downloadsStore
+  return (client !== null && client.state !== 'not_configured') || (indexer !== null && indexer.state !== 'not_configured')
+})
 
 async function load(): Promise<void> {
   if (!connection.client || !key.value) return
@@ -413,6 +421,13 @@ const metaChips = computed(() => {
               </template>
               <AddToCollectionMenu :title-key="summary.key" :member-of="detail?.collections ?? []" @changed="load" />
               <v-btn v-if="summary.kind !== 'video'" variant="text" class="th-btn-quiet th-btn-quiet--text cta__rename" data-test="rename-files" @click="renameOpen = true">{{ $t('detail.renameFiles') }}</v-btn>
+              <v-btn
+                v-if="summary.kind !== 'video' && canFindDownload"
+                variant="text"
+                class="th-btn-quiet th-btn-quiet--text"
+                :to="{ name: 'downloads', query: { kind: summary.kind, title: meta?.title ?? summary.title, ...(summary.year ? { year: String(summary.year) } : {}) } }"
+                data-test="find-download"
+              >{{ $t('detail.findDownload') }}</v-btn>
             </div>
             <p v-if="!players.canPlay" class="th-muted text-caption">{{ $t('play.needsAppHint') }}</p>
             <p v-else-if="playTarget.reason" class="th-muted text-caption">{{ playTarget.reason }}</p>

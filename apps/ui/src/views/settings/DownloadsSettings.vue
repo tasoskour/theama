@@ -1,0 +1,272 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useConnectionStore } from '@/stores/connection'
+import { useDownloadsStore } from '@/stores/downloads'
+import { useLibraryStore } from '@/stores/library'
+import { useSettingsStore } from '@/stores/settings'
+
+const { t } = useI18n()
+const connection = useConnectionStore()
+const downloads = useDownloadsStore()
+const library = useLibraryStore()
+const settings = useSettingsStore()
+
+const snackbar = ref('')
+
+// --- qBittorrent ---
+const qbUrl = ref('http://localhost:8080')
+const qbUser = ref('admin')
+const qbPass = ref('')
+const qbEditing = ref(false)
+const qbSaving = ref(false)
+const qbProblem = ref<string | null>(null)
+
+const qb = computed(() => downloads.client)
+const qbConfigured = computed(() => qb.value !== null && qb.value.state !== 'not_configured')
+const showQbForm = computed(() => !qbConfigured.value || qbEditing.value)
+
+function startQbEdit(): void {
+  qbUrl.value = qb.value?.url ?? qbUrl.value
+  qbUser.value = qb.value?.username ?? qbUser.value
+  qbPass.value = ''
+  qbProblem.value = null
+  qbEditing.value = true
+}
+
+async function saveQb(): Promise<void> {
+  if (qbSaving.value) return
+  qbSaving.value = true
+  qbProblem.value = null
+  const res = await downloads.saveClient({ url: qbUrl.value.trim(), username: qbUser.value.trim(), password: qbPass.value })
+  qbSaving.value = false
+  if (res.ok) {
+    qbPass.value = ''
+    qbEditing.value = false
+    snackbar.value = t('downloads.saved')
+  } else {
+    qbProblem.value = res.code === 'invalid_credentials' ? t('downloads.qb.rejected') : res.code === 'invalid_request' ? t('downloads.badAddress') : res.message
+  }
+}
+
+async function removeQb(): Promise<void> {
+  qbSaving.value = true
+  const res = await downloads.saveClient(null)
+  qbSaving.value = false
+  if (res.ok) snackbar.value = t('downloads.removed')
+  else qbProblem.value = res.message
+}
+
+// --- Prowlarr ---
+const pUrl = ref('http://localhost:9696')
+const pKey = ref('')
+const pEditing = ref(false)
+const pSaving = ref(false)
+const pProblem = ref<string | null>(null)
+
+const pr = computed(() => downloads.indexer)
+const pConfigured = computed(() => pr.value !== null && pr.value.state !== 'not_configured')
+const showPForm = computed(() => !pConfigured.value || pEditing.value)
+
+function startPEdit(): void {
+  pUrl.value = pr.value?.url ?? pUrl.value
+  pKey.value = ''
+  pProblem.value = null
+  pEditing.value = true
+}
+
+async function saveP(): Promise<void> {
+  if (pSaving.value) return
+  pSaving.value = true
+  pProblem.value = null
+  const res = await downloads.saveIndexer({ url: pUrl.value.trim(), apiKey: pKey.value.trim() })
+  pSaving.value = false
+  if (res.ok) {
+    pKey.value = ''
+    pEditing.value = false
+    snackbar.value = t('downloads.saved')
+  } else {
+    pProblem.value = res.code === 'invalid_credentials' ? t('downloads.prowlarr.rejected') : res.code === 'invalid_request' ? t('downloads.badAddress') : res.message
+  }
+}
+
+async function removeP(): Promise<void> {
+  pSaving.value = true
+  const res = await downloads.saveIndexer(null)
+  pSaving.value = false
+  if (res.ok) snackbar.value = t('downloads.removed')
+  else pProblem.value = res.message
+}
+
+function chipColor(state: string | undefined): string | undefined {
+  if (state === 'connected') return 'success'
+  if (state === 'unreachable' || state === 'auth_failed' || state === 'forbidden') return 'warning'
+  return undefined
+}
+
+// --- Folders ---
+const folderItems = (types: string[]) => [
+  { value: null as number | null, title: t('downloads.folders.default') },
+  ...library.sources.filter((s) => types.includes(s.libraryType)).map((s) => ({ value: s.id as number | null, title: s.path })),
+]
+const movieFolders = computed(() => folderItems(['movies', 'auto']))
+const seriesFolders = computed(() => folderItems(['series', 'auto']))
+
+async function setFolder(key: 'downloadMovieSourceId' | 'downloadSeriesSourceId', id: number | null): Promise<void> {
+  if (await settings.update({ [key]: id })) snackbar.value = t('settings.general.saved')
+}
+
+onMounted(() => {
+  void downloads.load()
+  if (!library.loaded) void library.load()
+})
+</script>
+
+<template>
+  <section>
+    <h2 class="th-display section-title">{{ $t('settings.sections.downloads') }}</h2>
+    <p class="intro">{{ $t('downloads.intro') }}</p>
+
+    <div class="field th-form-section" data-test="qb-section">
+      <div class="label-row">
+        <span id="qb-label" class="label">{{ $t('downloads.qb.name') }}</span>
+        <v-chip v-if="qb" size="small" label variant="tonal" :color="chipColor(qb.state)" data-test="qb-state">{{ $t(`downloads.state.${qb.state}`) }}</v-chip>
+      </div>
+      <p class="th-muted hint">{{ $t('downloads.qb.intro') }}</p>
+
+      <form v-if="showQbForm" class="form" @submit.prevent="saveQb">
+        <v-text-field v-model="qbUrl" :label="$t('downloads.address')" :hint="$t('downloads.qb.addressHint')" persistent-hint spellcheck="false" autocomplete="off" :disabled="!connection.isConnected" data-test="qb-url" />
+        <v-text-field v-model="qbUser" :label="$t('downloads.username')" spellcheck="false" autocomplete="off" :disabled="!connection.isConnected" data-test="qb-user" />
+        <v-text-field
+          v-model="qbPass"
+          type="password"
+          :label="$t('downloads.password')"
+          :hint="$t('downloads.passwordHint')"
+          persistent-hint
+          autocomplete="off"
+          :error-messages="qbProblem ?? undefined"
+          :disabled="!connection.isConnected"
+          data-test="qb-pass"
+        />
+        <div class="actions">
+          <v-btn type="submit" color="primary" :loading="qbSaving" :disabled="!qbUrl.trim() || !connection.isConnected" data-test="qb-save">{{ $t('downloads.connect') }}</v-btn>
+          <v-btn v-if="qbEditing" variant="text" @click="qbEditing = false">{{ $t('common.cancel') }}</v-btn>
+        </div>
+      </form>
+      <div v-else class="saved">
+        <span>{{ qb?.url }} · {{ qb?.username || '—' }}<template v-if="qb?.version"> · qBittorrent {{ qb.version }}</template></span>
+        <v-btn variant="tonal" size="small" @click="startQbEdit">{{ $t('downloads.edit') }}</v-btn>
+        <v-btn variant="text" size="small" color="error" :loading="qbSaving" @click="removeQb">{{ $t('downloads.remove') }}</v-btn>
+      </div>
+      <v-alert v-if="qbConfigured && qb && qb.state !== 'connected' && qb.message" type="warning" variant="tonal" density="compact">
+        {{ qb.message }}
+        <template #append><v-btn variant="text" size="small" @click="downloads.load()">{{ $t('common.retry') }}</v-btn></template>
+      </v-alert>
+      <p class="th-muted hint">{{ $t('downloads.qb.webUiHint') }}</p>
+    </div>
+
+    <div class="field th-form-section" data-test="prowlarr-section">
+      <div class="label-row">
+        <span id="prowlarr-label" class="label">{{ $t('downloads.prowlarr.name') }}</span>
+        <v-chip v-if="pr" size="small" label variant="tonal" :color="chipColor(pr.state)" data-test="prowlarr-state">{{ $t(`downloads.state.${pr.state}`) }}</v-chip>
+      </div>
+      <p class="th-muted hint">{{ $t('downloads.prowlarr.intro') }}</p>
+
+      <form v-if="showPForm" class="form" @submit.prevent="saveP">
+        <v-text-field v-model="pUrl" :label="$t('downloads.address')" spellcheck="false" autocomplete="off" :disabled="!connection.isConnected" data-test="prowlarr-url" />
+        <v-text-field
+          v-model="pKey"
+          type="password"
+          :label="$t('downloads.prowlarr.apiKey')"
+          :hint="$t('downloads.prowlarr.apiKeyHint')"
+          persistent-hint
+          autocomplete="off"
+          :error-messages="pProblem ?? undefined"
+          :disabled="!connection.isConnected"
+          data-test="prowlarr-key"
+        />
+        <div class="actions">
+          <v-btn type="submit" color="primary" :loading="pSaving" :disabled="!pUrl.trim() || pKey.trim().length < 8 || !connection.isConnected" data-test="prowlarr-save">{{ $t('downloads.connect') }}</v-btn>
+          <v-btn v-if="pEditing" variant="text" @click="pEditing = false">{{ $t('common.cancel') }}</v-btn>
+        </div>
+      </form>
+      <div v-else class="saved">
+        <span>{{ pr?.url }}<template v-if="pr?.version"> · Prowlarr {{ pr.version }}</template></span>
+        <v-btn variant="tonal" size="small" @click="startPEdit">{{ $t('downloads.edit') }}</v-btn>
+        <v-btn variant="text" size="small" color="error" :loading="pSaving" @click="removeP">{{ $t('downloads.remove') }}</v-btn>
+      </div>
+      <v-alert v-if="pConfigured && pr && pr.state !== 'connected' && pr.message" type="warning" variant="tonal" density="compact">{{ pr.message }}</v-alert>
+    </div>
+
+    <div class="field th-form-section">
+      <span class="label">{{ $t('downloads.folders.title') }}</span>
+      <p class="th-muted hint">{{ $t('downloads.folders.hint') }}</p>
+      <div class="form">
+        <v-select
+          :model-value="settings.settings.downloadMovieSourceId"
+          :items="movieFolders"
+          :label="$t('downloads.folders.movies')"
+          :disabled="!connection.isConnected"
+          data-test="folder-movies"
+          @update:model-value="(v: number | null) => setFolder('downloadMovieSourceId', v)"
+        />
+        <v-select
+          :model-value="settings.settings.downloadSeriesSourceId"
+          :items="seriesFolders"
+          :label="$t('downloads.folders.series')"
+          :disabled="!connection.isConnected"
+          data-test="folder-series"
+          @update:model-value="(v: number | null) => setFolder('downloadSeriesSourceId', v)"
+        />
+      </div>
+    </div>
+
+    <div class="field th-form-section">
+      <span class="label">{{ $t('downloads.privacy') }}</span>
+      <p class="th-muted hint">{{ $t('downloads.privacyText') }}</p>
+    </div>
+
+    <v-snackbar :model-value="snackbar !== ''" :timeout="2400" color="surface-bright" @update:model-value="snackbar = ''">{{ snackbar }}</v-snackbar>
+  </section>
+</template>
+
+<style scoped>
+.section-title {
+  font-size: 1.6rem;
+  margin: 0 0 12px;
+}
+.intro {
+  max-width: 62ch;
+  margin: 0 0 28px;
+}
+.field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+.label {
+  font-weight: 600;
+}
+.label-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hint {
+  margin: 0;
+  font-size: 0.85rem;
+  max-width: 62ch;
+}
+.form {
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+}
+.actions,
+.saved {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+</style>

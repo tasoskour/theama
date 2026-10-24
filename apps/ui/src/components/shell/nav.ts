@@ -1,5 +1,6 @@
 import {
   mdiCogOutline,
+  mdiDownloadOutline,
   mdiFolderMultipleOutline,
   mdiHomeOutline,
   mdiMagnify,
@@ -23,5 +24,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/videos', labelKey: 'nav.videos', icon: mdiVideoOutline, bottom: true },
   { to: '/search', labelKey: 'nav.search', icon: mdiMagnify, bottom: true },
   { to: '/collections', labelKey: 'nav.collections', icon: mdiFolderMultipleOutline, bottom: false },
+  { to: '/downloads', labelKey: 'nav.downloads', icon: mdiDownloadOutline, bottom: false },
   { to: '/settings', labelKey: 'nav.settings', icon: mdiCogOutline, bottom: false },
 ]

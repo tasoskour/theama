@@ -3,6 +3,7 @@ import { ServiceAccountChoice, ServiceStatus } from './service'
 import type { UiLanguage } from './settings'
 import { LogEntry } from './logs'
 import type { NextUp } from './playback'
+import type { DownloadTool, DownloadToolsStatus, OpenDownloadToolResult } from './download-tools'
 
 /**
  * Narrow, typed IPC surface between the sandboxed renderer and the Electron
@@ -36,6 +37,8 @@ export const IPC = {
   playersAddCustom: 'players:addCustom',
   playersRemove: 'players:remove',
   playersPlay: 'players:play',
+  downloadToolsStatus: 'downloadTools:status',
+  downloadToolsOpen: 'downloadTools:open',
   /** Main to renderer push: the trailer was closed from inside the video (Escape). */
   evTrailerClosed: 'ev:trailer-closed',
   /** Main to renderer push: an episode ended and the next one should start after a countdown. */
@@ -139,6 +142,10 @@ export type ServiceActionResult = z.infer<typeof ServiceActionResult>
 
 /** The object exposed to the renderer as window.theama. */
 export interface TheamaBridge {
+  downloadTools: {
+    status(): Promise<DownloadToolsStatus>
+    open(tool: DownloadTool): Promise<OpenDownloadToolResult>
+  }
   appInfo(): Promise<AppInfo>
   /** Tells the main process which language to use for native dialogs and tray UI. */
   setLanguage(language: UiLanguage): Promise<void>

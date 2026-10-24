@@ -141,7 +141,7 @@ describe('where playback stopped', () => {
 
   it('remembers the minute after five, and offers it to the player, the next-episode button and the continue rail', async () => {
     const id = await episodeId(1)
-    expect(await report(id, 754, 2700)).toMatchObject({ outcome: 'saved' })
+    expect(await report(id, 754.9, 2700.75)).toMatchObject({ outcome: 'saved' })
     expect(await resume(id)).toBe(754)
     const d = await detail((await byTitle('Show')).key)
     expect(d.playback.next).toMatchObject({ label: 'S01E01', resumeSeconds: 754 })
@@ -169,6 +169,25 @@ describe('where playback stopped', () => {
     const id = await episodeId(2)
     expect(await report(id, 5000, null)).toMatchObject({ outcome: 'saved' })
     expect(await resume(id)).toBe(5000)
+  })
+
+  it('marks completed short episodes watched before applying the five-minute resume cutoff', async () => {
+    const id = await episodeId(2)
+    await send('PUT', `/playback/files/${id}`, { watched: false })
+    expect(await report(id, 100, 180)).toMatchObject({ outcome: 'ignored' })
+    expect(await resume(id)).toBeNull()
+    expect(await report(id, 162, 180, true)).toMatchObject({ outcome: 'watched' })
+    expect((await detail((await byTitle('Show')).key)).files.find((f) => f.id === id)).toMatchObject({ watched: true, positionSeconds: null })
+    await send('PUT', `/playback/files/${id}`, { watched: false })
+  })
+
+  it('preserves subsecond progress for the watched threshold and next-episode prompt', async () => {
+    const id = await episodeId(1)
+    await send('PUT', `/playback/files/${id}`, { watched: false })
+    expect(await report(id, 7.1, 8, true)).toMatchObject({ outcome: 'ignored' })
+    expect(await report(id, 7.836, 8, true)).toMatchObject({ outcome: 'watched', nextUp: { next: { label: 'S01E02' } } })
+    expect((await detail((await byTitle('Show')).key)).files.find((f) => f.id === id)?.watched).toBe(true)
+    await send('PUT', `/playback/files/${id}`, { watched: false })
   })
 
   it('marking unwatched starts fresh, and bad input is refused', async () => {
@@ -209,6 +228,38 @@ describe('offering the next episode when a viewing ends', () => {
     const last = files.filter((f) => f.season !== null && f.episode !== null).sort((a, b) => a.season! * 1000 + a.episode! - (b.season! * 1000 + b.episode!)).at(-1)!
     expect((await finish(last.id, 2600)).nextUp).toBeUndefined()
     await send('PUT', '/playback/titles', { key: (await byTitle('Show')).key, watched: false })
+  })
+
+  it('offers the next season after completion and marks watched before returning the prompt', async () => {
+    const id = await episodeId(3)
+    expect((await finish(id, 2430)).nextUp).toMatchObject({ next: { label: 'S02E01' } })
+    expect((await detail((await byTitle('Show')).key)).files.find((f) => f.id === id)?.watched).toBe(true)
+    await send('PUT', `/playback/files/${id}`, { watched: false })
+  })
+
+  it('only offers a locally available next episode', async () => {
+    const id = await episodeId(1)
+    const second = join(media, 'Show.S01E02.mkv')
+    const hidden = join(media, 'Show.S01E02.hidden')
+    const sources = await get('/library/sources') as { items: { id: number }[] }
+    const scanPath = `/library/sources/${sources.items[0]!.id}/scan`
+    await rename(second, hidden)
+    try {
+      expect((await send('POST', scanPath)).status).toBe(202)
+      await until('missing next episode', async () => {
+        const d = await detail((await byTitle('Show')).key)
+        return d.files.find((f) => f.episode === 2 && f.season === 1)?.state !== 'available'
+      })
+      expect((await finish(id, 2600)).nextUp).toMatchObject({ next: { label: 'S01E03' } })
+    } finally {
+      await rename(hidden, second)
+      expect((await send('POST', scanPath)).status).toBe(202)
+      await until('restored next episode', async () => {
+        const d = await detail((await byTitle('Show')).key)
+        return d.files.find((f) => f.episode === 2 && f.season === 1)?.state === 'available'
+      })
+      await send('PUT', `/playback/files/${id}`, { watched: false })
+    }
   })
 })
 

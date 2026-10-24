@@ -5,6 +5,7 @@ import { mdiClose } from '@mdi/js'
 import { useI18n } from 'vue-i18n'
 import type { MatchCandidate, ReleaseKind } from '@theama/contracts'
 import ActiveDownloads from '@/components/downloads/ActiveDownloads.vue'
+import DownloadToolsPanel from '@/components/downloads/DownloadToolsPanel.vue'
 import ReleaseList from '@/components/downloads/ReleaseList.vue'
 import SuggestionGrid from '@/components/downloads/SuggestionGrid.vue'
 import SuggestionSection from '@/components/downloads/SuggestionSection.vue'
@@ -199,6 +200,8 @@ function changeKind(): void {
         </v-tab>
       </v-tabs>
     </header>
+
+    <DownloadToolsPanel />
 
     <v-alert v-if="downloads.client && downloads.indexer && !setUp" type="info" variant="tonal" density="compact" class="mb-4" data-test="downloads-setup">
       {{ $t('downloads.find.setup') }}

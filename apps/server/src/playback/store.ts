@@ -88,7 +88,7 @@ export class PlaybackRepo {
   }
 
   /**
-   * A player reported how far it has got. Under five minutes nothing is kept (a quick look is not "watching");
+   * A player reported how far it has got. Unfinished playback under five minutes is not kept;
    * from 90 % of the runtime on the file counts as watched, which is what moves "next episode" along; in between
    * the position is remembered so the next start can carry on. A file already watched is left alone unless this
    * viewing reaches the end again.
@@ -96,8 +96,8 @@ export class PlaybackRepo {
   recordProgress(fileId: number, positionSeconds: number, durationSeconds: number | null, now: string): ProgressResult['outcome'] {
     const exists = this.raw.prepare('SELECT 1 FROM media_file WHERE id = ?').get(fileId)
     if (!exists) throw new PlaybackProblem('not_found', 'No such file')
-    if (positionSeconds < MIN_TRACKED_SECONDS) return 'ignored'
     const finished = durationSeconds !== null && durationSeconds > 0 && positionSeconds >= durationSeconds * WATCHED_FRACTION
+    if (!finished && positionSeconds < MIN_TRACKED_SECONDS) return 'ignored'
     const row = this.raw.prepare('SELECT watched FROM playback_state WHERE file_id = ?').get(fileId) as { watched: number } | undefined
     if (finished) {
       this.raw

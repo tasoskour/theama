@@ -55,11 +55,12 @@ export type SetTitleWatchedRequest = z.infer<typeof SetTitleWatchedRequest>
 
 /**
  * What a player reports while it plays, forwarded by the desktop shell. The server decides what it means:
- * nothing is kept below `MIN_TRACKED_SECONDS`, and near the end the file counts as watched.
+ * unfinished playback below `MIN_TRACKED_SECONDS` is not kept, and near the end the file counts as watched.
  */
 export const ProgressRequest = z.object({
-  positionSeconds: z.number().min(0).max(1_000_000).transform((n) => Math.floor(n)),
-  durationSeconds: z.number().positive().max(1_000_000).transform((n) => Math.floor(n)).nullable().default(null),
+  // Keep player precision for completion checks; saved resume positions are rounded by the repository.
+  positionSeconds: z.number().min(0).max(1_000_000),
+  durationSeconds: z.number().positive().max(1_000_000).nullable().default(null),
   /** The player has closed: the last report of this viewing. */
   final: z.boolean().default(false),
 })
@@ -81,7 +82,7 @@ export const ProgressResult = z.object({
 })
 export type ProgressResult = z.infer<typeof ProgressResult>
 
-/** Playback shorter than this is not remembered. */
+/** Unfinished playback shorter than this is not remembered. */
 export const MIN_TRACKED_SECONDS = 5 * 60
 /** From this share of the runtime on, a file counts as watched. */
 export const WATCHED_FRACTION = 0.9

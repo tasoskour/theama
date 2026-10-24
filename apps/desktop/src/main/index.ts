@@ -2,13 +2,15 @@ import { app, BrowserWindow, dialog, Menu, net, protocol, screen, session, shell
 import { appendFileSync, existsSync } from 'node:fs'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { IPC, LaunchInfo, ProgressResult, type DesktopSettings, type DesktopSettingsPatch, type NextUp, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
+import { IPC, IndexerStatus, LaunchInfo, type DesktopSettings, type DesktopSettingsPatch, type NextUp, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
 import { defaultDataDir, resolveDataPaths } from '@theama/logs'
 import { registerIpc } from './ipc'
+import { DownloadToolsManager } from './download-tools'
 import { menuStrings } from './menu-strings'
 import { originOf } from './origin'
 import { launchDetached, PlayerManager } from './players'
 import { trackPlayback } from './position-tracking'
+import { progressReporter } from './playback-reporting'
 import { TrailerView } from './trailer-view'
 import { PrefsStore } from './prefs'
 import { restoreWindowState } from './window-state'
@@ -373,18 +375,7 @@ async function main(): Promise<void> {
     track: testPlayerLog
       ? undefined
       : (job) => {
-          void trackPlayback(job, async (fileId, sample, final) => {
-            const conn = connection()
-            if (!conn) return undefined
-            const res = await fetch(`${conn.base}/api/v1/playback/files/${fileId}/progress`, {
-              method: 'PUT',
-              headers: { Authorization: `Bearer ${conn.token}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ positionSeconds: sample.positionSeconds, durationSeconds: sample.durationSeconds, final }),
-            })
-            if (!final) return undefined
-            const parsed = ProgressResult.safeParse(await res.json().catch(() => null))
-            return parsed.success ? parsed.data : undefined
-          }).done.then((result) => {
+          void trackPlayback(job, progressReporter(connection)).done.then((result) => {
             if (result?.nextUp) offerNextEpisode(result.nextUp)
           })
         },
@@ -398,6 +389,19 @@ async function main(): Promise<void> {
     },
   })
   registerIpc({
+    downloadTools: new DownloadToolsManager({
+      openBrowser: (url) => shell.openExternal(url),
+      prowlarrUrl: async () => {
+        const conn = connection()
+        if (!conn) return null
+        const res = await fetch(`${conn.base}/api/v1/downloads/indexer`, {
+          headers: { Authorization: `Bearer ${conn.token}` }, signal: AbortSignal.timeout(5000),
+        })
+        if (!res.ok) throw new Error('Could not read the Prowlarr address')
+        const status = IndexerStatus.parse(await res.json())
+        return status.url
+      },
+    }),
     players,
     getWindow: () => mainWindow,
     paths,

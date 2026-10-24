@@ -4,6 +4,10 @@ import { IPC, type LogEntry, type NextUp, type ServiceStatus, type TheamaBridge 
 // The renderer is sandboxed with no Node access. This is its only door to the
 // system, and every call is validated again in the main process.
 const bridge: TheamaBridge = {
+  downloadTools: {
+    status: () => ipcRenderer.invoke(IPC.downloadToolsStatus),
+    open: (tool) => ipcRenderer.invoke(IPC.downloadToolsOpen, { tool }),
+  },
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
   setLanguage: (language) => ipcRenderer.invoke(IPC.setLanguage, { language }),
   pickFolder: (title) => ipcRenderer.invoke(IPC.pickFolder, { title }),

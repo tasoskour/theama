@@ -27,6 +27,8 @@ export interface LaunchOptions {
   resumeSeconds?: number | null
   /** The local interface the player is asked to open so Theama can see how far it has got. */
   tracking?: TrackingPlan | null
+  /** Series episodes close their MPC instance after playback. */
+  closeAfterPlayback?: boolean
 }
 
 interface Definition {
@@ -44,11 +46,13 @@ const programFiles = (env: NodeJS.ProcessEnv): string[] =>
   [env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramW6432].filter((p): p is string => Boolean(p))
 
 /** MPC-HC and MPC-BE share their switches: `/sub`, `/start <ms>` and `/webport` (which also opens the web interface). */
-function mpcArgs({ path, subtitle, resumeSeconds, tracking }: LaunchOptions): string[] {
+function mpcArgs({ path, subtitle, resumeSeconds, tracking, closeAfterPlayback }: LaunchOptions): string[] {
   return [
     path,
     ...(subtitle ? ['/sub', subtitle] : []),
     ...(resumeSeconds ? ['/start', String(resumeSeconds * 1000)] : []),
+    ...(tracking?.kind === 'mpc' || closeAfterPlayback ? ['/new'] : []),
+    ...(closeAfterPlayback ? ['/play', '/close'] : []),
     ...(tracking?.kind === 'mpc' ? ['/webport', String(tracking.port)] : []),
   ]
 }
@@ -164,12 +168,16 @@ export function validateCustomExe(raw: string): string {
   return win32.normalize(raw)
 }
 
+export interface LaunchedPlayer {
+  exited: Promise<void>
+}
+
 export interface PlayerDeps {
   host?: PlayerEnv
   getPrefs(): PlayerPrefs
   setPrefs(prefs: PlayerPrefs): void
   /** Starts a program detached with an argument array. Resolves once it has started; rejects if it could not. */
-  launch(exe: string, args: string[]): Promise<void>
+  launch(exe: string, args: string[]): Promise<LaunchedPlayer | void>
   /** Opens a file with the system default application. Returns an error message, or '' on success. */
   openWithSystem(path: string): Promise<string>
   /** Asks the backend about a file (the shell supplies the token). */
@@ -184,13 +192,14 @@ export interface PlayerDeps {
 }
 
 /** The real "start a program": detached, no shell, no console window handling beyond the player's own. */
-export function launchDetached(exe: string, args: string[]): Promise<void> {
+export function launchDetached(exe: string, args: string[]): Promise<LaunchedPlayer> {
   return new Promise((resolve, reject) => {
     const child = spawn(exe, args, { detached: true, stdio: 'ignore', shell: false, windowsHide: false })
+    const exited = new Promise<void>((onExit) => child.once('exit', () => onExit()))
     child.once('error', reject)
     child.once('spawn', () => {
       child.unref()
-      resolve()
+      resolve({ exited })
     })
   })
 }
@@ -261,6 +270,7 @@ export class PlayerManager {
     let path: string
     let subtitle: string | null = null
     let tracking: TrackingPlan | null = null
+    let launched: LaunchedPlayer | void = undefined
     try {
       path = assertSafeUserPath(info.path)
       if (info.subtitle && player.externalSubtitle) {
@@ -281,13 +291,15 @@ export class PlayerManager {
       } else {
         tracking = this.canTrack(player.kind) ? await planTracking(player.kind) : null
         const resumeSeconds = fromStart ? null : info.resumeSeconds
-        await this.deps.launch(player.exe!, buildArgs(player.kind, { path, subtitle, languages: info.subtitleLanguages, resumeSeconds, tracking }))
+        launched = await this.deps.launch(player.exe!, buildArgs(player.kind, {
+          path, subtitle, languages: info.subtitleLanguages, resumeSeconds, tracking, closeAfterPlayback: info.kind === 'episode',
+        }))
       }
     } catch (err) {
       return fail('launch_failed', err instanceof Error ? err.message : 'The player could not be started', player.name)
     }
+    if (tracking) this.deps.track?.({ fileId, fileName: info.fileName, filePath: path, plan: tracking, exited: launched?.exited })
     await this.deps.reportLaunched(fileId).catch(() => undefined)
-    if (tracking) this.deps.track?.({ fileId, fileName: info.fileName, plan: tracking })
     return { ok: true, code: null, message: null, playerName: player.name }
   }
 }

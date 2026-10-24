@@ -3,6 +3,7 @@ import { readdir, rename, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { IPC, type NextUp } from '@theama/contracts'
 import { GOOD_KEY, startFakeTmdb, type FakeTmdb } from '../../../tools/fake-tmdb/server.mjs'
 
 /**
@@ -540,8 +541,40 @@ test('starts a player on a video with the right subtitle, remembers what was wat
   await page.locator('[data-test="play-with"]').click()
   await expect(page.locator('.v-overlay-container [data-test="play-from-start"]')).toBeVisible()
   await page.keyboard.press('Escape')
-  expect(await api('PUT', `/playback/files/${firstEpisode.id}/progress`, { positionSeconds: 2430, durationSeconds: 2700, final: true })).toEqual({ outcome: 'watched' })
+  const finished = await api('PUT', `/playback/files/${firstEpisode.id}/progress`, { positionSeconds: 2430, durationSeconds: 2700, final: true }) as { outcome: string; nextUp: NextUp }
+  expect(finished).toMatchObject({ outcome: 'watched', nextUp: { next: { label: 'S01E02' }, countdownSeconds: 5 } })
   await expect(page.locator('[data-test="play"]')).toHaveText(/Play S01E02/)
+
+  // Exercise the real preload event and dialog, with the same payload the desktop receives after saving progress.
+  const offerNext = () => app.evaluate(({ BrowserWindow }, { channel, payload }) => {
+    BrowserWindow.getAllWindows()[0]!.webContents.send(channel, payload)
+  }, { channel: IPC.evNextUp, payload: { ...finished.nextUp, countdownSeconds: 2 } })
+  const launchesBeforeNext = launches().length
+  await offerNext()
+  await expect(page.locator('[data-test="next-up"]')).toBeVisible()
+  await expect(page.locator('[data-test="next-up-count"]')).toContainText('S01E02')
+  await page.locator('[data-test="next-up-cancel"]').click()
+  await expect(page.locator('[data-test="next-up"]')).toHaveCount(0)
+  await page.waitForTimeout(2200)
+  expect(launches()).toHaveLength(launchesBeforeNext)
+  await offerNext()
+  await expect(page.locator('[data-test="next-up"]')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-test="next-up"]')).toHaveCount(0)
+  await page.waitForTimeout(2200)
+  expect(launches()).toHaveLength(launchesBeforeNext)
+  await offerNext()
+  await expect(page.locator('[data-test="next-up"]')).toBeVisible()
+  await page.locator('[data-test="next-up-play"]').click()
+  await expect.poll(() => launches().length).toBe(launchesBeforeNext + 1)
+  await page.waitForTimeout(2200)
+  expect(launches()).toHaveLength(launchesBeforeNext + 1)
+  await offerNext()
+  await expect(page.locator('[data-test="next-up"]')).toBeVisible()
+  await expect.poll(() => launches().length).toBe(launchesBeforeNext + 2)
+  expect(launches().at(-1)!.args).toContain(join(mediaFolder, 'Show.S01E02.mkv'))
+  await expect(page.locator('[data-test="next-up"]')).toHaveCount(0)
+
   await api('PUT', `/playback/files/${firstEpisode.id}`, { watched: false })
   await expect(page.locator('[data-test="play"]')).toHaveText(/Play S01E01/)
 

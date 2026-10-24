@@ -15,6 +15,7 @@ import {
   TrailerBounds,
   TrailerShowRequest,
   WindowThemeRequest,
+  OpenDownloadToolRequest,
   type AppInfo,
   type DesktopSettings,
   type ServiceActionResult,
@@ -28,8 +29,10 @@ import type { TrailerView } from './trailer-view'
 import type { PlayerManager } from './players'
 import type { ApiConnection } from './runtime'
 import type { ServiceController } from './service/controller'
+import type { DownloadToolsManager } from './download-tools'
 
 export interface IpcDeps {
+  downloadTools: Pick<DownloadToolsManager, 'status' | 'open'>
   getWindow(): BrowserWindow | null
   paths: DataPaths
   controller: ServiceController
@@ -71,6 +74,9 @@ export function registerIpc(deps: IpcDeps): void {
     })
   }
   const none = z.undefined().or(z.null())
+
+  handle(IPC.downloadToolsStatus, none, () => deps.downloadTools.status())
+  handle(IPC.downloadToolsOpen, OpenDownloadToolRequest, ({ tool }) => deps.downloadTools.open(tool))
 
   handle(IPC.appInfo, none, (): AppInfo => {
     const conn = deps.connection()

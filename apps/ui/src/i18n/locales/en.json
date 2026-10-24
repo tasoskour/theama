@@ -636,6 +636,43 @@
     }
   },
   "downloads": {
+    "tools": {
+      "heading": "VPN and download apps",
+      "vpn": {
+        "connected": "NordVPN connection verified",
+        "disconnected": "NordVPN is disconnected",
+        "unknown": "Connection could not be verified",
+        "unsupported": "VPN checks are unavailable on this platform"
+      },
+      "warning": "qBittorrent may be running without a verified VPN connection. Open NordVPN and connect to a server.",
+      "remoteWarning": "The local NordVPN connection cannot verify protection for a remote qBittorrent instance.",
+      "reason": {
+        "verified": "The tunnel and NordVPN protection check passed.",
+        "no_tunnel": "No active NordVPN tunnel with a valid network address was found.",
+        "unsupported_tunnel": "No supported NordLynx or NordVPN OpenVPN adapter was found. Check the connection in NordVPN.",
+        "route_mismatch": "Internet routing could not be confirmed through the NordVPN tunnel.",
+        "protection_failed": "NordVPN's online protection check did not confirm the connection.",
+        "check_failed": "The connection check failed. Open NordVPN to check its status, or try again.",
+        "unsupported_platform": "Automatic connection checks require the Windows desktop app.",
+        "stale": "Waiting for a current connection check. Previous results have expired.",
+        "remote": "This qBittorrent address is not local to this PC. Check the VPN on the computer running qBittorrent."
+      },
+      "open": {
+        "nordvpn": "Open NordVPN",
+        "qbittorrent": "Open qBittorrent",
+        "prowlarr": "Open Prowlarr"
+      },
+      "refresh": "Check connection",
+      "error": {
+        "not_installed": "The app was not found in its usual installation folders. Install it there, or open it manually.",
+        "launch_failed": "The app could not be opened. Try opening it from the Windows Start menu.",
+        "not_ready": "The app has not finished starting. Check its window, then try again.",
+        "unavailable": "Opening download apps requires the Windows desktop app.",
+        "invalid_address": "Prowlarr's address is invalid. Set an HTTP or HTTPS address without an embedded username or password in Downloads Settings."
+      },
+      "splitTunneling": "This checks the VPN connection on this PC, not qBittorrent's individual traffic. NordVPN split tunneling can exclude apps; make sure qBittorrent is included in the VPN connection. Checks are advisory and do not pause or block downloads.",
+      "desktopOnly": "Use the Windows desktop app to check NordVPN and open download apps."
+    },
     "title": "Downloads",
     "intro": "Theama can hand downloads to qBittorrent and look for releases of the movies and series you want. It never downloads anything itself: qBittorrent does, and finished files appear in your library when they land in one of its folders.",
     "state": {
@@ -963,7 +1000,7 @@
     "tracking": "What Theama knows about watching",
     "autoNext": "Next episode",
     "autoNextSwitch": "Play the next episode automatically",
-    "autoNextHint": "When an episode ends, Theama comes to the front and starts the next one after a short countdown. You can cancel it or play right away. This works with the players Theama can follow: VLC, mpv, MPC-HC and MPC-BE.",
+    "autoNextHint": "When an episode ends, Theama comes to the front and starts the next one after a short countdown. You can cancel it or play right away. Episodes opened in MPC-HC and MPC-BE close their player automatically when they finish. Automatic next episode works with the players Theama can follow: VLC, mpv, MPC-HC and MPC-BE.",
     "autoNextCountdown": "Countdown before it starts",
     "autoNextSeconds": "{count} second | {count} seconds",
     "autoNextImmediately": "Immediately",

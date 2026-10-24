@@ -5,13 +5,18 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseMpcVariables, planTracking, trackPlayback, type PositionSample, type TrackerOptions } from './position-tracking'
 
-const FAST: TrackerOptions = { pollMs: 15, reportEveryMs: 40, connectGraceMs: 300 }
+const FAST: TrackerOptions = { pollMs: 15, reportEveryMs: 40, connectGraceMs: 300, finalRetryDelaysMs: [1, 3] }
 const FILE = 'Show S01E01.mkv'
 
 type Report = { fileId: number; sample: PositionSample; final: boolean }
 const collector = () => {
   const reports: Report[] = []
   return { reports, report: async (fileId: number, sample: PositionSample, final: boolean) => void reports.push({ fileId, sample, final }) }
+}
+const deferred = () => {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => { resolve = done })
+  return { promise, resolve }
 }
 const until = async (what: string, probe: () => boolean, ms = 4000): Promise<void> => {
   const deadline = Date.now() + ms
@@ -42,8 +47,12 @@ async function listenHttp(handler: Parameters<typeof createHttpServer>[1]): Prom
 describe('parseMpcVariables', () => {
   it('reads the state, position, length and file name of the web interface page', () => {
     const html = '<p id="file">Show &amp; Tell.mkv</p><p id="state">2</p><p id="position">754000</p><p id="duration">2700000</p>'
-    expect(parseMpcVariables(html)).toEqual({ state: 2, positionMs: 754000, durationMs: 2700000, file: 'Show & Tell.mkv' })
-    expect(parseMpcVariables('nothing here')).toEqual({ state: null, positionMs: null, durationMs: null, file: null })
+    expect(parseMpcVariables(html)).toEqual({ state: 2, positionMs: 754000, durationMs: 2700000, file: 'Show & Tell.mkv', filePath: null })
+    expect(parseMpcVariables('nothing here')).toEqual({ state: null, positionMs: null, durationMs: null, file: null, filePath: null })
+  })
+  it('decodes paths and numeric entities once, preserving literal entity text in filenames', () => {
+    expect(parseMpcVariables('<p id="filepath">D:\\Shows\\Tom&#39;s &amp; Jerry &#x3B1;.mkv</p><p id="file">&amp;quot;.mkv</p>'))
+      .toMatchObject({ filePath: "D:\\Shows\\Tom's & Jerry α.mkv", file: '&quot;.mkv' })
   })
 })
 
@@ -125,6 +134,9 @@ describe('watching VLC', () => {
 })
 
 describe('watching MPC-HC / MPC-BE', () => {
+  const variables = (file: string, position = 2600000, duration = 2700000, state = 2, path = '') =>
+    `<p id="file">${file}</p><p id="filepath">${path}</p><p id="state">${state}</p><p id="position">${position}</p><p id="duration">${duration}</p>`
+
   it('reads positions in milliseconds from variables.html', async () => {
     let ms = 300_000
     const { port } = await listenHttp((req, res) => {
@@ -140,6 +152,91 @@ describe('watching MPC-HC / MPC-BE', () => {
     expect(reports[0]!.sample.durationSeconds).toBe(2700)
     expect(reports[0]!.sample.positionSeconds).toBeGreaterThanOrEqual(320)
     expect(reports[reports.length - 1]!.final).toBe(true)
+  })
+
+  it('waits through empty startup filenames before following the episode', async () => {
+    let polls = 0
+    const { port } = await listenHttp((_req, res) => res.end(++polls < 3 ? variables('', 0, 0) : variables(FILE)))
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port } }, report, FAST)
+    await until('episode position', () => reports.length > 0)
+    t.stop()
+    await t.done
+    expect(polls).toBeGreaterThanOrEqual(3)
+    expect(reports.every((r) => r.sample.positionSeconds === 2600)).toBe(true)
+  })
+
+  it('gives up on an interface that never identifies a file', async () => {
+    const { port } = await listenHttp((_req, res) => res.end(variables('', 0, 0)))
+    const { reports, report } = collector()
+    await trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port } }, report, { ...FAST, connectGraceMs: 50 }).done
+    expect(reports).toEqual([])
+  })
+
+  it('prefers full paths and stops when the same filename is loaded from a different folder', async () => {
+    let path = `D:\\Shows\\${FILE}`
+    const { port } = await listenHttp((_req, res) => res.end(variables('player display title', 2600000, 2700000, 2, path)))
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, filePath: `d:/shows/${FILE}`, plan: { kind: 'mpc', port } }, report, FAST)
+    await until('a matching full path', () => reports.length > 0)
+    path = `D:\\Other\\${FILE}`
+    await t.done
+    expect(reports.filter((r) => r.final)).toHaveLength(1)
+    expect(reports.at(-1)?.sample.positionSeconds).toBe(2600)
+  })
+
+  it('falls back to filenames and ends when a different episode starts', async () => {
+    let name = FILE
+    const { port } = await listenHttp((_req, res) => res.end(variables(name)))
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, filePath: `D:\\Shows\\${FILE}`, plan: { kind: 'mpc', port } }, report, FAST)
+    await until('first report', () => reports.length > 0)
+    name = 'Show S01E02.mkv'
+    await t.done
+    expect(reports.filter((r) => r.final)).toHaveLength(1)
+  })
+
+  it('keeps the last duration and position through stopped-state resets, and finalizes immediately on process exit', async () => {
+    let html = variables(FILE)
+    let polls = 0
+    const { port } = await listenHttp((_req, res) => { polls++; res.end(html) })
+    const { reports, report } = collector()
+    const { promise: exited, resolve: exit } = deferred()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port }, exited }, report, FAST)
+    await until('first report', () => reports.length > 0)
+    html = variables(FILE, 2650000, 0)
+    await until('position with missing duration', () => reports.some((r) => r.sample.positionSeconds === 2650))
+    html = variables('', 0, 0, 0)
+    const beforeReset = polls
+    await until('shutdown reset', () => polls > beforeReset)
+    exit()
+    await t.done
+    expect(reports.filter((r) => r.final)).toEqual([{ fileId: 1, final: true, sample: { positionSeconds: 2650, durationSeconds: 2700 } }])
+  })
+
+  it('interrupts a long poll interval as soon as the player process exits', async () => {
+    const { port } = await listenHttp((_req, res) => res.end(variables(FILE)))
+    const { reports, report } = collector()
+    const { promise: exited, resolve: exit } = deferred()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port }, exited }, report, { ...FAST, pollMs: 60000 })
+    await until('first report', () => reports.length > 0)
+    exit()
+    await t.done
+    expect(reports.filter((r) => r.final)).toHaveLength(1)
+  })
+
+  it('polls more often near the end so short episodes do not finish between normal polls', async () => {
+    let polls = 0
+    const { port } = await listenHttp((_req, res) => res.end(variables(FILE, ++polls === 1 ? 6000 : 7600, 8000)))
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port } }, report, { ...FAST, pollMs: 5000 })
+    try {
+      await until('near-end sample', () => reports.some((r) => r.sample.positionSeconds === 7.6), 1500)
+    } finally {
+      t.stop()
+      await t.done
+    }
+    expect(reports.at(-1)?.sample).toEqual({ positionSeconds: 7.6, durationSeconds: 8 })
   })
 })
 
@@ -225,16 +322,48 @@ describe('watching mpv', () => {
 })
 
 describe('reporting problems', () => {
+  it('serializes reports, drains pending saves, and retries a failed final report before returning next-up', async () => {
+    const { port } = await listenHttp((_req, res) => {
+      res.end(`<p id="file">${FILE}</p><p id="state">2</p><p id="position">2600000</p><p id="duration">2700000</p>`)
+    })
+    const { promise: unblock, resolve: release } = deferred()
+    const calls: boolean[] = []
+    let finalAttempts = 0
+    let active = 0
+    let maxActive = 0
+    const nextUp = { nextUp: { title: 'Show' } }
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port } }, async (_id, _sample, final) => {
+      active++
+      maxActive = Math.max(maxActive, active)
+      calls.push(final)
+      try {
+        if (!final) await unblock
+        if (final && ++finalAttempts < 3) throw new Error('service temporarily unavailable')
+        return final ? nextUp : undefined
+      } finally { active-- }
+    }, { ...FAST, reportEveryMs: 0 })
+    await until('first pending save', () => calls.length === 1)
+    await new Promise((r) => setTimeout(r, 65))
+    t.stop()
+    release()
+    expect(await t.done).toEqual(nextUp)
+    expect(maxActive).toBe(1)
+    expect(calls.filter((final) => !final).length).toBeGreaterThan(1)
+    expect(calls.slice(-3)).toEqual([true, true, true])
+  })
+
   it('a backend that fails never breaks tracking', async () => {
     const { port } = await listenHttp((_req, res) => {
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({ state: 'playing', time: 800, length: 2700, information: { category: { meta: { filename: FILE } } } }))
     })
     let calls = 0
+    let finalAttempts = 0
     const t = trackPlayback(
       { fileId: 1, fileName: FILE, plan: { kind: 'vlc', port, password: 'p' } },
-      async () => {
+      async (_id, _sample, final) => {
         calls++
+        if (final) finalAttempts++
         throw new Error('backend down')
       },
       FAST,
@@ -242,5 +371,6 @@ describe('reporting problems', () => {
     await until('a call', () => calls >= 1)
     t.stop()
     await expect(t.done).resolves.toBeUndefined()
+    expect(finalAttempts).toBe(3)
   })
 })

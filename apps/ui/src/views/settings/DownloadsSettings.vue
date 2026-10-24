@@ -5,6 +5,7 @@ import { useConnectionStore } from '@/stores/connection'
 import { useDownloadsStore } from '@/stores/downloads'
 import { useLibraryStore } from '@/stores/library'
 import { useSettingsStore } from '@/stores/settings'
+import DownloadToolsPanel from '@/components/downloads/DownloadToolsPanel.vue'
 
 const { t } = useI18n()
 const connection = useConnectionStore()
@@ -126,6 +127,7 @@ onMounted(() => {
   <section>
     <h2 class="th-display section-title">{{ $t('settings.sections.downloads') }}</h2>
     <p class="intro">{{ $t('downloads.intro') }}</p>
+    <DownloadToolsPanel settings />
 
     <div class="field th-form-section" data-test="qb-section">
       <div class="label-row">

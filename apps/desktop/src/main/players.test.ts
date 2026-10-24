@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import type { LaunchInfo } from '@theama/contracts'
-import { buildArgs, customPlayerId, detectInstalled, PlayerManager, validateCustomExe, type PlayerDeps, type PlayerPrefs } from './players'
+import { buildArgs, customPlayerId, detectInstalled, launchDetached, PlayerManager, validateCustomExe, type PlayerDeps, type PlayerPrefs } from './players'
+import type { TrackJob } from './position-tracking'
 
 const PF = 'C:\\Program Files'
 const installed = (...paths: string[]) => ({
@@ -69,7 +70,19 @@ describe('buildArgs with resuming and tracking', () => {
       '--no-one-instance', '--extraintf=http', '--http-host=127.0.0.1', '--http-port=5555', '--http-password=pw', base.path,
     ])
     expect(buildArgs('mpv', { ...base, tracking: { kind: 'mpv', pipe: 'theama-pipe' } })).toEqual(['--input-ipc-server=theama-pipe', '--', base.path])
-    expect(buildArgs('mpc-hc', { ...base, tracking: { kind: 'mpc', port: 6666 } })).toEqual([base.path, '/webport', '6666'])
+    expect(buildArgs('mpc-hc', { ...base, tracking: { kind: 'mpc', port: 6666 } })).toEqual([base.path, '/new', '/webport', '6666'])
+  })
+  it.each(['mpc-hc', 'mpc-be'] as const)('closes %s episodes in their own instance, retaining resume and subtitles', (kind) => {
+    expect(buildArgs(kind, { ...base, subtitle: 'D:\\Media\\Film.el.srt', resumeSeconds: 754, closeAfterPlayback: true, tracking: { kind: 'mpc', port: 6666 } })).toEqual([
+      base.path, '/sub', 'D:\\Media\\Film.el.srt', '/start', '754000', '/new', '/play', '/close', '/webport', '6666',
+    ])
+    expect(buildArgs(kind, { ...base, closeAfterPlayback: true })).toEqual([base.path, '/new', '/play', '/close'])
+    expect(buildArgs(kind, { ...base, tracking: { kind: 'mpc', port: 6666 } })).not.toContain('/close')
+  })
+  it('leaves other players unchanged for episodes', () => {
+    for (const kind of ['vlc', 'mpv', 'potplayer', 'custom', 'system'] as const) {
+      expect(buildArgs(kind, { ...base, closeAfterPlayback: true })).toEqual(buildArgs(kind, base))
+    }
   })
   it('never adds tracking switches for a plan that belongs to another player', () => {
     expect(buildArgs('potplayer', { ...base, resumeSeconds: 60, tracking: { kind: 'mpc', port: 1 } })).toEqual([base.path])
@@ -84,6 +97,16 @@ describe('validateCustomExe', () => {
     expect(() => validateCustomExe(join(dir, 'nothing.exe'))).toThrow(/does not exist/)
     expect(() => validateCustomExe(video)).toThrow(/\.exe/)
     expect(() => validateCustomExe(dir + '.exe')).toThrow()
+  })
+})
+
+describe('launchDetached', () => {
+  it('resolves when spawned and separately notifies when the process exits', async () => {
+    const launched = await launchDetached(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 100)'])
+    await expect(launched.exited).resolves.toBeUndefined()
+  })
+  it('rejects when the player cannot be spawned', async () => {
+    await expect(launchDetached(join(dir, 'missing-player.exe'), [])).rejects.toThrow()
   })
 })
 
@@ -213,6 +236,25 @@ describe('PlayerManager', () => {
       info = { ok: true, info: launchInfo() }
       await trackingManager().play(7, 'system')
       expect(tracked).toEqual([])
+    })
+
+    it.each(['mpc-hc', 'mpc-be'] as const)('passes %s episode identity and process exit to tracking before reporting the launch', async (kind) => {
+      const exe = kind === 'mpc-hc' ? `${PF}\\MPC-HC\\mpc-hc64.exe` : `${PF}\\MPC-BE x64\\mpc-be64.exe`
+      const exited = Promise.resolve()
+      const jobs: TrackJob[] = []
+      info = { ok: true, info: launchInfo({ kind: 'episode', resumeSeconds: 754 }) }
+      const m = new PlayerManager({
+        host: installed(exe), getPrefs: () => prefs, setPrefs: () => undefined,
+        fetchLaunchInfo: async () => info, openWithSystem: async () => '',
+        launch: async (_exe, args) => {
+          expect(args).toEqual([video, '/sub', subtitle, '/start', '754000', '/new', '/play', '/close', '/webport', expect.any(String)])
+          return { exited }
+        },
+        track: (job) => void jobs.push(job),
+        reportLaunched: async () => { expect(jobs).toHaveLength(1) },
+      })
+      expect(await m.play(7, kind)).toMatchObject({ ok: true })
+      expect(jobs[0]).toMatchObject({ fileId: 7, fileName: 'x.mkv', filePath: video, exited, plan: { kind: 'mpc' } })
     })
   })
 

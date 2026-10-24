@@ -96,15 +96,8 @@ export async function startFakeTmdb(options = {}) {
 
     const pick = (item, key, fallback) => (lang === 'el' && item.el && key in item.el ? item.el[key] : fallback)
 
-    if (path === '/search/movie' || path === '/search/tv') {
-      const tv = path === '/search/tv'
-      const year = query.year ?? query.first_air_date_year
-      const list = (tv ? SHOWS : MOVIES).filter((x) => {
-        const yearOf = (tv ? x.first_air_date : x.release_date).slice(0, 4)
-        if (year && yearOf !== year) return false
-        return matches(query.query ?? '', x.title ?? x.name, x.original_title ?? x.original_name, x.el?.title)
-      })
-      return json(200, {
+    const results = (list, tv) =>
+      json(200, {
         page: 1,
         results: list.map((x) => ({
           id: x.id,
@@ -116,6 +109,24 @@ export async function startFakeTmdb(options = {}) {
           popularity: x.popularity,
         })),
       })
+
+    if (path === '/search/movie' || path === '/search/tv') {
+      const tv = path === '/search/tv'
+      const year = query.year ?? query.first_air_date_year
+      const list = (tv ? SHOWS : MOVIES).filter((x) => {
+        const yearOf = (tv ? x.first_air_date : x.release_date).slice(0, 4)
+        if (year && yearOf !== year) return false
+        return matches(query.query ?? '', x.title ?? x.name, x.original_title ?? x.original_name, x.el?.title)
+      })
+      return results(list, tv)
+    }
+
+    // Trending is the three most popular; "popular" is everything, so the two overlap like the real ones.
+    const lists = path.match(/^\/(trending\/(movie|tv)\/week|(movie|tv)\/popular)$/)
+    if (lists) {
+      const tv = (lists[2] ?? lists[3]) === 'tv'
+      const sorted = [...(tv ? SHOWS : MOVIES)].sort((a, b) => b.popularity - a.popularity)
+      return results(lists[2] ? sorted.slice(0, 3) : sorted, tv)
     }
 
     const movie = path.match(/^\/movie\/(\d+)$/)

@@ -26,6 +26,7 @@ import {
   CreateExclusionRequest,
   IdentifyRequest,
   MetadataSearchQuery,
+  MetadataSuggestionsQuery,
   SetCredentialsRequest,
   SetDownloadClientRequest,
   SetIndexerRequest,
@@ -527,6 +528,15 @@ export async function buildApp(deps: AppDeps) {
     const q = MetadataSearchQuery.parse(req.query)
     try {
       return { items: await metadata.search(q.kind, q.q, q.year) }
+    } catch (err) {
+      return metadataFailure(err)
+    }
+  })
+
+  app.get(`${API_PREFIX}/metadata/suggestions`, async (req): Promise<MetadataSearchResult> => {
+    const q = MetadataSuggestionsQuery.parse(req.query)
+    try {
+      return { items: await metadata.suggestions(q.kind) }
     } catch (err) {
       return metadataFailure(err)
     }

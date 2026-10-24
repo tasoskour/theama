@@ -88,6 +88,8 @@ export type ImageSize = 'thumb' | 'poster' | 'backdrop' | 'still'
 export interface MetadataProvider {
   readonly id: string
   search(query: SearchQuery): Promise<ProviderCandidate[]>
+  /** What is trending and popular right now, trending first, without duplicates. */
+  suggestions(kind: MatchKind, language: string): Promise<ProviderCandidate[]>
   fetchTitle(kind: MatchKind, externalId: string, language: string): Promise<ProviderTitle>
   fetchSeason(seriesId: string, season: number, language: string): Promise<ProviderEpisode[]>
   fetchCollection(externalId: string, language: string): Promise<ProviderCollection>

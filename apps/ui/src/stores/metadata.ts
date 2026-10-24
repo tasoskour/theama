@@ -57,6 +57,22 @@ export const useMetadataStore = defineStore('metadata', () => {
     }
   }
 
+  /** Trending and popular titles. Kept per kind, so switching tabs or kinds does not ask again. */
+  const suggested = ref<Partial<Record<MatchKind, MatchCandidate[]>>>({})
+
+  async function suggestions(kind: MatchKind): Promise<{ ok: true; items: MatchCandidate[] } | { ok: false; code: string; message: string }> {
+    const known = suggested.value[kind]
+    if (known) return { ok: true, items: known }
+    if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
+    try {
+      const res = await connection.client.get('/metadata/suggestions', MetadataSearchResult, { kind })
+      suggested.value = { ...suggested.value, [kind]: res.items }
+      return { ok: true, items: res.items }
+    } catch (err) {
+      return failure(err) as { ok: false; code: string; message: string }
+    }
+  }
+
   watch(
     () => connection.phase,
     (phase) => {
@@ -68,5 +84,5 @@ export const useMetadataStore = defineStore('metadata', () => {
     if (e.type === 'metadata.status') status.value = e.status
   })
 
-  return { status, error, load, saveKey, retry, search }
+  return { status, error, load, saveKey, retry, search, suggestions }
 })

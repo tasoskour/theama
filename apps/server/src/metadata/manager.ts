@@ -20,6 +20,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const BATCH = 25
 /** Official collections change rarely; a stored one is re-read after this long (or when a member is refreshed by hand). */
 const COLLECTION_FRESH_MS = 30 * DAY_MS
+const SUGGESTION_FRESH_MS = 60 * 60 * 1000
+const SUGGESTION_LIMIT = 24
 
 export interface ManagerDeps {
   provider: MetadataProvider
@@ -67,6 +69,7 @@ export class MetadataManager {
   private idle: Promise<void> = Promise.resolve()
   /** Collections already read in the current pass, so three films of one set cost one request. */
   private readonly collectionsThisPass = new Set<string>()
+  private readonly suggestionCache = new Map<string, { items: MatchCandidate[]; until: number }>()
 
   constructor(private readonly d: ManagerDeps) {}
 
@@ -431,6 +434,24 @@ export class MetadataManager {
     try {
       const results = await this.d.provider.search({ kind, title: query, year, language: this.tag() })
       return await this.candidatesWithPosters(rank({ kind, title: query, year: year ?? null }, results), 10)
+    } catch (err) {
+      return this.translate(err)
+    }
+  }
+
+  /** Trending and popular titles for the downloads page. Remembered for an hour so visiting the page is free. */
+  async suggestions(kind: MatchKind): Promise<MatchCandidate[]> {
+    this.requireKey()
+    const language = this.tag()
+    const cacheKey = `${kind}:${language}`
+    const cached = this.suggestionCache.get(cacheKey)
+    if (cached && cached.until > this.now().getTime()) return cached.items
+    try {
+      const results = (await this.d.provider.suggestions(kind, language)).slice(0, SUGGESTION_LIMIT)
+      const items: MatchCandidate[] = []
+      for (const c of results) items.push(this.toCandidate(c, null, await this.d.artwork.ensure(c.posterPath, 'thumb')))
+      this.suggestionCache.set(cacheKey, { items, until: this.now().getTime() + SUGGESTION_FRESH_MS })
+      return items
     } catch (err) {
       return this.translate(err)
     }

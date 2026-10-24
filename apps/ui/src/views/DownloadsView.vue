@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { mdiClose } from '@mdi/js'
 import type { MatchCandidate, ReleaseKind } from '@theama/contracts'
 import ActiveDownloads from '@/components/downloads/ActiveDownloads.vue'
-import ReleaseDialog from '@/components/downloads/ReleaseDialog.vue'
+import ReleaseList from '@/components/downloads/ReleaseList.vue'
+import SuggestionGrid from '@/components/downloads/SuggestionGrid.vue'
 import { useDownloadsStore } from '@/stores/downloads'
 import { useMetadataStore } from '@/stores/metadata'
 
@@ -13,21 +15,57 @@ const route = useRoute()
 const downloads = useDownloadsStore()
 const metadata = useMetadataStore()
 
+const tab = ref<'find' | 'active'>('find')
 const kind = ref<ReleaseKind>('movie')
 const text = ref('')
-const year = ref('')
+const year = ref<number | null>(null)
 const season = ref('')
 const episode = ref('')
 
-const searching = ref(false)
-const candidates = ref<MatchCandidate[] | null>(null)
-const problem = ref<string | null>(null)
+/** Newest first: this year (and next, for what is announced) back to the first films. */
+const FIRST_YEAR = 1900
+const lastYear = new Date().getFullYear() + 1
+const years = Array.from({ length: lastYear - FIRST_YEAR + 1 }, (_, i) => lastYear - i)
 
-const dialogOpen = ref(false)
-const dialogQuery = ref<Query | null>(null)
+const searching = ref(false)
+const matches = ref<MatchCandidate[] | null>(null)
+const problem = ref<string | null>(null)
+const suggested = ref<MatchCandidate[]>([])
+const loadingSuggested = ref(false)
+const query = ref<Query | null>(null)
 
 const setUp = computed(() => downloads.client?.state !== 'not_configured' || downloads.indexer?.state !== 'not_configured')
 const hasKey = computed(() => metadata.status?.configured === true)
+const noKey = computed(() => metadata.status !== null && !hasKey.value)
+const activeCount = computed(() => downloads.list?.items.length ?? 0)
+
+async function loadSuggestions(): Promise<void> {
+  if (!hasKey.value) {
+    suggested.value = []
+    return
+  }
+  const k = kind.value
+  loadingSuggested.value = true
+  const res = await metadata.suggestions(k)
+  if (k !== kind.value) return // another kind was chosen meanwhile
+  loadingSuggested.value = false
+  if (res.ok) suggested.value = res.items
+  else {
+    suggested.value = []
+    problem.value = res.message
+  }
+}
+
+// Suggestions load once a TMDB key is known to be set, and again for each kind.
+watch([hasKey, kind], () => void loadSuggestions(), { immediate: true })
+
+// Emptying the title leaves the search and shows the suggestions again.
+watch(text, (v) => {
+  if (v.trim()) return
+  matches.value = null
+  query.value = null
+  problem.value = null
+})
 
 // Arriving from a title page ("Find a download…") fills the form in and searches straight away.
 onMounted(() => {
@@ -36,7 +74,8 @@ onMounted(() => {
   if ((k === 'movie' || k === 'series') && typeof title === 'string' && title.trim()) {
     kind.value = k
     text.value = title
-    if (typeof y === 'string' && k === 'movie') year.value = y
+    const fromTitle = typeof y === 'string' ? Number(y) : NaN
+    if (k === 'movie' && years.includes(fromTitle)) year.value = fromTitle
     void search()
   }
 })
@@ -49,148 +88,144 @@ const num = (v: string): number | undefined => {
 function openReleases(title: string, y?: number): void {
   const t = title.trim()
   if (!t) return
-  dialogQuery.value =
-    kind.value === 'movie' ? { kind: 'movie', title: t, year: y ?? num(year.value) } : { kind: 'series', title: t, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) }
-  dialogOpen.value = true
+  query.value =
+    kind.value === 'movie' ? { kind: 'movie', title: t, year: y ?? year.value ?? undefined } : { kind: 'series', title: t, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) }
 }
 
 async function search(): Promise<void> {
   const q = text.value.trim()
   if (!q || searching.value) return
   problem.value = null
-  candidates.value = null
+  matches.value = null
+  query.value = null
   if (!hasKey.value) {
     openReleases(q)
     return
   }
   searching.value = true
-  const res = await metadata.search(kind.value, q, kind.value === 'movie' ? num(year.value) : undefined)
+  const res = await metadata.search(kind.value, q, kind.value === 'movie' ? (year.value ?? undefined) : undefined)
   searching.value = false
-  if (res.ok) candidates.value = res.items
+  if (res.ok) matches.value = res.items
   else problem.value = res.message
 }
 
+const pick = (c: MatchCandidate): void => openReleases(c.title, c.year ?? undefined)
+
 function changeKind(): void {
-  candidates.value = null
+  matches.value = null
+  query.value = null
   problem.value = null
 }
 </script>
 
 <template>
-  <div class="th-page">
-    <header class="th-page-header">
+  <div class="th-page th-page--wide">
+    <header class="th-page-header head">
       <h1 class="th-display th-page-title">{{ $t('downloads.title') }}</h1>
+      <v-tabs v-model="tab" density="compact" color="primary" class="head__tabs">
+        <v-tab value="find" data-test="tab-find">{{ $t('downloads.find.tab') }}</v-tab>
+        <v-tab value="active" data-test="tab-active">
+          {{ $t('downloads.active.heading') }}
+          <v-chip v-if="activeCount > 0" size="x-small" class="ml-2" data-test="active-count">{{ activeCount }}</v-chip>
+        </v-tab>
+      </v-tabs>
     </header>
 
-    <v-alert v-if="downloads.client && downloads.indexer && !setUp" type="info" variant="tonal" density="compact" class="mb-6" data-test="downloads-setup">
+    <v-alert v-if="downloads.client && downloads.indexer && !setUp" type="info" variant="tonal" density="compact" class="mb-4" data-test="downloads-setup">
       {{ $t('downloads.find.setup') }}
       <router-link to="/settings/downloads">{{ $t('downloads.find.openSettings') }}</router-link>
     </v-alert>
 
-    <ActiveDownloads />
-
-    <section class="find" aria-labelledby="find-heading">
-      <h2 id="find-heading" class="th-display find__title">{{ $t('downloads.find.heading') }}</h2>
-      <p class="th-muted find__intro">{{ $t('downloads.find.intro') }}</p>
-
-      <form class="find__form" role="search" @submit.prevent="search">
-        <v-btn-toggle v-model="kind" mandatory divided variant="outlined" density="comfortable" @update:model-value="changeKind">
+    <section v-show="tab === 'find'" class="find">
+      <form class="find__row" role="search" @submit.prevent="search">
+        <v-btn-toggle v-model="kind" mandatory divided variant="outlined" density="compact" @update:model-value="changeKind">
           <v-btn value="movie" data-test="kind-movie">{{ $t('downloads.find.movie') }}</v-btn>
           <v-btn value="series" data-test="kind-series">{{ $t('downloads.find.series') }}</v-btn>
         </v-btn-toggle>
-        <div class="find__row">
-          <v-text-field v-model="text" :label="$t('downloads.find.label')" autofocus hide-details class="find__text" data-test="find-title" />
-          <v-text-field v-if="kind === 'movie'" v-model="year" :label="$t('downloads.find.year')" inputmode="numeric" hide-details class="find__small" data-test="find-year" />
-          <template v-else>
-            <v-text-field v-model="season" :label="$t('downloads.find.season')" inputmode="numeric" hide-details class="find__small" data-test="find-season" />
-            <v-text-field v-model="episode" :label="$t('downloads.find.episode')" inputmode="numeric" :disabled="num(season) === undefined" hide-details class="find__small" data-test="find-episode" />
-          </template>
-          <v-btn type="submit" color="primary" size="large" :loading="searching" :disabled="!text.trim()" data-test="find-search">{{ $t('downloads.find.search') }}</v-btn>
-        </div>
+        <v-text-field
+          v-model="text"
+          :label="$t('downloads.find.label')"
+          density="compact"
+          hide-details
+          clearable
+          :clear-icon="mdiClose"
+          :clear-label="$t('downloads.find.clear')"
+          class="find__text"
+          data-test="find-title"
+          @click:clear="text = ''"
+        />
+        <v-autocomplete
+          v-if="kind === 'movie'"
+          v-model="year"
+          :items="years"
+          :label="$t('downloads.find.year')"
+          density="compact"
+          hide-details
+          clearable
+          auto-select-first
+          class="find__year"
+          data-test="find-year"
+        />
+        <template v-else>
+          <v-text-field v-model="season" :label="$t('downloads.find.season')" inputmode="numeric" density="compact" hide-details class="find__small" data-test="find-season" />
+          <v-text-field v-model="episode" :label="$t('downloads.find.episode')" inputmode="numeric" density="compact" :disabled="num(season) === undefined" hide-details class="find__small" data-test="find-episode" />
+        </template>
+        <v-btn type="submit" color="primary" :loading="searching" :disabled="!text.trim()" data-test="find-search">{{ $t('downloads.find.search') }}</v-btn>
       </form>
-      <p v-if="!hasKey" class="th-muted find__hint">{{ $t('downloads.find.noKey') }}</p>
-      <v-alert v-if="problem" type="warning" variant="tonal" density="compact" class="mt-4">{{ problem }}</v-alert>
 
-      <div v-if="candidates" class="matches" aria-live="polite">
-        <h3 class="th-eyebrow">{{ $t('downloads.find.matches') }}</h3>
-        <p v-if="candidates.length === 0" class="th-muted">{{ $t('downloads.find.noMatches') }}</p>
-        <ul v-else class="match-list" role="list" data-test="match-list">
-          <li v-for="c in candidates" :key="c.externalId" class="match">
-            <div class="match__main">
-              <span class="match__title">{{ c.title }}<span v-if="c.year" class="th-muted"> ({{ c.year }})</span></span>
-              <span v-if="c.overview" class="th-muted match__overview">{{ c.overview }}</span>
-            </div>
-            <v-btn variant="tonal" size="small" data-test="match-find" @click="openReleases(c.title, c.year ?? undefined)">{{ $t('downloads.find.findReleases') }}</v-btn>
-          </li>
-        </ul>
-        <v-btn variant="text" size="small" class="mt-2" @click="openReleases(text)">{{ $t('downloads.find.direct', { title: text.trim() }) }}</v-btn>
+      <v-alert v-if="problem" type="warning" variant="tonal" density="compact" class="mt-3">{{ problem }}</v-alert>
+
+      <div class="find__body" aria-live="polite">
+        <ReleaseList v-if="query" :query="query" @back="query = null" />
+
+        <template v-else-if="matches">
+          <p v-if="matches.length === 0" class="th-muted">{{ $t('downloads.find.noMatches') }}</p>
+          <SuggestionGrid v-else :items="matches" data-test="match-list" @pick="pick" />
+          <v-btn variant="text" size="small" class="mt-2" data-test="match-direct" @click="openReleases(text)">{{ $t('downloads.find.direct', { title: text.trim() }) }}</v-btn>
+        </template>
+
+        <template v-else>
+          <p v-if="noKey" class="th-muted">{{ $t('downloads.find.noKey') }}</p>
+          <template v-else>
+            <v-progress-linear v-if="loadingSuggested" indeterminate height="2" :aria-label="$t('downloads.suggestions.label')" />
+            <SuggestionGrid v-if="suggested.length > 0" :items="suggested" :aria-label="$t('downloads.suggestions.label')" @pick="pick" />
+          </template>
+        </template>
       </div>
     </section>
 
-    <ReleaseDialog v-model="dialogOpen" :query="dialogQuery" />
+    <ActiveDownloads v-show="tab === 'active'" @find="tab = 'find'" />
   </div>
 </template>
 
 <style scoped>
-.find {
-  max-width: 820px;
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 4px 24px;
 }
-.find__title {
-  font-size: 1.35rem;
-  margin: 0 0 4px;
-}
-.find__intro,
-.find__hint {
-  margin: 0 0 16px;
-  max-width: 62ch;
-  font-size: 0.9rem;
-}
-.find__form {
-  display: grid;
-  gap: 12px;
+.head__tabs {
+  flex: none;
 }
 .find__row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
 }
 .find__text {
-  flex: 1 1 280px;
+  flex: 1 1 260px;
   min-width: 0;
 }
 .find__small {
   flex: 0 1 110px;
 }
-.matches {
-  margin-top: 24px;
+.find__year {
+  flex: 0 1 140px;
 }
-.match-list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-}
-.match {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(var(--v-theme-hairline), 0.72);
-}
-.match__main {
-  display: grid;
-  min-width: 0;
-}
-.match__title {
-  font-weight: 600;
-}
-.match__overview {
-  font-size: 0.85rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.find__body {
+  margin-top: 16px;
 }
 </style>

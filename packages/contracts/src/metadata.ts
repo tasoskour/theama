@@ -133,6 +133,9 @@ export const MetadataSearchQuery = z.object({
 })
 export type MetadataSearchQuery = z.input<typeof MetadataSearchQuery>
 
+export const MetadataSuggestionsQuery = z.object({ kind: MatchKind })
+export type MetadataSuggestionsQuery = z.input<typeof MetadataSuggestionsQuery>
+
 export const MetadataSearchResult = z.object({ items: z.array(MatchCandidate) })
 export type MetadataSearchResult = z.infer<typeof MetadataSearchResult>
 

@@ -186,6 +186,23 @@ export class TmdbProvider implements MetadataProvider {
     await this.call('/configuration', {})
   }
 
+  private candidates(kind: MatchKind, data: z.output<typeof SearchResponse>): ProviderCandidate[] {
+    const tv = kind === 'series'
+    return data.results.map((r) => {
+      const title = (tv ? r.name : r.title) ?? r.title ?? r.name ?? ''
+      return {
+        externalId: String(r.id),
+        kind,
+        title,
+        originalTitle: (tv ? r.original_name : r.original_title) ?? null,
+        year: yearOf(tv ? r.first_air_date : r.release_date),
+        overview: r.overview,
+        posterPath: r.poster_path,
+        popularity: r.popularity,
+      }
+    })
+  }
+
   async search(q: SearchQuery): Promise<ProviderCandidate[]> {
     const tv = q.kind === 'series'
     const data = parse(
@@ -198,18 +215,21 @@ export class TmdbProvider implements MetadataProvider {
         ...(q.year ? (tv ? { first_air_date_year: q.year } : { year: q.year }) : {}),
       }),
     )
-    return data.results.map((r) => {
-      const title = (tv ? r.name : r.title) ?? r.title ?? r.name ?? ''
-      return {
-        externalId: String(r.id),
-        kind: q.kind,
-        title,
-        originalTitle: (tv ? r.original_name : r.original_title) ?? null,
-        year: yearOf(tv ? r.first_air_date : r.release_date),
-        overview: r.overview,
-        posterPath: r.poster_path,
-        popularity: r.popularity,
-      }
+    return this.candidates(q.kind, data)
+  }
+
+  async suggestions(kind: MatchKind, language: string): Promise<ProviderCandidate[]> {
+    const tv = kind === 'series'
+    const type = tv ? 'tv' : 'movie'
+    const [trending, popular] = await Promise.all([
+      this.call(`/trending/${type}/week`, { language, page: 1 }),
+      this.call(`/${type}/popular`, { language, page: 1 }),
+    ])
+    const seen = new Set<string>()
+    return [...this.candidates(kind, parse(SearchResponse, trending)), ...this.candidates(kind, parse(SearchResponse, popular))].filter((c) => {
+      if (seen.has(c.externalId)) return false
+      seen.add(c.externalId)
+      return true
     })
   }
 

@@ -679,8 +679,7 @@
     "privacy": "What is sent where",
     "privacyText": "Your title searches go to Prowlarr or qBittorrent, which pass them to the torrent sites you chose there. Theama bundles no sites or plugins, and you are responsible for what you download. Passwords and keys are stored in the secrets folder of Theama's data, not in its database.",
     "find": {
-      "heading": "Find something to download",
-      "intro": "Search for a movie or series, then pick a release. It is sent to qBittorrent.",
+      "tab": "Find",
       "movie": "Movie",
       "series": "Series",
       "label": "Title",
@@ -688,21 +687,19 @@
       "season": "Season",
       "episode": "Episode",
       "search": "Search",
-      "matches": "Matches from TMDB",
+      "clear": "Clear the search",
       "direct": "Search releases for “{title}”",
       "noMatches": "TMDB found nothing for this search.",
-      "noKey": "Add a TMDB key in Settings → Metadata to see posters and exact matches. You can still search releases by name.",
+      "noKey": "Add a TMDB key in Settings → Metadata to see suggestions.",
       "setup": "Set up qBittorrent or Prowlarr first to search for releases.",
-      "openSettings": "Open download settings",
-      "findReleases": "Find releases"
+      "openSettings": "Open download settings"
+    },
+    "suggestions": {
+      "label": "Suggestions"
     },
     "releases": {
-      "title": "Releases for {title}",
-      "searching": "Searching the sites… this can take up to half a minute.",
-      "source": {
-        "prowlarr": "Found with Prowlarr",
-        "qbittorrent": "Found with qBittorrent's search plugins"
-      },
+      "back": "Back",
+      "searching": "Searching the sites…",
       "download": "Download",
       "sent": "Sent to qBittorrent",
       "seeders": "{count} seeder | {count} seeders",
@@ -718,7 +715,7 @@
     },
     "active": {
       "heading": "Your downloads",
-      "empty": "Nothing is downloading. Find something below and it will show up here.",
+      "empty": "Nothing is downloading.",
       "unreachable": "qBittorrent is not answering, so progress cannot be shown. Is it running, with its Web UI on?",
       "checkSettings": "Check the connection",
       "state": {
@@ -744,7 +741,29 @@
       "chooseFiles": "Choose files…",
       "notOurs": "Not added by Theama",
       "showAll": "Show all my qBittorrent torrents",
-      "showAllHint": "Also lists and lets you pause, remove and choose files for torrents you added to qBittorrent yourself. Off by default so they stay untouched.",
+      "search": "Search your downloads",
+      "filters": {
+        "all": "All",
+        "downloading": "Downloading",
+        "paused": "Paused",
+        "finished": "Finished",
+        "problems": "Problems"
+      },
+      "sort": {
+        "label": "Sort by",
+        "added": "Newest",
+        "name": "Name",
+        "progress": "Progress",
+        "size": "Size",
+        "speed": "Speed"
+      },
+      "sortAscending": "Ascending. Click for descending.",
+      "sortDescending": "Descending. Click for ascending.",
+      "summary": "{count} download | {count} downloads",
+      "summaryFinished": "{count} finished",
+      "noMatches": "No downloads match.",
+      "clearFilters": "Clear filters",
+      "findSomething": "Find something to download",
       "files": {
         "title": "Files in this download",
         "intro": "Untick the files you do not want. They are skipped and take no space; files already downloaded stay on disk.",

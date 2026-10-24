@@ -99,6 +99,9 @@ describe('without a key', () => {
     const res = await send('GET', '/metadata/search?kind=movie&q=dune')
     expect(res.status).toBe(409)
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('no_key')
+    const suggestions = await send('GET', '/metadata/suggestions?kind=movie')
+    expect(suggestions.status).toBe(409)
+    expect(((await suggestions.json()) as { error: { code: string } }).error.code).toBe('no_key')
   })
 })
 
@@ -234,6 +237,20 @@ describe('manual identification', () => {
     expect(res.items.map((c) => c.externalId).sort()).toEqual(['1000', '57243'])
     expect(res.items.every((c) => c.posterUrl?.startsWith('/api/v1/artwork/thumb-'))).toBe(true)
     expect(res.items.every((c) => typeof c.score === 'number')).toBe(true)
+  })
+
+  it('suggests trending and popular titles once, with thumbnails and no duplicates', async () => {
+    const res = MetadataSearchResult.parse(await get('/metadata/suggestions?kind=movie'))
+    const ids = res.items.map((c) => c.externalId)
+    expect(ids.length).toBeGreaterThan(3)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(res.items.every((c) => c.kind === 'movie' && c.score === null)).toBe(true)
+    expect(res.items.some((c) => c.posterUrl?.startsWith('/api/v1/artwork/thumb-'))).toBe(true)
+
+    const before = fake.requests.length
+    expect(MetadataSearchResult.parse(await get('/metadata/suggestions?kind=movie')).items).toEqual(res.items)
+    expect(fake.requests).toHaveLength(before) // the second visit is served from memory
+    expect(MetadataSearchResult.parse(await get('/metadata/suggestions?kind=series')).items.every((c) => c.kind === 'series')).toBe(true)
   })
 
   it('offers the candidates for an ambiguous title, then locks the user choice', async () => {

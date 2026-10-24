@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { mdiClose } from '@mdi/js'
 import { useI18n } from 'vue-i18n'
@@ -8,6 +8,8 @@ import ActiveDownloads from '@/components/downloads/ActiveDownloads.vue'
 import ReleaseList from '@/components/downloads/ReleaseList.vue'
 import SuggestionGrid from '@/components/downloads/SuggestionGrid.vue'
 import SuggestionSection from '@/components/downloads/SuggestionSection.vue'
+import SuggestionDetailsDialog from '@/components/downloads/SuggestionDetailsDialog.vue'
+import type { SuggestionItem } from '@/components/downloads/suggestion'
 import TrailerDialog from '@/components/titles/TrailerDialog.vue'
 import { imdbLinkFor, openExternal, trailerInApp } from '@/composables/useExternalLinks'
 import { useDownloadsStore } from '@/stores/downloads'
@@ -22,6 +24,7 @@ const metadata = useMetadataStore()
 
 const tab = ref<'find' | 'active'>('find')
 const kind = ref<ReleaseKind>('movie')
+const suggestionKind = ref<ReleaseKind | 'all'>('all')
 const text = ref('')
 const year = ref<number | null>(null)
 const season = ref('')
@@ -48,47 +51,75 @@ const YEARS_PER_STEP = 5
 const yearCount = ref(YEARS_PER_STEP)
 const sectionYears = computed(() => Array.from({ length: yearCount.value }, (_, i) => THIS_YEAR - i).filter((y) => y >= FIRST_YEAR))
 
-// Trailer and IMDb link of a suggestion cost a request each, so they are fetched when the card's button is pressed.
-const busy = ref<string | null>(null)
+const preview = ref<SuggestionItem | null>(null)
+const previewOpen = ref(false)
+const linkAction = ref<'trailer' | 'imdb' | null>(null)
+const linkProblem = ref<string | null>(null)
+let previewGeneration = 0
+let previewActivator: HTMLElement | null = null
+let trailerActivator: HTMLElement | null = null
 const trailer = ref<{ key: string; title: string } | null>(null)
 const trailerOpen = ref(false)
 
-async function withDetails(c: MatchCandidate, then: (d: { imdbId: string | null; trailer: { key: string } | null }) => void | Promise<void>): Promise<void> {
-  if (busy.value) return
-  busy.value = `${c.kind}:${c.externalId}`
-  problem.value = null
-  const res = await metadata.suggestionDetails(c.kind, c.externalId)
-  busy.value = null
-  if (!res.ok) {
-    problem.value = t('downloads.suggestions.details', { message: res.message })
-    return
+function invalidatePreview(): void {
+  previewGeneration += 1
+  linkAction.value = null
+  linkProblem.value = null
+}
+watch(previewOpen, invalidatePreview, { flush: 'sync' })
+onBeforeUnmount(invalidatePreview)
+
+function openPreview(c: SuggestionItem): void {
+  previewActivator = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  preview.value = c
+  previewOpen.value = true
+}
+
+function restorePreviewFocus(): void {
+  if (!previewOpen.value && previewActivator?.isConnected) previewActivator.focus({ preventScroll: true })
+}
+
+watch(trailerOpen, async (open) => {
+  if (!open && previewOpen.value) {
+    await nextTick()
+    trailerActivator?.focus({ preventScroll: true })
   }
+})
+
+// Opening a preview uses the data already on the card. Links are fetched only on demand.
+async function withDetails(c: MatchCandidate, action: 'trailer' | 'imdb', then: (d: { imdbId: string | null; trailer: { key: string } | null }) => void | Promise<void>): Promise<void> {
+  if (linkAction.value || !previewOpen.value) return
+  const mine = previewGeneration
+  linkAction.value = action
+  linkProblem.value = null
   try {
+    const res = await metadata.suggestionDetails(c.kind, c.externalId)
+    // A dismissed preview must not launch a late trailer or write into a different title's dialog.
+    if (mine !== previewGeneration) return
+    if (!res.ok) throw new Error(t('downloads.suggestions.details', { message: res.message }))
     await then(res)
   } catch (err) {
-    problem.value = err instanceof Error ? err.message : String(err)
+    if (mine === previewGeneration) linkProblem.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    if (mine === previewGeneration) linkAction.value = null
   }
 }
 
-const showTrailer = (c: MatchCandidate): Promise<void> =>
-  withDetails(c, (d) => {
-    if (!d.trailer) {
-      problem.value = `${c.title}: ${t('downloads.suggestions.noTrailer')}`
-      return
-    }
+const showTrailer = (c: MatchCandidate): Promise<void> => {
+  trailerActivator = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  return withDetails(c, 'trailer', (d) => {
+    if (!d.trailer) throw new Error(t('downloads.suggestions.noTrailer'))
     if (trailerInApp) {
       trailer.value = { key: d.trailer.key, title: c.title }
       trailerOpen.value = true
     } else return openExternal({ service: 'youtube', id: d.trailer.key })
   })
+}
 
 const showImdb = (c: MatchCandidate): Promise<void> =>
-  withDetails(c, (d) => {
+  withDetails(c, 'imdb', (d) => {
     const link = imdbLinkFor(d.imdbId)
-    if (!link) {
-      problem.value = `${c.title}: ${t('downloads.suggestions.noImdb')}`
-      return
-    }
+    if (!link) throw new Error(t('downloads.suggestions.noImdb'))
     return openExternal(link)
   })
 
@@ -144,6 +175,7 @@ async function search(): Promise<void> {
 
 // Suggestions mix movies and series, so the pick decides which kind of release to look for.
 const pick = (c: MatchCandidate): void => {
+  previewOpen.value = false
   kind.value = c.kind
   openReleases(c.title, c.year ?? undefined)
 }
@@ -217,20 +249,23 @@ function changeKind(): void {
 
         <template v-else-if="matches">
           <p v-if="matches.length === 0" class="th-muted">{{ $t('downloads.find.noMatches') }}</p>
-          <SuggestionGrid v-else :items="matches" :busy="busy" data-test="match-list" @pick="pick" @trailer="showTrailer" @imdb="showImdb" />
+          <SuggestionGrid v-else :items="matches" data-test="match-list" @preview="openPreview" />
           <v-btn variant="text" size="small" class="mt-2" data-test="match-direct" @click="openReleases(text)">{{ $t('downloads.find.direct', { title: text.trim() }) }}</v-btn>
         </template>
 
         <template v-else>
           <p v-if="noKey" class="th-muted">{{ $t('downloads.find.noKey') }}</p>
           <template v-else-if="hasKey">
+            <v-btn-toggle v-model="suggestionKind" mandatory divided variant="outlined" density="compact" color="primary" class="mb-4" :aria-label="$t('downloads.suggestions.filter')" data-test="suggestion-filter">
+              <v-btn v-for="filter in (['all', 'movie', 'series'] as const)" :key="filter" :value="filter" :aria-pressed="suggestionKind === filter" :data-test="`suggestion-filter-${filter}`">
+                {{ $t(`downloads.suggestions.filters.${filter}`) }}
+              </v-btn>
+            </v-btn-toggle>
             <SuggestionSection
               :heading="$t('downloads.suggestions.new')"
               section="new"
-              :busy="busy"
-              @pick="pick"
-              @trailer="showTrailer"
-              @imdb="showImdb"
+              :kind="suggestionKind"
+              @preview="openPreview"
               @problem="problem = $event"
             />
             <SuggestionSection
@@ -238,11 +273,9 @@ function changeKind(): void {
               :key="y"
               :heading="$t('downloads.suggestions.year', { year: y })"
               section="year"
+              :kind="suggestionKind"
               :year="y"
-              :busy="busy"
-              @pick="pick"
-              @trailer="showTrailer"
-              @imdb="showImdb"
+              @preview="openPreview"
               @problem="problem = $event"
             />
             <v-btn variant="text" size="small" data-test="suggestion-more-years" @click="yearCount += YEARS_PER_STEP">{{ $t('downloads.suggestions.moreYears') }}</v-btn>
@@ -253,6 +286,17 @@ function changeKind(): void {
 
     <ActiveDownloads v-show="tab === 'active'" @find="tab = 'find'" />
 
+    <SuggestionDetailsDialog
+      v-if="preview"
+      v-model="previewOpen"
+      :candidate="preview"
+      :busy="linkAction"
+      :problem="linkProblem"
+      @pick="pick"
+      @trailer="showTrailer"
+      @imdb="showImdb"
+      @closed="restorePreviewFocus"
+    />
     <TrailerDialog v-if="trailerInApp && trailer" v-model="trailerOpen" :video-id="trailer.key" :title="trailer.title" @youtube="openExternal({ service: 'youtube', id: trailer.key })" />
   </div>
 </template>

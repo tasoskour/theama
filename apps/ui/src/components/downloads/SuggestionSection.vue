@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import type { MatchCandidate, Suggestion, SuggestionSection } from '@theama/contracts'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import type { MatchKind, Suggestion, SuggestionSection } from '@theama/contracts'
 import { useMetadataStore } from '@/stores/metadata'
 import SuggestionGrid from './SuggestionGrid.vue'
+import type { SuggestionItem } from './suggestion'
 
-const props = defineProps<{ heading: string; section: SuggestionSection; year?: number; busy?: string | null }>()
-const emit = defineEmits<{ pick: [candidate: MatchCandidate]; trailer: [candidate: MatchCandidate]; imdb: [candidate: MatchCandidate]; problem: [message: string] }>()
+const props = defineProps<{ heading: string; section: SuggestionSection; kind?: MatchKind | 'all'; year?: number }>()
+const emit = defineEmits<{ preview: [candidate: SuggestionItem]; problem: [message: string] }>()
 
 const metadata = useMetadataStore()
 
@@ -14,6 +15,7 @@ const page = ref(0)
 const hasMore = ref(false)
 const loading = ref(false)
 const loaded = ref(false)
+const shown = computed(() => !props.kind || props.kind === 'all' ? items.value : items.value.filter((c) => c.kind === props.kind))
 
 /** One page at a time; a second click while a page is on its way does nothing. */
 async function loadNext(): Promise<void> {
@@ -55,7 +57,8 @@ onBeforeUnmount(() => observer?.disconnect())
     <v-progress-linear v-if="loading && items.length === 0" indeterminate height="2" :aria-label="heading" />
     <div v-else-if="!loaded" class="sugg__wait" aria-hidden="true" />
     <template v-if="items.length > 0">
-      <SuggestionGrid :items="items" :busy="busy ?? null" @pick="emit('pick', $event)" @trailer="emit('trailer', $event)" @imdb="emit('imdb', $event)" />
+      <SuggestionGrid v-if="shown.length > 0" :items="shown" @preview="emit('preview', $event)" />
+      <p v-else class="th-muted">{{ $t('downloads.suggestions.noneOfKind') }}</p>
       <v-btn v-if="hasMore" variant="tonal" size="small" class="mt-3" :loading="loading" data-test="suggestion-more" @click="loadNext">
         {{ $t('downloads.suggestions.showMore') }}
       </v-btn>

@@ -696,11 +696,21 @@
     },
     "suggestions": {
       "label": "Suggestions",
+      "filter": "Filter suggestions by type",
+      "filters": {
+        "all": "All",
+        "movie": "Movies",
+        "series": "Series"
+      },
+      "noneOfKind": "No suggestions of this type in the titles loaded so far.",
       "new": "New",
       "year": "From {year}",
       "showMore": "Show more",
       "moreYears": "Show older years",
       "description": "Description",
+      "preview": "View details for {title}",
+      "noDescription": "No description available.",
+      "findReleases": "Find releases",
       "trailer": "Play trailer",
       "imdb": "Open on IMDb",
       "noTrailer": "No trailer available",

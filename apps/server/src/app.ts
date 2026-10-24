@@ -7,6 +7,8 @@ import type { Logger } from 'pino'
 import { ZodError } from 'zod'
 import {
   API_PREFIX,
+  ProviderIdentity,
+  SaveFavoriteRequest,
   AppSettingsPatch,
   AddMemberRequest,
   ClientErrorReport,
@@ -92,6 +94,7 @@ import { ARTWORK_FILE, artworkContentType, type ArtworkCache } from './metadata/
 import type { CredentialStore } from './metadata/credentials'
 import { DownloadClientError } from './downloads/qbittorrent'
 import type { DownloadMonitor } from './downloads/monitor'
+import type { FavoritesRepo } from './downloads/favorites'
 import { DownloadNotFound, FilesNotReady, InvalidFileSelection, ReleaseExpired, type DownloadsService } from './downloads/service'
 import { MetadataProblem, type MetadataManager } from './metadata/manager'
 import { ProviderError, type MetadataProvider } from './metadata/provider'
@@ -107,6 +110,8 @@ import type { FileJournal } from './files/journal'
 import { RenameProblem, type RenameService } from './files/rename'
 import { TemplateError, validateTemplate } from './files/template'
 import { chooseSubtitle, discoverExternal } from './subtitles/discover'
+import type { SubtitleService } from './subtitles/service'
+import { registerSubtitleRoutes } from './subtitles/routes'
 import { ApiProblem, LibrarySourceRepo, normaliseFolderPath, probeFolder, refreshAvailability, withTimeout } from './library/sources'
 import type { LibraryExclusionRepo } from './library/exclusions'
 import { extractBearer, isAllowedOrigin, isLoopbackHost, tokenMatches } from './security'
@@ -133,8 +138,10 @@ export interface AppDeps {
   auto: AutoScanner
   metadata: MetadataManager
   credentials: CredentialStore
+  subtitles: SubtitleService
   provider: MetadataProvider
   downloads: DownloadsService
+  favorites: FavoritesRepo
   downloadMonitor: DownloadMonitor
   artwork: ArtworkCache
   events: EventsHub
@@ -191,6 +198,8 @@ export async function buildApp(deps: AppDeps) {
   })
 
   app.setNotFoundHandler((_req, reply) => reply.code(404).send(apiError('not_found', 'No such endpoint')))
+
+  registerSubtitleRoutes(app, deps.subtitles)
 
   app.get(`${API_PREFIX}/health`, async (): Promise<HealthResponse> => ({
     status: 'ok',
@@ -426,6 +435,19 @@ export async function buildApp(deps: AppDeps) {
   // --- downloads (qBittorrent) ---
 
   app.get(`${API_PREFIX}/downloads/status`, async (): Promise<DownloadClientStatus> => downloads.status())
+
+  app.get(`${API_PREFIX}/library/title-identities`, async () => ({ items: titles.identities() }))
+  app.get(`${API_PREFIX}/downloads/favorites`, async () => ({ items: deps.favorites.list() }))
+  app.put(`${API_PREFIX}/downloads/favorites`, async (req) => {
+    const favorite = deps.favorites.save(SaveFavoriteRequest.parse(req.body))
+    events.broadcast({ type: 'favorites.changed' })
+    return favorite
+  })
+  app.delete(`${API_PREFIX}/downloads/favorites/:provider/:kind/:externalId`, async (req) => {
+    const deleted = deps.favorites.remove(ProviderIdentity.parse(req.params))
+    events.broadcast({ type: 'favorites.changed' })
+    return { deleted }
+  })
 
   // A wrong user name or password is a 400 (never 401: that means our own API token); a qBittorrent that is
   // merely not running is saved and reported through the status.
@@ -876,7 +898,7 @@ export async function buildApp(deps: AppDeps) {
       serviceEvents: serviceEvents.list(20),
       ffprobeFound,
       logsDir: config.logsDir,
-      secrets: [token, credentials.get(), downloads.connection()?.password ?? null, downloads.indexerConnection()?.apiKey ?? null],
+      secrets: [token, credentials.get(), downloads.connection()?.password ?? null, downloads.indexerConnection()?.apiKey ?? null, ...deps.subtitles.secrets()],
       now: new Date(),
     })
     return reply.type('text/plain; charset=utf-8').send(text)

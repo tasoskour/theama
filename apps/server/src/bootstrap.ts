@@ -1,4 +1,5 @@
 import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { Logger } from 'pino'
 import type { RuntimeInfo } from '@theama/contracts'
 import { pruneLogs } from '@theama/logs'
@@ -13,6 +14,7 @@ import { applyPendingRestore, backupBeforeMigration, BackupService } from './bac
 import { CollectionRepo } from './collections/store'
 import { DownloadMonitor } from './downloads/monitor'
 import { DownloadsService } from './downloads/service'
+import { FavoritesRepo } from './downloads/favorites'
 import { FileJournal } from './files/journal'
 import { RenameService } from './files/rename'
 import { PlaybackRepo } from './playback/store'
@@ -30,6 +32,7 @@ import { ServiceEventRepo, recordCrashIfUncleanShutdown } from './repo/service-e
 import { SettingsRepo } from './repo/settings'
 import { loadOrCreateToken } from './security'
 import { APP_VERSION } from './version'
+import { SubtitleService, type SubtitleFile } from './subtitles/service'
 
 export interface RunningServer {
   port: number
@@ -82,6 +85,22 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   if (ffprobePath) logger.info({ ffprobePath }, 'FFprobe found')
   else logger.warn('FFprobe not found: files are listed without duration, resolution and codecs (run "yarn ffprobe:fetch")')
   const credentials = new CredentialStore(config.tmdbKeyFile)
+  const subtitles = new SubtitleService({
+    store: new CredentialStore(join(config.secretsDir, 'subtitles.json')),
+    openSubtitlesBase: config.openSubtitlesApiBase,
+    subdlBase: config.subdlApiBase,
+    subdlDownloadBase: config.subdlDownloadBase,
+    file: (id) => {
+      const row = handle.raw.prepare(`SELECT f.path, f.kind, coalesce(m.title, f.guessed_title) AS title, f.guessed_title AS guessedTitle,
+        coalesce(m.year, f.guessed_year) AS year, f.season, f.episode,
+        m.imdb_id AS imdbId, CASE WHEN m.provider = 'tmdb' THEN m.external_id END AS tmdbId,
+        (f.state = 'available' AND s.availability <> 'offline') AS available
+        FROM media_file f JOIN library_source s ON s.id = f.source_id
+        LEFT JOIN title_metadata m ON m.title_key = f.title_key
+        WHERE f.id = ? AND f.kind IN ('movie', 'episode') AND f.excluded = 0`).get(id) as (Omit<SubtitleFile, 'available'> & { available: number }) | undefined
+      return row ? { ...row, available: row.available === 1 } : null
+    },
+  })
   const provider = new TmdbProvider({
     credential: () => credentials.get(),
     ...(config.tmdbApiBase ? { apiBase: config.tmdbApiBase } : {}),
@@ -159,6 +178,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     files,
     titles,
     collections,
+    favorites: new FavoritesRepo(handle.raw),
     playback,
     renamer,
     journal,
@@ -169,6 +189,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     auto,
     metadata,
     credentials,
+    subtitles,
     provider,
     downloads,
     downloadMonitor,

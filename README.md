@@ -58,5 +58,12 @@ docs/           PRD, architecture, schema, API, UX, design system, roadmap, risk
 
 User data (database, logs, cache, API token): `%ProgramData%\Theama\` — never in the install folder. Development uses `.dev-data/`.
 
+## Downloading subtitles
+
+Configure OpenSubtitles and/or SubDL in **Settings → Playback**, then choose **Find subtitles** in a movie's file details or an expanded episode. Select a language and provider, search, and download a matching release. Theama saves validated SRT, ASS, SSA or VTT files beside the video without replacing existing files; the next playback discovers them automatically. ZIP downloads with multiple subtitle files ask which one to save.
+
+Each provider requires its own API key and applies its own limits. OpenSubtitles also supports optional account login; credentials are stored locally in the data folder's `secrets/subtitles.json`, outside library backups. Downloads are manual. Setup links are available in Playback settings.
+
 ## Documentation
+
 [PRD](docs/01-prd.md) · [Architecture](docs/02-architecture.md) · [Domain & database](docs/03-domain-and-database.md) · [API](docs/04-api.md) · [UX & navigation](docs/05-ux-navigation.md) · [Design system & logo](docs/06-design-system.md) · [Metadata matching](docs/07-metadata-matching.md) · [Scanning & offline media](docs/08-scanning-workflow.md) · [Roadmap](docs/09-roadmap.md) · [Testing](docs/10-testing-strategy.md) · [Risks](docs/11-risks.md) · [ADRs](docs/adr/)

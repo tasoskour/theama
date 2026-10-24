@@ -63,10 +63,10 @@ export interface SceneTheme {
 }
 
 const dust = (over: Partial<ParticleSpec> = {}): ParticleSpec => ({ mode: 'drift', shape: 'dot', count: 1, size: 5, alpha: 0.9, alphaLight: 0.5, speed: 1, twinkle: 1, ...over })
-const posters = (over: Partial<PosterSpec> = {}): PosterSpec => ({ layout: 'field', count: 1, opacity: 0.3, blur: 3.2, tint: 0.18, speed: 1, ...over })
+const posters = (over: Partial<PosterSpec> = {}): PosterSpec => ({ layout: 'field', count: 1, opacity: 0.36, blur: 1.8, tint: 0.18, speed: 1, ...over })
 
 export const THEMES: Record<SceneId, SceneTheme> = {
-  // The original backdrop, unchanged: dust, soft light shafts, dim posters drifting at depth. The default.
+  // The default backdrop: dust, soft light shafts, and gently softened posters drifting at depth.
   classic: {
     id: 'classic',
     followsRoute: true,
@@ -87,7 +87,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FFFFFF',
     particles: [dust({ count: 0.9, size: 4.5, alpha: 0.8, alphaLight: 0.45, speed: 0.8 })],
     fx: [{ fx: 'shafts', strength: 1.6 }],
-    posters: posters({ layout: 'ring', opacity: 0.34, speed: 1 }),
+    posters: posters({ layout: 'ring', opacity: 0.4, speed: 1 }),
   },
   series: {
     id: 'series',
@@ -97,7 +97,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FFFFFF',
     particles: [dust({ count: 0.6, size: 3.5, alpha: 0.6, alphaLight: 0.4, speed: 0.7 })],
     fx: [{ fx: 'fog', strength: 1.6 }],
-    posters: posters({ layout: 'columns', opacity: 0.44, blur: 2.6, tint: 0.12, speed: 1 }),
+    posters: posters({ layout: 'columns', opacity: 0.5, blur: 1.4, tint: 0.12, speed: 1 }),
   },
   video: {
     id: 'video',
@@ -107,7 +107,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FFE0B0',
     particles: [dust({ mode: 'bokeh', shape: 'bokeh', count: 0.05, cap: 36, size: 28, alpha: 0.2, alphaLight: 0.16, speed: 1, twinkle: 0.2 })],
     fx: [],
-    posters: posters({ opacity: 0.26, blur: 3.8, tint: 0.14, speed: 0.7 }),
+    posters: posters({ opacity: 0.32, blur: 2.4, tint: 0.14, speed: 0.7 }),
   },
 
   // --- by genre -----------------------------------------------------------------------------
@@ -119,7 +119,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FFFFFF',
     particles: [dust({ mode: 'rise', size: 5, count: 1.1, alpha: 0.95, alphaLight: 0.6, speed: 1.6, twinkle: 0.6 })],
     fx: [{ fx: 'shafts', strength: 0.9 }],
-    posters: posters({ opacity: 0.28, speed: 1.8, tint: 0.22 }),
+    posters: posters({ opacity: 0.34, speed: 1.8, tint: 0.22 }),
   },
   animation: {
     id: 'animation',
@@ -129,7 +129,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FFD84D',
     particles: [dust({ mode: 'bokeh', shape: 'bokeh', count: 0.09, cap: 64, size: 24, alpha: 0.3, alphaLight: 0.22, speed: 1.2, twinkle: 0.3 })],
     fx: [],
-    posters: posters({ opacity: 0.3, blur: 2.8, tint: 0.1 }),
+    posters: posters({ opacity: 0.36, blur: 1.6, tint: 0.1 }),
   },
   comedy: {
     id: 'comedy',
@@ -139,7 +139,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FF6FA0',
     particles: [dust({ mode: 'fall', shape: 'confetti', count: 0.5, cap: 520, size: 7, alpha: 0.9, alphaLight: 0.75, speed: 0.9, twinkle: 0 })],
     fx: [],
-    posters: posters({ opacity: 0.28, tint: 0.08 }),
+    posters: posters({ opacity: 0.34, tint: 0.08 }),
   },
   crime: {
     id: 'crime',
@@ -149,7 +149,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#BFD0FF',
     particles: [dust({ mode: 'rain', shape: 'streak', count: 0.5, size: 46, alpha: 0.5, alphaLight: 0.4, speed: 2.4, twinkle: 0 })],
     fx: [{ fx: 'fog', strength: 1.1 }],
-    posters: posters({ opacity: 0.2, blur: 3.8, tint: 0.32, speed: 0.7 }),
+    posters: posters({ opacity: 0.26, blur: 2.4, tint: 0.32, speed: 0.7 }),
   },
   documentary: {
     id: 'documentary',
@@ -159,7 +159,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FFFFFF',
     particles: [dust({ count: 0.7, size: 3.5, alpha: 0.6, alphaLight: 0.4, speed: 0.5 })],
     fx: [],
-    posters: posters({ opacity: 0.27, blur: 3.4, tint: 0.05, speed: 0.5 }),
+    posters: posters({ opacity: 0.33, blur: 2, tint: 0.05, speed: 0.5 }),
   },
   drama: {
     id: 'drama',
@@ -169,7 +169,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FFE2B0',
     particles: [dust({ count: 0.4, size: 4, alpha: 0.6, alphaLight: 0.4, speed: 0.6 })],
     fx: [{ fx: 'shafts', strength: 1.8 }],
-    posters: posters({ opacity: 0.26, tint: 0.24, speed: 0.7 }),
+    posters: posters({ opacity: 0.32, tint: 0.24, speed: 0.7 }),
   },
   family: {
     id: 'family',
@@ -179,7 +179,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FF9FD0',
     particles: [dust({ mode: 'bokeh', shape: 'bubble', count: 0.07, cap: 44, size: 22, alpha: 0.35, alphaLight: 0.3, speed: 0.9, twinkle: 0.1 })],
     fx: [],
-    posters: posters({ opacity: 0.28, blur: 2.8, tint: 0.08, speed: 0.8 }),
+    posters: posters({ opacity: 0.34, blur: 1.6, tint: 0.08, speed: 0.8 }),
   },
   fantasy: {
     id: 'fantasy',
@@ -189,7 +189,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FFF2A8',
     particles: [dust({ mode: 'wander', count: 0.6, size: 6, alpha: 1, alphaLight: 0.7, speed: 1, twinkle: 1 })],
     fx: [{ fx: 'aurora', strength: 1 }],
-    posters: posters({ opacity: 0.24, tint: 0.2, speed: 0.8 }),
+    posters: posters({ opacity: 0.3, tint: 0.2, speed: 0.8 }),
   },
   horror: {
     id: 'horror',
@@ -202,7 +202,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
       { fx: 'fog', strength: 1.3 },
       { fx: 'flicker', strength: 1 },
     ],
-    posters: posters({ opacity: 0.16, blur: 4, tint: 0.4, speed: 0.4 }),
+    posters: posters({ opacity: 0.22, blur: 2.6, tint: 0.4, speed: 0.4 }),
   },
   romance: {
     id: 'romance',
@@ -215,7 +215,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
       dust({ mode: 'bokeh', shape: 'bokeh', count: 0.04, cap: 28, size: 24, alpha: 0.18, alphaLight: 0.14, speed: 0.8, twinkle: 0.2 }),
     ],
     fx: [],
-    posters: posters({ opacity: 0.26, blur: 3.6, tint: 0.2, speed: 0.6 }),
+    posters: posters({ opacity: 0.32, blur: 2.2, tint: 0.2, speed: 0.6 }),
   },
   scifi: {
     id: 'scifi',
@@ -228,7 +228,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
       { fx: 'nebula', strength: 1 },
       { fx: 'grid', strength: 1 },
     ],
-    posters: posters({ opacity: 0.22, tint: 0.25 }),
+    posters: posters({ opacity: 0.28, tint: 0.25 }),
   },
   history: {
     id: 'history',
@@ -238,7 +238,7 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#E8DCC4',
     particles: [dust({ mode: 'fall', shape: 'dot', count: 0.7, size: 3, alpha: 0.6, alphaLight: 0.5, speed: 0.35, twinkle: 0.2 })],
     fx: [{ fx: 'fog', strength: 0.7 }],
-    posters: posters({ opacity: 0.22, blur: 3.6, tint: 0.4, speed: 0.4 }),
+    posters: posters({ opacity: 0.28, blur: 2.2, tint: 0.4, speed: 0.4 }),
   },
   western: {
     id: 'western',
@@ -248,6 +248,6 @@ export const THEMES: Record<SceneId, SceneTheme> = {
     accent3: '#FFD9A0',
     particles: [dust({ count: 0.8, size: 4, alpha: 0.8, alphaLight: 0.5, speed: 0.5 })],
     fx: [{ fx: 'shafts', strength: 1.4 }],
-    posters: posters({ opacity: 0.26, tint: 0.3, speed: 0.8 }),
+    posters: posters({ opacity: 0.32, tint: 0.3, speed: 0.8 }),
   },
 }

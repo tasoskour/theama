@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiContentCopy, mdiEyeOffOutline, mdiFolderOpenOutline } from '@mdi/js'
+import { mdiContentCopy, mdiEyeOffOutline, mdiFolderOpenOutline, mdiSubtitlesOutline } from '@mdi/js'
 import { FileSubtitles, type MediaFile } from '@theama/contracts'
 import { getBridge } from '@/api/bridge'
 import { useConnectionStore } from '@/stores/connection'
 import { useLibraryStore } from '@/stores/library'
 import { formatBytes, formatDuration, resolutionLabel } from '@/utils/format'
+import FindSubtitlesDialog from '@/components/subtitles/FindSubtitlesDialog.vue'
 
 const props = defineProps<{ file: MediaFile }>()
 const emit = defineEmits<{ hidden: [] }>()
@@ -14,6 +15,7 @@ const { locale, d } = useI18n()
 const bridge = getBridge()
 const connection = useConnectionStore()
 const library = useLibraryStore()
+const findSubtitles = ref(false)
 
 /** Subtitle files next to the video are read from disk when asked, so a file added since the last scan shows up. */
 const subtitles = ref<FileSubtitles | null>(null)
@@ -102,12 +104,14 @@ async function hideFile(): Promise<void> {
     </div>
     <p v-if="file.probeError" class="th-muted text-caption error">{{ $t('files.unreadableHint') }} <span class="th-mono">{{ file.probeError }}</span></p>
     <div class="actions">
+      <v-btn v-if="file.kind === 'movie' || file.kind === 'episode'" size="small" variant="tonal" :prepend-icon="mdiSubtitlesOutline" :disabled="file.state !== 'available' || !connection.isConnected" @click="findSubtitles = true">{{ $t('subtitles.find') }}</v-btn>
       <v-btn v-if="bridge" size="small" variant="tonal" :prepend-icon="mdiFolderOpenOutline" :disabled="file.state === 'source_offline'" @click="bridge.showItemInFolder(file.path)">
         {{ $t('detail.openFolder') }}
       </v-btn>
       <v-btn size="small" variant="text" :prepend-icon="mdiContentCopy" @click="copyPath">{{ $t('detail.copyPath') }}</v-btn>
       <v-btn size="small" variant="text" color="error" :prepend-icon="mdiEyeOffOutline" @click="hideFile">{{ $t('files.hide') }}</v-btn>
     </div>
+    <FindSubtitlesDialog v-model="findSubtitles" :file="file" @downloaded="loadSubtitles" />
   </div>
 </template>
 

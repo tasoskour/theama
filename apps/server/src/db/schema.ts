@@ -1,5 +1,13 @@
 import { integer, primaryKey, real, sqliteTable, text, index } from 'drizzle-orm/sqlite-core'
 
+export const downloadFavorite = sqliteTable('download_favorite', {
+  provider: text('provider').notNull(),
+  kind: text('kind', { enum: ['movie', 'series'] }).notNull(),
+  externalId: text('external_id').notNull(),
+  snapshot: text('snapshot').notNull(),
+  savedAt: text('saved_at').notNull(),
+}, (t) => [primaryKey({ columns: [t.provider, t.kind, t.externalId] })])
+
 /**
  * Key/value application settings. Values are JSON-encoded so the table never
  * needs a migration when a setting is added.

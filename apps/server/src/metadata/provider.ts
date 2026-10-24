@@ -33,6 +33,7 @@ export interface ProviderCandidate {
   popularity: number
   /** 0–10 from the provider's voters; null when nobody has voted. */
   rating: number | null
+  genres?: string[]
 }
 
 export interface SuggestionsQuery {

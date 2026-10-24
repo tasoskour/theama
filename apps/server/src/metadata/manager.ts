@@ -249,6 +249,7 @@ export class MetadataManager {
       overview: c.overview,
       posterUrl: artworkUrl(posterFile),
       score,
+      genres: c.genres ?? [],
     }
   }
 

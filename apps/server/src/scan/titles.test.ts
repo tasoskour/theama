@@ -42,6 +42,32 @@ function add(
   return id!
 }
 
+describe('library provider identities', () => {
+  it('tracks exact matched identities with visible files, including partial series on offline drives', () => {
+    const movie = add('movie', 'Movie')
+    const episode = add('episode', 'Series', { season: 1, episode: 1 })
+    const unmatched = add('movie', 'Unmatched')
+    const match = handle.raw.prepare(`INSERT INTO title_match (title_key, kind, state, provider, external_id, decided_by, attempted_at, updated_at)
+      SELECT title_key, ?, ?, 'tmdb', '42', 'user', 'now', 'now' FROM media_file WHERE id = ?`)
+    match.run('movie', 'matched', movie)
+    match.run('series', 'matched', episode)
+    match.run('movie', 'ambiguous', unmatched)
+    const expected = [{ provider: 'tmdb', kind: 'movie', externalId: '42' }, { provider: 'tmdb', kind: 'series', externalId: '42' }]
+    expect(titles.identities()).toEqual(expect.arrayContaining(expected))
+    expect(titles.identities()).toHaveLength(2)
+    handle.raw.prepare("UPDATE library_source SET availability = 'offline' WHERE id = ?").run(sourceId)
+    handle.raw.prepare("UPDATE media_file SET state = 'missing_unconfirmed' WHERE id = ?").run(episode)
+    expect(titles.identities()).toHaveLength(2)
+    handle.raw.prepare('UPDATE media_file SET excluded = 1 WHERE id = ?').run(movie)
+    expect(titles.identities()).toEqual([expected[1]])
+    handle.raw.prepare("UPDATE title_match SET state = 'unmatched' WHERE kind = 'series'").run()
+    expect(titles.identities()).toEqual([])
+    handle.raw.prepare("UPDATE title_match SET state = 'matched' WHERE kind = 'series'").run()
+    handle.raw.prepare('DELETE FROM media_file WHERE id = ?').run(episode)
+    expect(titles.identities()).toEqual([])
+  })
+})
+
 describe('title keys', () => {
   it('normalises case, accents and punctuation', () => {
     expect(normaliseTitle("X-Men '97")).toBe('x men 97')

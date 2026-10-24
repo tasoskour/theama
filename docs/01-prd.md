@@ -46,7 +46,7 @@ Single-user, single-machine. A secured LAN/mobile mode is explicitly future work
 Embedded player (codec/container limits must be evaluated first) · resume-position integrations for PotPlayer and other players · NFO import/export · smart collections beyond the basics · metadata refresh scheduling · additional providers via adapters.
 
 ### Optional / future
-Secured LAN/mobile access (separate, explicitly enabled feature with its own security model) · subtitle provider adapters · additional languages.
+Secured LAN/mobile access (separate, explicitly enabled feature with its own security model) · additional subtitle providers and automatic subtitle downloading · additional languages.
 
 ### Non-goals
 Accounts, cloud sync, analytics, scraping IMDb, bypassing provider terms, fabricating metadata or chronology, automatic renaming without approval, Docker/Redis/external databases.

@@ -13,6 +13,9 @@ const EnvSchema = z.object({
   /** Point the metadata provider somewhere else (tests, a local mirror). Defaults to TMDB itself. */
   THEAMA_TMDB_API_BASE: z.string().url().optional(),
   THEAMA_TMDB_IMAGE_BASE: z.string().url().optional(),
+  THEAMA_OPENSUBTITLES_API_BASE: z.string().url().optional(),
+  THEAMA_SUBDL_API_BASE: z.string().url().optional(),
+  THEAMA_SUBDL_DOWNLOAD_BASE: z.string().url().optional(),
 })
 
 export interface ServerConfig {
@@ -33,6 +36,9 @@ export interface ServerConfig {
   indexerFile: string
   tmdbApiBase?: string
   tmdbImageBase?: string
+  openSubtitlesApiBase?: string
+  subdlApiBase?: string
+  subdlDownloadBase?: string
   tokenFile: string
   runtimeFile: string
   port: number
@@ -63,6 +69,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     indexerFile: join(paths.secretsDir, 'prowlarr.json'),
     ...(parsed.THEAMA_TMDB_API_BASE ? { tmdbApiBase: parsed.THEAMA_TMDB_API_BASE } : {}),
     ...(parsed.THEAMA_TMDB_IMAGE_BASE ? { tmdbImageBase: parsed.THEAMA_TMDB_IMAGE_BASE } : {}),
+    ...(parsed.THEAMA_OPENSUBTITLES_API_BASE ? { openSubtitlesApiBase: parsed.THEAMA_OPENSUBTITLES_API_BASE } : {}),
+    ...(parsed.THEAMA_SUBDL_API_BASE ? { subdlApiBase: parsed.THEAMA_SUBDL_API_BASE } : {}),
+    ...(parsed.THEAMA_SUBDL_DOWNLOAD_BASE ? { subdlDownloadBase: parsed.THEAMA_SUBDL_DOWNLOAD_BASE } : {}),
     port: parsed.THEAMA_PORT,
     hostMode: parsed.THEAMA_HOST_MODE,
     logLevel: parsed.THEAMA_LOG_LEVEL,

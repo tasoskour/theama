@@ -5,9 +5,11 @@ import { mdiArrowDown, mdiArrowUp, mdiClose } from '@mdi/js'
 import { useConnectionStore } from '@/stores/connection'
 import { usePlayersStore } from '@/stores/players'
 import { useSettingsStore } from '@/stores/settings'
+import SubtitleProviderSettings from '@/components/subtitles/SubtitleProviderSettings.vue'
+import { SUBTITLE_LANGUAGES } from '@/utils/subtitles'
 
 /** Languages offered for subtitles (ISO 639-1); the backend understands many spellings of each. */
-const LANGUAGE_CODES = ['el', 'en', 'fr', 'de', 'es', 'it', 'pt', 'ru', 'tr', 'ar', 'he', 'nl', 'sv', 'no', 'da', 'fi', 'pl', 'cs', 'hu', 'ro', 'bg', 'sr', 'hr', 'uk', 'ja', 'ko', 'zh', 'hi', 'th', 'id', 'vi', 'fa']
+const LANGUAGE_CODES = SUBTITLE_LANGUAGES
 
 const { t, locale } = useI18n()
 const players = usePlayersStore()
@@ -114,6 +116,8 @@ async function addLanguage(code: string | null): Promise<void> {
       />
       <p class="th-muted hint">{{ $t('playback.subtitleHint') }}</p>
     </div>
+
+    <SubtitleProviderSettings />
 
     <div class="field th-form-section">
       <span class="label">{{ $t('playback.autoNext') }}</span>

@@ -6,6 +6,8 @@ export const trailerInApp = typeof window !== 'undefined' && window.theama !== u
 export function externalUrl(link: ExternalLinkRequest): string {
   if (link.service === 'tmdb') return `https://www.themoviedb.org/${link.kind === 'series' ? 'tv' : 'movie'}/${link.id}`
   if (link.service === 'imdb') return `https://www.imdb.com/title/${link.id}/`
+  if (link.service === 'opensubtitles') return 'https://www.opensubtitles.com/en/consumers'
+  if (link.service === 'subdl') return 'https://subdl.com/panel/api'
   return `https://www.youtube.com/watch?v=${link.id}`
 }
 

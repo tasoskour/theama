@@ -1,7 +1,7 @@
 import { win32 } from 'node:path'
 import type Database from 'better-sqlite3'
 import { z } from 'zod'
-import type { LibraryType, MediaKind, ReclassifyTitleResult, RemoveTitleResult, TitleDetail, TitleKind, TitlePage, TitleQuery, TitleSort, TitleSummary } from '@theama/contracts'
+import type { LibraryType, MediaKind, ProviderIdentity, ReclassifyTitleResult, RemoveTitleResult, TitleDetail, TitleKind, TitlePage, TitleQuery, TitleSort, TitleSummary } from '@theama/contracts'
 import { GENRE_SEPARATOR } from '@theama/contracts'
 import { collectionRefsFor } from '../collections/refs'
 import { artworkUrl } from '../metadata/artwork'
@@ -136,6 +136,16 @@ export class TitleRepo {
     private readonly raw: Database.Database,
     private readonly metadata?: MetadataRepo,
   ) {}
+
+  /** Exact identities of visible library groups, including retained files on offline drives. */
+  identities(): ProviderIdentity[] {
+    return this.raw.prepare(`SELECT DISTINCT m.provider, m.kind, m.external_id AS externalId
+      FROM title_match m JOIN media_file f ON f.title_key = m.title_key
+      JOIN library_source s ON s.id = f.source_id
+      WHERE m.state = 'matched' AND m.provider IS NOT NULL AND m.external_id IS NOT NULL
+        AND f.excluded = 0 AND ((m.kind = 'movie' AND f.kind = 'movie') OR (m.kind = 'series' AND f.kind = 'episode'))`)
+      .all() as ProviderIdentity[]
+  }
 
   /** Changes Theama's interpretation of every file represented by a title; disk paths are never changed. */
   reclassify(key: string, kind: TitleKind | null): ReclassifyTitleResult | null {

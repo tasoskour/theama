@@ -13,6 +13,7 @@ export const ServerEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('settings.changed'), settings: AppSettings }),
   z.object({ type: z.literal('log.appended'), entry: LogEntry }),
   z.object({ type: z.literal('library.changed') }),
+  z.object({ type: z.literal('favorites.changed') }),
   z.object({ type: z.literal('scan.started'), job: ScanJob }),
   z.object({ type: z.literal('scan.progress'), progress: ScanProgress }),
   z.object({ type: z.literal('scan.finished'), job: ScanJob }),

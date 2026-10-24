@@ -1,12 +1,14 @@
 import type { ExternalLinkRequest } from '@theama/contracts'
 
-/** Builds only the three public destinations the renderer is allowed to open. */
+/** Builds known public destinations; the renderer never supplies arbitrary URLs. */
 export function externalLinkUrl(link: ExternalLinkRequest): string {
   if (link.service === 'tmdb') {
     const section = link.kind === 'series' ? 'tv' : 'movie'
     return `https://www.themoviedb.org/${section}/${link.id}`
   }
   if (link.service === 'imdb') return `https://www.imdb.com/title/${link.id}/`
+  if (link.service === 'opensubtitles') return 'https://www.opensubtitles.com/en/consumers'
+  if (link.service === 'subdl') return 'https://subdl.com/panel/api'
   return `https://www.youtube.com/watch?v=${link.id}`
 }
 

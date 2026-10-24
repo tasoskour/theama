@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { mdiStar } from '@mdi/js'
+import { mdiHeart, mdiHeartOutline, mdiStar } from '@mdi/js'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { useConnectionStore } from '@/stores/connection'
 import type { SuggestionItem } from './suggestion'
+import { useFavoritesStore } from '@/stores/favorites'
 
 defineProps<{ items: SuggestionItem[] }>()
 defineEmits<{ preview: [candidate: SuggestionItem] }>()
 
 const connection = useConnectionStore()
+const favorites = useFavoritesStore()
 </script>
 
 <template>
@@ -16,13 +18,14 @@ const connection = useConnectionStore()
       <button
         type="button"
         class="card"
-        :aria-label="$t('downloads.suggestions.preview', { title: c.year ? `${c.title} (${c.year})` : c.title })"
+        :title="$t('downloads.suggestions.preview', { title: c.year ? `${c.title} (${c.year})` : c.title })"
         aria-haspopup="dialog"
         data-test="suggestion-item"
         @click="$emit('preview', c)"
       >
         <span class="card__art">
           <PosterArt :seed="`${c.provider}:${c.externalId}`" :title="c.title" :year="c.year" :kind="c.kind" :image-url="connection.assetUrl(c.posterUrl)" />
+          <span v-if="favorites.inLibrary(c)" class="card__added" data-test="suggestion-added">{{ $t('downloads.favorites.alreadyAdded') }}</span>
         </span>
         <span class="card__title">{{ c.title }}</span>
         <span class="card__meta th-muted">
@@ -32,6 +35,18 @@ const connection = useConnectionStore()
           </span>
         </span>
       </button>
+      <v-btn
+        class="item__favorite"
+        :icon="favorites.isFavorite(c) ? mdiHeart : mdiHeartOutline"
+        :color="favorites.isFavorite(c) ? 'primary' : undefined"
+        :aria-label="$t(favorites.isFavorite(c) ? 'downloads.favorites.remove' : 'downloads.favorites.add', { title: c.title })"
+        :aria-pressed="favorites.isFavorite(c)"
+        :loading="favorites.isPending(c)"
+        :disabled="!favorites.loaded || favorites.isPending(c)"
+        size="small"
+        data-test="suggestion-favorite"
+        @click="favorites.toggle(c)"
+      />
     </li>
   </ul>
 </template>
@@ -47,6 +62,27 @@ const connection = useConnectionStore()
 }
 .item {
   min-width: 0;
+  position: relative;
+}
+.item__favorite {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 44px;
+  min-height: 44px;
+}
+.card__added {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  right: 6px;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: var(--th-radius);
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 .card {
   display: grid;

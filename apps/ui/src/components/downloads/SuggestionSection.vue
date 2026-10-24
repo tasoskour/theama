@@ -5,8 +5,8 @@ import { useMetadataStore } from '@/stores/metadata'
 import SuggestionGrid from './SuggestionGrid.vue'
 import type { SuggestionItem } from './suggestion'
 
-const props = defineProps<{ heading: string; section: SuggestionSection; kind?: MatchKind | 'all'; year?: number }>()
-const emit = defineEmits<{ preview: [candidate: SuggestionItem]; problem: [message: string] }>()
+const props = defineProps<{ heading: string; section: SuggestionSection; kind?: MatchKind | 'all'; genre?: string | null; year?: number }>()
+const emit = defineEmits<{ preview: [candidate: SuggestionItem]; problem: [message: string]; genres: [genres: string[]] }>()
 
 const metadata = useMetadataStore()
 
@@ -15,7 +15,9 @@ const page = ref(0)
 const hasMore = ref(false)
 const loading = ref(false)
 const loaded = ref(false)
-const shown = computed(() => !props.kind || props.kind === 'all' ? items.value : items.value.filter((c) => c.kind === props.kind))
+const shown = computed(() => items.value.filter((c) =>
+  (!props.kind || props.kind === 'all' || c.kind === props.kind) && (!props.genre || c.genres?.includes(props.genre)),
+))
 
 /** One page at a time; a second click while a page is on its way does nothing. */
 async function loadNext(): Promise<void> {
@@ -31,6 +33,7 @@ async function loadNext(): Promise<void> {
   page.value += 1
   const known = new Set(items.value.map((c) => c.externalId + c.kind))
   items.value = [...items.value, ...res.items.filter((c) => !known.has(c.externalId + c.kind))]
+  emit('genres', [...new Set(items.value.flatMap((c) => c.genres ?? []))])
   hasMore.value = res.hasMore
 }
 

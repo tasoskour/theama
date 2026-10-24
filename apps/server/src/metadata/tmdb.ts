@@ -49,6 +49,7 @@ const SearchResult = z.object({
     .transform((v) => v ?? 0),
   vote_average: num,
   vote_count: num,
+  genre_ids: z.array(z.number().int()).nullish().transform((v) => v ?? []),
 })
 const SearchResponse = z.object({
   results: z.array(SearchResult),
@@ -170,6 +171,7 @@ export class TmdbProvider implements MetadataProvider {
   private readonly apiBase: string
   private readonly imageBase: string
   private readonly credential: () => string | null
+  private readonly genreLists = new Map<string, Promise<Map<number, string>>>()
 
   constructor(options: TmdbOptions) {
     this.credential = options.credential
@@ -192,6 +194,7 @@ export class TmdbProvider implements MetadataProvider {
 
   reset(): void {
     this.http.reset()
+    this.genreLists.clear()
   }
 
   close(): void {
@@ -202,8 +205,26 @@ export class TmdbProvider implements MetadataProvider {
     await this.call('/configuration', {})
   }
 
-  private candidates(kind: MatchKind, data: z.output<typeof SearchResponse>): ProviderCandidate[] {
+  private genreList(kind: MatchKind, language: string): Promise<Map<number, string>> {
+    const key = `${kind}:${language}`
+    const cached = this.genreLists.get(key)
+    if (cached) return cached
+    const pending = this.call(`/genre/${kind === 'series' ? 'tv' : 'movie'}/list`, { language })
+      .then((data) => {
+        const result = parse(z.object({ genres: z.array(z.object({ id: z.number().int(), name: z.string() })) }), data)
+        return new Map(result.genres.map((g) => [g.id, g.name]))
+      })
+      .catch((err: unknown) => {
+        this.genreLists.delete(key)
+        throw err
+      })
+    this.genreLists.set(key, pending)
+    return pending
+  }
+
+  private async candidates(kind: MatchKind, data: z.output<typeof SearchResponse>, language: string): Promise<ProviderCandidate[]> {
     const tv = kind === 'series'
+    const genres = data.results.some((r) => r.genre_ids.length > 0) ? await this.genreList(kind, language) : new Map<number, string>()
     return data.results.map((r) => {
       const title = (tv ? r.name : r.title) ?? r.title ?? r.name ?? ''
       return {
@@ -216,6 +237,7 @@ export class TmdbProvider implements MetadataProvider {
         posterPath: r.poster_path,
         popularity: r.popularity,
         rating: r.vote_average !== null && r.vote_count ? r.vote_average : null,
+        genres: r.genre_ids.flatMap((id) => genres.has(id) ? [genres.get(id)!] : []),
       }
     })
   }
@@ -232,7 +254,7 @@ export class TmdbProvider implements MetadataProvider {
         ...(q.year ? (tv ? { first_air_date_year: q.year } : { year: q.year }) : {}),
       }),
     )
-    return this.candidates(q.kind, data)
+    return this.candidates(q.kind, data, q.language)
   }
 
   async suggestions(q: SuggestionsQuery): Promise<{ items: ProviderCandidate[]; hasMore: boolean }> {
@@ -258,8 +280,10 @@ export class TmdbProvider implements MetadataProvider {
     ])
     const m = parse(SearchResponse, movies)
     const s = parse(SearchResponse, series)
-    const movieAll = this.candidates('movie', m)
-    const seriesAll = this.candidates('series', s)
+    const [movieAll, seriesAll] = await Promise.all([
+      this.candidates('movie', m, q.language),
+      this.candidates('series', s, q.language),
+    ])
     const movieItems = movieAll.slice(offset, offset + SUGGESTIONS_PER_KIND)
     const seriesItems = seriesAll.slice(offset, offset + SUGGESTIONS_PER_KIND)
     const items: ProviderCandidate[] = []

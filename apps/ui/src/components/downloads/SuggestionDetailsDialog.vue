@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { useId } from 'vue'
-import { mdiClose, mdiMagnify, mdiOpenInNew, mdiPlayCircleOutline, mdiStar } from '@mdi/js'
+import { mdiClose, mdiHeart, mdiHeartOutline, mdiMagnify, mdiOpenInNew, mdiPlayCircleOutline, mdiStar } from '@mdi/js'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { useConnectionStore } from '@/stores/connection'
 import type { SuggestionItem } from './suggestion'
+import { useFavoritesStore } from '@/stores/favorites'
 
 defineProps<{
   candidate: SuggestionItem
@@ -15,6 +16,7 @@ defineEmits<{ pick: [candidate: SuggestionItem]; trailer: [candidate: Suggestion
 
 const connection = useConnectionStore()
 const headingId = useId()
+const favorites = useFavoritesStore()
 </script>
 
 <template>
@@ -32,6 +34,7 @@ const headingId = useId()
         <div class="details__content">
           <h2 :id="headingId" class="details__title th-display">{{ candidate.title }}</h2>
           <div class="details__meta th-muted">
+            <v-chip v-if="favorites.inLibrary(candidate)" size="small" data-test="suggestion-detail-added">{{ $t('downloads.favorites.alreadyAdded') }}</v-chip>
             <span>{{ $t(`downloads.suggestions.${candidate.kind}`) }}</span>
             <span v-if="candidate.year">{{ candidate.year }}</span>
             <span v-if="candidate.rating != null" class="details__rating" :aria-label="$t('downloads.suggestions.rating', { value: candidate.rating.toFixed(1) })" data-test="suggestion-detail-rating">
@@ -45,6 +48,16 @@ const headingId = useId()
       <footer class="details__footer">
         <v-alert v-if="problem" type="warning" variant="tonal" density="compact" class="details__problem" data-test="suggestion-link-error">{{ problem }}</v-alert>
         <div class="details__actions">
+          <v-btn
+            variant="tonal"
+            :prepend-icon="favorites.isFavorite(candidate) ? mdiHeart : mdiHeartOutline"
+            :aria-label="`${$t(favorites.isFavorite(candidate) ? 'downloads.favorites.saved' : 'downloads.favorites.save')}: ${candidate.title}`"
+            :aria-pressed="favorites.isFavorite(candidate)"
+            :loading="favorites.isPending(candidate)"
+            :disabled="!favorites.loaded || favorites.isPending(candidate)"
+            data-test="suggestion-detail-favorite"
+            @click="favorites.toggle(candidate)"
+          >{{ $t(favorites.isFavorite(candidate) ? 'downloads.favorites.saved' : 'downloads.favorites.save') }}</v-btn>
           <v-btn color="primary" :prepend-icon="mdiMagnify" data-test="suggestion-releases" @click="$emit('pick', candidate)">{{ $t('downloads.suggestions.findReleases') }}</v-btn>
           <v-btn variant="outlined" :prepend-icon="mdiPlayCircleOutline" :loading="busy === 'trailer'" :disabled="busy !== null" data-test="suggestion-trailer" @click="$emit('trailer', candidate)">{{ $t('downloads.suggestions.trailer') }}</v-btn>
           <v-btn variant="text" :append-icon="mdiOpenInNew" :loading="busy === 'imdb'" :disabled="busy !== null" data-test="suggestion-imdb" @click="$emit('imdb', candidate)">{{ $t('downloads.suggestions.imdb') }}</v-btn>

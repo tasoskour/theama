@@ -304,6 +304,17 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX idx_title_credit_person ON title_credit(provider, person_external_id, title_key);
   `,
+  /* 13 — saved download suggestions, independent of local library files */
+  `
+  CREATE TABLE download_favorite (
+    provider    TEXT NOT NULL,
+    kind        TEXT NOT NULL CHECK (kind IN ('movie','series')),
+    external_id TEXT NOT NULL,
+    snapshot    TEXT NOT NULL,
+    saved_at    TEXT NOT NULL,
+    PRIMARY KEY (provider, kind, external_id)
+  );
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

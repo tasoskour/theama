@@ -22,6 +22,11 @@ describe('externalLinkUrl', () => {
     expect(trailerEmbedUrl('zSWdZVtXT7E')).toBe('https://www.youtube-nocookie.com/embed/zSWdZVtXT7E?autoplay=1&rel=0&playsinline=1')
   })
 
+  it('opens only the fixed subtitle-provider setup destinations', () => {
+    expect(externalLinkUrl(ExternalLinkRequest.parse({ service: 'opensubtitles' }))).toBe('https://www.opensubtitles.com/en/consumers')
+    expect(externalLinkUrl(ExternalLinkRequest.parse({ service: 'subdl' }))).toBe('https://subdl.com/panel/api')
+  })
+
   it('sends a referrer with the embed (without one YouTube answers "Error 153"), from a name that is nobody\'s', () => {
     expect(new URL(TRAILER_REFERRER).protocol).toBe('https:')
     expect(new URL(TRAILER_REFERRER).hostname.endsWith('.invalid')).toBe(true)

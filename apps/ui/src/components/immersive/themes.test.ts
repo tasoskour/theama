@@ -27,11 +27,11 @@ describe('scene catalogue', () => {
     for (const id of SCENE_IDS.filter((s) => s !== 'classic')) expect(THEMES[id].followsRoute, id).toBe(false)
   })
 
-  it('reproduces the original backdrop exactly for classic', () => {
+  it('keeps the classic dust and shafts with clearer background posters', () => {
     const t = THEMES.classic
     expect(t.particles).toEqual([{ mode: 'drift', shape: 'dot', count: 1, size: 5, alpha: 0.9, alphaLight: 0.5, speed: 1, twinkle: 1 }])
     expect(t.fx).toEqual([{ fx: 'shafts', strength: 1 }])
-    expect(t.posters).toEqual({ layout: 'field', count: 1, opacity: 0.3, blur: 3.2, tint: 0.18, speed: 1 })
+    expect(t.posters).toEqual({ layout: 'field', count: 1, opacity: 0.36, blur: 1.8, tint: 0.18, speed: 1 })
   })
 
   it('uses valid colours and sane numbers everywhere', () => {

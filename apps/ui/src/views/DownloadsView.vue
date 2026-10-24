@@ -15,6 +15,7 @@ import TrailerDialog from '@/components/titles/TrailerDialog.vue'
 import { imdbLinkFor, openExternal, trailerInApp } from '@/composables/useExternalLinks'
 import { useDownloadsStore } from '@/stores/downloads'
 import { useMetadataStore } from '@/stores/metadata'
+import { useFavoritesStore } from '@/stores/favorites'
 
 type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined }
 
@@ -22,10 +23,14 @@ const route = useRoute()
 const { t } = useI18n()
 const downloads = useDownloadsStore()
 const metadata = useMetadataStore()
+const favorites = useFavoritesStore()
 
-const tab = ref<'find' | 'active'>('find')
-const kind = ref<ReleaseKind>('movie')
-const suggestionKind = ref<ReleaseKind | 'all'>('all')
+const tab = ref<'find' | 'favorites' | 'active'>('find')
+const favoriteKind = ref<ReleaseKind | 'all'>('all')
+const shownFavorites = computed(() => favorites.items.filter((item) => favoriteKind.value === 'all' || item.kind === favoriteKind.value))
+const kind = ref<ReleaseKind | 'all'>('all')
+const genre = ref<string | null>(null)
+const suggestionGenres = ref<string[]>([])
 const text = ref('')
 const year = ref<number | null>(null)
 const season = ref('')
@@ -39,7 +44,19 @@ const years = Array.from({ length: lastYear - FIRST_YEAR + 1 }, (_, i) => lastYe
 const searching = ref(false)
 const matches = ref<MatchCandidate[] | null>(null)
 const problem = ref<string | null>(null)
-const query = ref<Query | null>(null)
+const query = ref<Query[] | null>(null)
+const shownMatches = computed(() => matches.value?.filter((c) => !genre.value || c.genres?.includes(genre.value)) ?? [])
+const genreItems = computed(() => [...new Set([
+  ...suggestionGenres.value,
+  ...(matches.value ?? []).flatMap((c) => c.genres ?? []),
+])].sort((a, b) => a.localeCompare(b)))
+
+function rememberGenres(genres: string[]): void {
+  suggestionGenres.value = [...new Set([...suggestionGenres.value, ...genres])]
+}
+
+let searchGeneration = 0
+onBeforeUnmount(() => { searchGeneration += 1 })
 
 const setUp = computed(() => downloads.client?.state !== 'not_configured' || downloads.indexer?.state !== 'not_configured')
 const hasKey = computed(() => metadata.status?.configured === true)
@@ -77,7 +94,10 @@ function openPreview(c: SuggestionItem): void {
 }
 
 function restorePreviewFocus(): void {
-  if (!previewOpen.value && previewActivator?.isConnected) previewActivator.focus({ preventScroll: true })
+  if (previewOpen.value) return
+  // Removing a favorite can remove the card that opened this dialog.
+  const target = previewActivator?.isConnected ? previewActivator : document.querySelector<HTMLElement>('.head__tabs [role="tab"][aria-selected="true"]')
+  target?.focus({ preventScroll: true })
 }
 
 watch(trailerOpen, async (open) => {
@@ -127,6 +147,8 @@ const showImdb = (c: MatchCandidate): Promise<void> =>
 // Emptying the title leaves the search and shows the suggestions again.
 watch(text, (v) => {
   if (v.trim()) return
+  searchGeneration += 1
+  searching.value = false
   matches.value = null
   query.value = null
   problem.value = null
@@ -150,11 +172,13 @@ const num = (v: string): number | undefined => {
   return Number.isFinite(n) && n >= 0 ? n : undefined
 }
 
-function openReleases(title: string, y?: number): void {
+function openReleases(title: string, y?: number, selectedKind = kind.value): void {
   const t = title.trim()
   if (!t) return
-  query.value =
-    kind.value === 'movie' ? { kind: 'movie', title: t, year: y ?? year.value ?? undefined } : { kind: 'series', title: t, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) }
+  const kinds: ReleaseKind[] = selectedKind === 'all' ? ['movie', 'series'] : [selectedKind]
+  query.value = kinds.map((k) =>
+    k === 'movie' ? { kind: 'movie', title: t, year: y ?? year.value ?? undefined } : { kind: 'series', title: t, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) },
+  )
 }
 
 async function search(): Promise<void> {
@@ -168,20 +192,27 @@ async function search(): Promise<void> {
     return
   }
   searching.value = true
-  const res = await metadata.search(kind.value, q, kind.value === 'movie' ? (year.value ?? undefined) : undefined)
+  const mine = ++searchGeneration
+  const kinds: ReleaseKind[] = kind.value === 'all' ? ['movie', 'series'] : [kind.value]
+  const results = await Promise.all(kinds.map((k) => metadata.search(k, q, k === 'movie' ? (year.value ?? undefined) : undefined)))
+  if (mine !== searchGeneration) return
   searching.value = false
-  if (res.ok) matches.value = res.items
-  else problem.value = res.message
+  const successful = results.filter((res) => res.ok)
+  if (successful.length > 0) matches.value = successful.flatMap((res) => res.items)
+  const failure = results.find((res) => !res.ok)
+  if (failure && !failure.ok) problem.value = failure.message
 }
 
 // Suggestions mix movies and series, so the pick decides which kind of release to look for.
 const pick = (c: MatchCandidate): void => {
   previewOpen.value = false
-  kind.value = c.kind
-  openReleases(c.title, c.year ?? undefined)
+  tab.value = 'find'
+  openReleases(c.title, c.year ?? undefined, c.kind)
 }
 
 function changeKind(): void {
+  searchGeneration += 1
+  searching.value = false
   matches.value = null
   query.value = null
   problem.value = null
@@ -194,6 +225,7 @@ function changeKind(): void {
       <h1 class="th-display th-page-title">{{ $t('downloads.title') }}</h1>
       <v-tabs v-model="tab" density="compact" color="primary" class="head__tabs">
         <v-tab value="find" data-test="tab-find">{{ $t('downloads.find.tab') }}</v-tab>
+        <v-tab value="favorites" data-test="tab-favorites">{{ $t('downloads.favorites.tab') }}</v-tab>
         <v-tab value="active" data-test="tab-active">
           {{ $t('downloads.active.heading') }}
           <v-chip v-if="activeCount > 0" size="x-small" class="ml-2" data-test="active-count">{{ activeCount }}</v-chip>
@@ -203,6 +235,11 @@ function changeKind(): void {
 
     <DownloadToolsPanel />
 
+    <v-alert v-if="favorites.error" type="warning" variant="tonal" class="mb-4" data-test="favorites-error">
+      {{ $t('downloads.favorites.error', { message: favorites.error }) }}
+      <v-btn variant="text" size="small" data-test="favorites-retry" @click="favorites.retry()">{{ $t('downloads.favorites.retry') }}</v-btn>
+    </v-alert>
+
     <v-alert v-if="downloads.client && downloads.indexer && !setUp" type="info" variant="tonal" density="compact" class="mb-4" data-test="downloads-setup">
       {{ $t('downloads.find.setup') }}
       <router-link to="/settings/downloads">{{ $t('downloads.find.openSettings') }}</router-link>
@@ -210,9 +247,10 @@ function changeKind(): void {
 
     <section v-show="tab === 'find'" class="find">
       <form class="find__row" role="search" @submit.prevent="search">
-        <v-btn-toggle v-model="kind" mandatory divided variant="outlined" density="compact" @update:model-value="changeKind">
-          <v-btn value="movie" data-test="kind-movie">{{ $t('downloads.find.movie') }}</v-btn>
-          <v-btn value="series" data-test="kind-series">{{ $t('downloads.find.series') }}</v-btn>
+        <v-btn-toggle v-model="kind" mandatory divided variant="outlined" density="compact" color="primary" class="find__kind" :aria-label="$t('downloads.suggestions.filter')" data-test="suggestion-filter" @update:model-value="changeKind">
+          <v-btn v-for="filter in (['all', 'series', 'movie'] as const)" :key="filter" :value="filter" :aria-pressed="kind === filter" :data-test="`suggestion-filter-${filter}`">
+            {{ $t(`downloads.suggestions.filters.${filter}`) }}
+          </v-btn>
         </v-btn-toggle>
         <v-text-field
           v-model="text"
@@ -226,6 +264,18 @@ function changeKind(): void {
           data-test="find-title"
           @click:clear="text = ''"
         />
+        <v-select
+          v-if="hasKey"
+          v-model="genre"
+          :items="genreItems"
+          :label="$t('titles.genres')"
+          :no-data-text="$t('titles.noGenres')"
+          density="compact"
+          hide-details
+          clearable
+          class="find__genre"
+          data-test="find-genre"
+        />
         <v-autocomplete
           v-if="kind === 'movie'"
           v-model="year"
@@ -238,7 +288,7 @@ function changeKind(): void {
           class="find__year"
           data-test="find-year"
         />
-        <template v-else>
+        <template v-else-if="kind === 'series'">
           <v-text-field v-model="season" :label="$t('downloads.find.season')" inputmode="numeric" density="compact" hide-details class="find__small" data-test="find-season" />
           <v-text-field v-model="episode" :label="$t('downloads.find.episode')" inputmode="numeric" density="compact" :disabled="num(season) === undefined" hide-details class="find__small" data-test="find-episode" />
         </template>
@@ -248,26 +298,28 @@ function changeKind(): void {
       <v-alert v-if="problem" type="warning" variant="tonal" density="compact" class="mt-3">{{ problem }}</v-alert>
 
       <div class="find__body" aria-live="polite">
-        <ReleaseList v-if="query" :query="query" @back="query = null" />
+        <template v-if="query">
+          <div v-for="q in query" :key="q.kind" class="find__releases">
+            <p v-if="query.length > 1" class="th-eyebrow">{{ $t(`downloads.suggestions.filters.${q.kind}`) }}</p>
+            <ReleaseList :query="q" @back="query = null" />
+          </div>
+        </template>
 
         <template v-else-if="matches">
-          <p v-if="matches.length === 0" class="th-muted">{{ $t('downloads.find.noMatches') }}</p>
-          <SuggestionGrid v-else :items="matches" data-test="match-list" @preview="openPreview" />
+          <p v-if="shownMatches.length === 0" class="th-muted">{{ $t('downloads.find.noMatches') }}</p>
+          <SuggestionGrid v-else :items="shownMatches" data-test="match-list" @preview="openPreview" />
           <v-btn variant="text" size="small" class="mt-2" data-test="match-direct" @click="openReleases(text)">{{ $t('downloads.find.direct', { title: text.trim() }) }}</v-btn>
         </template>
 
         <template v-else>
           <p v-if="noKey" class="th-muted">{{ $t('downloads.find.noKey') }}</p>
           <template v-else-if="hasKey">
-            <v-btn-toggle v-model="suggestionKind" mandatory divided variant="outlined" density="compact" color="primary" class="mb-4" :aria-label="$t('downloads.suggestions.filter')" data-test="suggestion-filter">
-              <v-btn v-for="filter in (['all', 'movie', 'series'] as const)" :key="filter" :value="filter" :aria-pressed="suggestionKind === filter" :data-test="`suggestion-filter-${filter}`">
-                {{ $t(`downloads.suggestions.filters.${filter}`) }}
-              </v-btn>
-            </v-btn-toggle>
             <SuggestionSection
               :heading="$t('downloads.suggestions.new')"
               section="new"
-              :kind="suggestionKind"
+              :kind="kind"
+              :genre="genre"
+              @genres="rememberGenres"
               @preview="openPreview"
               @problem="problem = $event"
             />
@@ -276,8 +328,10 @@ function changeKind(): void {
               :key="y"
               :heading="$t('downloads.suggestions.year', { year: y })"
               section="year"
-              :kind="suggestionKind"
+              :kind="kind"
+              :genre="genre"
               :year="y"
+              @genres="rememberGenres"
               @preview="openPreview"
               @problem="problem = $event"
             />
@@ -285,6 +339,15 @@ function changeKind(): void {
           </template>
         </template>
       </div>
+    </section>
+
+    <section v-if="tab === 'favorites'" :aria-label="$t('downloads.favorites.tab')" data-test="favorites-section">
+      <v-btn-toggle v-model="favoriteKind" mandatory divided variant="outlined" density="compact" color="primary" class="mb-4" :aria-label="$t('downloads.suggestions.filter')" data-test="favorites-filter">
+        <v-btn v-for="filter in (['all', 'movie', 'series'] as const)" :key="filter" :value="filter" :aria-pressed="favoriteKind === filter" :data-test="`favorites-filter-${filter}`">{{ $t(`downloads.suggestions.filters.${filter}`) }}</v-btn>
+      </v-btn-toggle>
+      <v-progress-linear v-if="favorites.loading && !favorites.loaded" indeterminate :aria-label="$t('downloads.favorites.tab')" />
+      <SuggestionGrid v-if="shownFavorites.length" :items="shownFavorites" @preview="openPreview" />
+      <p v-else-if="favorites.loaded" class="th-muted" data-test="favorites-empty">{{ $t(favorites.items.length ? 'downloads.favorites.noneOfKind' : 'downloads.favorites.empty') }}</p>
     </section>
 
     <ActiveDownloads v-show="tab === 'active'" @find="tab = 'find'" />
@@ -322,8 +385,15 @@ function changeKind(): void {
   align-items: center;
 }
 .find__text {
-  flex: 1 1 260px;
+  flex: 1 1 180px;
   min-width: 0;
+}
+.find__kind {
+  flex: 0 0 auto;
+}
+.find__genre {
+  flex: 0 1 180px;
+  min-width: 140px;
 }
 .find__small {
   flex: 0 1 110px;
@@ -333,5 +403,21 @@ function changeKind(): void {
 }
 .find__body {
   margin-top: 16px;
+}
+.find__releases + .find__releases {
+  margin-top: 24px;
+}
+@media (max-width: 700px) {
+  .find__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .find__kind,
+  .find__text {
+    grid-column: 1 / -1;
+  }
+  .find__row > * {
+    min-width: 0;
+  }
 }
 </style>

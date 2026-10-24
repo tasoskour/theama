@@ -238,12 +238,13 @@ describe('manual identification', () => {
     expect(res.items.map((c) => c.externalId).sort()).toEqual(['1000', '57243'])
     expect(res.items.every((c) => c.posterUrl?.startsWith('/api/v1/artwork/thumb-'))).toBe(true)
     expect(res.items.every((c) => typeof c.score === 'number')).toBe(true)
+    expect(res.items.every((c) => c.genres?.includes('Sci-Fi & Fantasy'))).toBe(true)
   })
 
   it('suggests a year\'s popular movies and series together, rated, with thumbnails', async () => {
     const res = MetadataSuggestionsResult.parse(await get('/metadata/suggestions?section=year&year=2022'))
     expect(res.items.map((c) => [c.kind, c.title])).toEqual([['series', 'Severance']])
-    expect(res.items[0]).toMatchObject({ year: 2022, rating: 8.4, score: null })
+    expect(res.items[0]).toMatchObject({ year: 2022, rating: 8.4, score: null, genres: ['Drama', 'Sci-Fi & Fantasy'] })
     expect(res.hasMore).toBe(false)
 
     const movies = MetadataSuggestionsResult.parse(await get('/metadata/suggestions?section=year&year=2015'))

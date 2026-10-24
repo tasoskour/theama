@@ -24,6 +24,8 @@ export const MatchCandidate = z.object({
   posterUrl: z.string().nullable(),
   /** 0–1 confidence from the matcher; null for manual search results. */
   score: z.number().nullable(),
+  /** Localized provider genres, when available for a search hit or suggestion. */
+  genres: z.array(z.string()).optional(),
 })
 export type MatchCandidate = z.infer<typeof MatchCandidate>
 

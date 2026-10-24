@@ -96,6 +96,9 @@ export async function startFakeTmdb(options = {}) {
 
     const pick = (item, key, fallback) => (lang === 'el' && item.el && key in item.el ? item.el[key] : fallback)
 
+    const genreList = [...new Set([...MOVIES, ...SHOWS].flatMap((x) => x.genres))].map((name, i) => ({ id: i + 1, name }))
+    if (/^\/genre\/(movie|tv)\/list$/.test(path)) return json(200, { genres: genreList })
+
     const PAGE_SIZE = 20
     const results = (list, tv, page = 1) =>
       json(200, {
@@ -111,6 +114,7 @@ export async function startFakeTmdb(options = {}) {
           popularity: x.popularity,
           vote_average: x.vote_average ?? 0,
           vote_count: x.vote_count ?? 0,
+          genre_ids: genreList.filter((g) => x.genres.includes(g.name)).map((g) => g.id),
         })),
       })
 

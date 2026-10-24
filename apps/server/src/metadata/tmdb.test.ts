@@ -27,6 +27,8 @@ describe('TmdbProvider', () => {
     expect(await p.search({ kind: 'movie', title: 'dune', year: 2021, language: 'en-US' })).toHaveLength(1)
     const shows = await p.search({ kind: 'series', title: 'severance', language: 'en-US' })
     expect(shows[0]).toMatchObject({ externalId: '95396', title: 'Severance', year: 2022, kind: 'series' })
+    expect(dunes[0]?.genres).toContain('Science Fiction')
+    expect(shows[0]?.genres).toEqual(['Drama', 'Sci-Fi & Fantasy'])
   })
 
   it('suggests a page of movies and series, alternating and rated, from the right slice of the provider\'s list', async () => {
@@ -34,7 +36,8 @@ describe('TmdbProvider', () => {
     const year = await p.suggestions({ section: 'year', year: 2017, page: 1, language: 'en-US', today: '2026-10-24' })
     expect(year.items.map((c) => [c.kind, c.title, c.rating])).toEqual([['series', 'Dark', 8.4]])
     expect(year.hasMore).toBe(false)
-    expect(fake.requests.map((r) => r.path).sort()).toEqual(['/discover/movie', '/discover/tv'])
+    expect(year.items[0]?.genres).toEqual(['Drama'])
+    expect(fake.requests.map((r) => r.path).sort()).toEqual(['/discover/movie', '/discover/tv', '/genre/tv/list'])
     expect(fake.requests[0]?.query).toMatchObject({ primary_release_year: '2017', 'vote_count.gte': '100', sort_by: 'popularity.desc', page: '1' })
 
     // Our page 2 is the second half of TMDB's page 1; the fake's lists are short, so it is empty and the end.

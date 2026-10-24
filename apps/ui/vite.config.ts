@@ -10,5 +10,5 @@ export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: { host: 'localhost', port: 5173, strictPort: true },
   // The three.js chunk (~525 kB) is only fetched in the optional immersive mode, so it is exempt from the size warning.
-  build: { target: 'chrome140', sourcemap: true, chunkSizeWarningLimit: 600 },
+  build: { target: 'chrome140', sourcemap: false, chunkSizeWarningLimit: 600 },
 })

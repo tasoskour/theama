@@ -5,6 +5,8 @@ copyright: Theama
 electronVersion: 44.9.0
 # Use the Electron already installed for development instead of downloading it again.
 electronDist: ../../node_modules/electron/dist
+# Keep only the Chromium language packs for the interface languages (apps/ui/src/i18n/locales); drops ~45 MB.
+electronLanguages: [en-US, el]
 
 directories:
   app: ../../build/stage/app

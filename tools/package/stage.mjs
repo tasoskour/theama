@@ -33,6 +33,8 @@ const desktop = JSON.parse(readFileSync(join(root, 'apps', 'desktop', 'package.j
 const rootPkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 
 rmSync(stage, { recursive: true, force: true })
+// Earlier installers and the unpacked app are build output only; keeping them piles up over a GB per release.
+rmSync(join(root, 'build', 'installer'), { recursive: true, force: true })
 for (const d of [app, join(app, 'out'), res]) mkdirSync(d, { recursive: true })
 
 // --- the app Electron runs ---------------------------------------------------------------------------------------

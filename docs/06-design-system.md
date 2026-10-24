@@ -38,6 +38,10 @@ Both fonts are bundled locally through `@fontsource-variable/*` (the app works f
 
 Scale: fluid titles with `clamp()` (e.g. page title `clamp(2rem, 4vw, 3rem)`), body 1 rem / 1.6, captions 0.75–0.85 rem.
 
+The root type size stays at the browser's default (normally 16px) through 1280 CSS pixels, grows smoothly to 20px at 2560px, and caps there for larger windows, including 3840px and 4096px displays. Relative units preserve browser font preferences. Settings → General → Text size applies a multiplier on top: Small 90%, Default 100%, Large 115%, Extra large 130%. At 4096px this gives a default 20px body or 26px with Extra large. The preference applies immediately, is cached for first render, and is saved through the shared settings service.
+
+Fields, menus, dialogs, captions, and navigation follow the root size. Fluid title viewport terms also use the multiplier. Action rows and filters wrap, and navigation switches to icons based on available space relative to text size. Posters retain their existing layouts.
+
 ## 3. Spacing, shape, elevation
 4 px base grid; page gutters `clamp(16px, 4vw, 56px)`; standard content max-width 1400 px and media-browsing max-width 1800 px; radius 10 px (`--th-radius`), buttons/cards `lg`; **no drop shadows** in dark, a restrained 1 px hairline instead; flat Vuetify elevations throughout (defaults set in `createVuetify`).
 

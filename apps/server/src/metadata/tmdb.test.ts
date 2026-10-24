@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GOOD_KEY, GOOD_TOKEN, startFakeTmdb, type FakeTmdb } from '../../../../tools/fake-tmdb/server.mjs'
 import { ResilientHttp } from './http'
 import { ProviderError } from './provider'
@@ -56,6 +56,63 @@ describe('TmdbProvider', () => {
     expect(fresh.items.map((c) => c.title)).toEqual(['Severance'])
     const movieCall = fake.requests.find((r) => r.path === '/discover/movie')
     expect(movieCall?.query).toMatchObject({ 'primary_release_date.gte': '2021-12-31', 'primary_release_date.lte': '2022-03-01' })
+  })
+
+  it('lists the complete, sorted movie and TV genre catalog and reuses language-specific lists', async () => {
+    const p = provider()
+    const genres = await p.genres('en-US')
+    expect(genres).toContain('Action')
+    expect(genres).toContain('Sci-Fi & Fantasy')
+    expect(genres).toEqual([...new Set(genres)].sort((a, b) => a.localeCompare(b)))
+    expect(fake.requests.map((r) => r.path).sort()).toEqual(['/genre/movie/list', '/genre/tv/list'])
+    await p.genres('en-US')
+    expect(fake.requests).toHaveLength(2)
+    await p.genres('el-GR')
+    expect(fake.requests.slice(2).every((r) => r.query.language === 'el-GR')).toBe(true)
+    expect(fake.requests).toHaveLength(4)
+  })
+
+  it('applies Any and All genres to discovery and skips media kinds that cannot match', async () => {
+    const p = provider()
+    const query = { section: 'year' as const, year: 2015, page: 1, language: 'en-US', today: '2026-10-24' }
+    const any = await p.suggestions({ ...query, genres: ['Action', 'Drama'] })
+    expect(any.items.map((c) => c.title)).toEqual(['Mad Max: Fury Road'])
+    expect(fake.requests.find((r) => r.path === '/discover/movie')?.query.with_genres).toMatch(/^\d+\|\d+$/)
+    // Drama exists for TV, but Action does not. Any can still discover Drama series.
+    expect(fake.requests.find((r) => r.path === '/discover/tv')?.query.with_genres).toMatch(/^\d+$/)
+
+    fake.requests.length = 0
+    expect(await p.suggestions({ ...query, genres: ['Action', 'Drama'], genreMode: 'all' })).toEqual({ items: [], hasMore: false })
+    expect(fake.requests.map((r) => r.path)).toEqual(['/discover/movie'])
+    expect(fake.requests[0]?.query.with_genres).toMatch(/^\d+,\d+$/)
+    expect((await p.suggestions({ ...query, genres: ['Action', 'Adventure'], genreMode: 'all' })).items).toHaveLength(1)
+
+    fake.requests.length = 0
+    expect(await p.suggestions({ ...query, genres: ['Not a provider genre'] })).toEqual({ items: [], hasMore: false })
+    expect(fake.requests).toHaveLength(0)
+  })
+
+  it('filters before pagination so genres absent from the original page still fill matching pages', async () => {
+    // All 25 Drama titles rank below the first 20 Comedy titles in the unfiltered catalog.
+    const catalog = Array.from({ length: 45 }, (_, i) => ({ id: i + 1, title: `Title ${i + 1}`, genre_ids: [i < 20 ? 35 : 18] }))
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname.includes('/genre/')) return new Response(JSON.stringify({ genres: [{ id: 18, name: 'Drama' }, { id: 35, name: 'Comedy' }] }))
+      const filtered = url.searchParams.get('with_genres') === '18' ? catalog.filter((c) => c.genre_ids.includes(18)) : catalog
+      const list = url.pathname.endsWith('/tv') ? [] : filtered
+      const page = Number(url.searchParams.get('page'))
+      return new Response(JSON.stringify({ results: list.slice((page - 1) * 20, page * 20), total_pages: Math.ceil(list.length / 20) }))
+    })
+    const p = provider(GOOD_KEY, new ResilientHttp({ fetch, minIntervalMs: 0 }))
+    const query = { section: 'year' as const, year: 2026, language: 'en-US', today: '2026-10-24' }
+    expect((await p.suggestions({ ...query, page: 1 })).items.every((c) => c.genres?.includes('Comedy'))).toBe(true)
+    const first = await p.suggestions({ ...query, genres: ['Drama'], page: 1 })
+    const second = await p.suggestions({ ...query, genres: ['Drama'], page: 2 })
+    const third = await p.suggestions({ ...query, genres: ['Drama'], page: 3 })
+    expect(first.items.map((c) => c.externalId)).toEqual(Array.from({ length: 10 }, (_, i) => String(i + 21)))
+    expect(second.items.map((c) => c.externalId)).toEqual(Array.from({ length: 10 }, (_, i) => String(i + 31)))
+    expect(third.items.map((c) => c.externalId)).toEqual(Array.from({ length: 5 }, (_, i) => String(i + 41)))
+    expect([first.hasMore, second.hasMore, third.hasMore]).toEqual([true, true, false])
   })
 
   it('finds a title by its translated or original name', async () => {

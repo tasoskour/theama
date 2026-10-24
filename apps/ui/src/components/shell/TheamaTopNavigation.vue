@@ -35,6 +35,7 @@ import { NAV_ITEMS } from './nav'
   -webkit-app-region: drag;
 }
 .topnav__area {
+  container: topnav / inline-size;
   width: env(titlebar-area-width, 100%);
   height: 100%;
   margin-left: env(titlebar-area-x, 0);
@@ -75,10 +76,8 @@ import { NAV_ITEMS } from './nav'
 .topnav__interactive :deep(*) {
   -webkit-app-region: no-drag;
 }
-@media (max-width: 1279px) {
-  .topnav__area {
-    gap: 8px;
-  }
+/* em follows the selected text size, so labels yield to icons before crowding. */
+@container topnav (max-width: 80em) {
   .topnav__links {
     gap: 0;
   }

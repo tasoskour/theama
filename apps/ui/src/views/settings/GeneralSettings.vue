@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { DesktopSettings, GraphicsQuality, LogDetail, ThemePreference, UiLanguage, VisualMode } from '@theama/contracts'
+import { TextSize, type DesktopSettings, type GraphicsQuality, type LogDetail, type ThemePreference, type UiLanguage, type VisualMode } from '@theama/contracts'
 import { getBridge } from '@/api/bridge'
 import { useImmersive } from '@/composables/useImmersive'
 import BackdropGallery from './BackdropGallery.vue'
@@ -30,6 +30,7 @@ async function setDesktop(patch: { closeToTray?: boolean; startWithWindows?: boo
 }
 
 const themes: ThemePreference[] = ['system', 'dark', 'light']
+const textSizeItems = computed(() => TextSize.options.map((value) => ({ value, title: t(`settings.general.textSizes.${value}`) })))
 const visualModes: VisualMode[] = ['standard', 'immersive']
 const qualities: GraphicsQuality[] = ['low', 'medium', 'high']
 const immersive = useImmersive()
@@ -80,6 +81,23 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
         <v-btn v-for="th in themes" :key="th" :value="th" :aria-pressed="store.settings.theme === th">{{ $t(`settings.general.themes.${th}`) }}</v-btn>
       </v-btn-toggle>
       <p class="th-muted hint">{{ $t('settings.general.themeHint') }}</p>
+    </div>
+
+    <div class="field th-form-section" data-test="text-size">
+      <label id="text-size-label" class="label" for="text-size">{{ $t('settings.general.textSize') }}</label>
+      <v-select
+        id="text-size"
+        :model-value="store.settings.textSize"
+        :items="textSizeItems"
+        :disabled="store.saving"
+        aria-labelledby="text-size-label"
+        aria-describedby="text-size-hint"
+        class="text-size-select"
+        data-test="text-size-select"
+        @update:model-value="(v: TextSize) => save({ textSize: v })"
+      />
+      <p id="text-size-hint" class="th-muted hint">{{ $t('settings.general.textSizeHint') }}</p>
+      <p class="text-size-preview" data-test="text-size-preview">{{ $t('settings.general.textSizePreview') }}</p>
     </div>
 
     <div class="field th-form-section" data-test="visual-mode">
@@ -198,5 +216,20 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
 .hint {
   margin: 0;
   font-size: 0.85rem;
+}
+.text-size-select {
+  width: 100%;
+  max-width: 20rem;
+  min-width: 0;
+}
+.text-size-preview {
+  margin: 8px 0 0;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.field > :deep(.v-btn-toggle) {
+  flex-wrap: wrap;
+  height: auto;
+  max-width: 100%;
 }
 </style>

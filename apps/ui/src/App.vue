@@ -6,12 +6,15 @@ import TheamaAppShell from '@/components/shell/TheamaAppShell.vue'
 import { useImmersiveRoot } from '@/composables/useImmersive'
 import { useSettingsStore } from '@/stores/settings'
 import { useAppTheme } from '@/theme/useAppTheme'
+import { applyTextSize } from '@/theme/textSize'
 
 const settings = useSettingsStore()
 const route = useRoute()
 const { t } = useI18n()
 
 useAppTheme(() => settings.settings.theme)
+// Runs during setup, before first render, and synchronously for previews and rollbacks.
+watch(() => settings.settings.textSize, applyTextSize, { immediate: true, flush: 'sync' })
 useImmersiveRoot()
 
 watch(

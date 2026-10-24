@@ -116,6 +116,26 @@ describe('system and settings', () => {
     expect((await body(bad)).error.code).toBe('invalid_request')
   })
 
+  it('persists text size presets and rejects invalid text sizes', async () => {
+    expect((await body(await fetch(`${base}/settings`, { headers: auth() }))).textSize).toBe('default')
+    for (const textSize of ['small', 'large', 'extra-large', 'default']) {
+      const response = await fetch(`${base}/settings`, {
+        method: 'PUT',
+        headers: { ...auth(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ textSize }),
+      })
+      expect(response.status).toBe(200)
+      expect((await body(response)).textSize).toBe(textSize)
+      expect((await body(await fetch(`${base}/settings`, { headers: auth() }))).textSize).toBe(textSize)
+    }
+    const bad = await fetch(`${base}/settings`, {
+      method: 'PUT',
+      headers: { ...auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ textSize: 'huge' }),
+    })
+    expect(bad.status).toBe(400)
+  })
+
   it('persists the visual mode and graphics quality', async () => {
     const put = await fetch(`${base}/settings`, {
       method: 'PUT',

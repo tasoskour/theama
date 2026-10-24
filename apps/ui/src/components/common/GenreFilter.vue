@@ -49,12 +49,13 @@ const mode = defineModel<GenreMode>('mode', { default: 'any' })
 <style scoped>
 .genre-filter {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 .genre-filter__select {
-  flex: 1 1 auto;
+  flex: 1 1 10rem;
   min-width: 0;
 }
 /* A quiet segmented control: a recessed track, and the chosen segment sits on it like a raised chip.

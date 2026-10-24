@@ -8,6 +8,10 @@ export type UiLanguage = z.infer<typeof UiLanguage>
 export const ThemePreference = z.enum(['system', 'dark', 'light'])
 export type ThemePreference = z.infer<typeof ThemePreference>
 
+/** Text size relative to the responsive interface baseline. */
+export const TextSize = z.enum(['small', 'default', 'large', 'extra-large'])
+export type TextSize = z.infer<typeof TextSize>
+
 /** `immersive` adds the optional three.js backdrop and 3D poster effects; `standard` is the plain interface. */
 export const VisualMode = z.enum(['standard', 'immersive'])
 export type VisualMode = z.infer<typeof VisualMode>
@@ -62,6 +66,7 @@ const SubtitleLanguages = z.array(z.string().regex(/^[a-z]{2}$/)).max(6)
 export const AppSettings = z.object({
   language: UiLanguage.default('en'),
   theme: ThemePreference.default('system'),
+  textSize: TextSize.default('default'),
   visualMode: VisualMode.default('standard'),
   graphicsQuality: GraphicsQuality.default('medium'),
   backdropScene: BackdropScene.default('classic'),
@@ -93,6 +98,7 @@ export type AppSettings = z.infer<typeof AppSettings>
 export const AppSettingsPatch = z.object({
   language: UiLanguage.optional(),
   theme: ThemePreference.optional(),
+  textSize: TextSize.optional(),
   visualMode: VisualMode.optional(),
   graphicsQuality: GraphicsQuality.optional(),
   backdropScene: BackdropScene.optional(),

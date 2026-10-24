@@ -1,12 +1,15 @@
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import {
+  GENRE_SEPARATOR,
+  GenreList,
   MetadataSearchResult,
   MetadataStatus,
   MetadataSuggestionDetails,
   MetadataSuggestionsResult,
   type MatchCandidate,
   type MatchKind,
+  type GenreMode,
   type SuggestionSection,
 } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
@@ -65,15 +68,28 @@ export const useMetadataStore = defineStore('metadata', () => {
     }
   }
 
+  async function genres(): Promise<({ ok: true } & GenreList) | { ok: false; code: string; message: string }> {
+    if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
+    try {
+      return { ok: true, ...await connection.client.get('/metadata/genres', GenreList) }
+    } catch (err) {
+      return failure(err) as { ok: false; code: string; message: string }
+    }
+  }
+
   /** One page of a suggestions section (what is new, or a year's most popular). The server remembers pages, so asking again is cheap. */
   async function suggestions(
     section: SuggestionSection,
     year: number | undefined,
     page: number,
+    genres: string[] = [],
+    genreMode: GenreMode = 'any',
   ): Promise<({ ok: true } & MetadataSuggestionsResult) | { ok: false; code: string; message: string }> {
     if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
     try {
-      const res = await connection.client.get('/metadata/suggestions', MetadataSuggestionsResult, { section, year, page })
+      const res = await connection.client.get('/metadata/suggestions', MetadataSuggestionsResult, {
+        section, year, page, genres: genres.join(GENRE_SEPARATOR) || undefined, genreMode: genres.length > 1 ? genreMode : undefined,
+      })
       return { ok: true, ...res }
     } catch (err) {
       return failure(err) as { ok: false; code: string; message: string }
@@ -108,5 +124,5 @@ export const useMetadataStore = defineStore('metadata', () => {
     if (e.type === 'metadata.status') status.value = e.status
   })
 
-  return { status, error, load, saveKey, retry, search, suggestions, suggestionDetails }
+  return { status, error, load, saveKey, retry, search, genres, suggestions, suggestionDetails }
 })

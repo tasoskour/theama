@@ -17,6 +17,8 @@ let token: string
 let detailsRequests = 0
 let releaseRequests: URL[] = []
 let detailsHandler: ((route: Route) => Promise<void>) | null = null
+let suggestionsHandler: ((route: Route) => Promise<void>) | null = null
+let suggestionRequests: URL[] = []
 
 const longTitle = 'Clayface: A very long movie title that must wrap without hiding the rating'
 const overview = 'Matt Hagen’s meteoric rise from Gotham street kid to Hollywood leading man is tragically cut short when a local crime boss leaves him horribly disfigured. '
@@ -62,8 +64,13 @@ test.beforeAll(async () => {
     shell.openExternal = async (url) => { opened.push(url) }
   })
   await page.route(/\/api\/v1\/metadata\/suggestions\?/, async (route) => {
-    const section = new URL(route.request().url()).searchParams.get('section')
-    await route.fulfill({ json: { items: section === 'new' ? items : [], hasMore: false } })
+    const url = new URL(route.request().url())
+    suggestionRequests.push(url)
+    if (suggestionsHandler) return suggestionsHandler(route)
+    const selected = url.searchParams.get('genres')?.split('|') ?? []
+    const filtered = items.filter((c) => selected.length === 0 || (url.searchParams.get('genreMode') === 'all'
+      ? selected.every((genre) => c.genres?.includes(genre)) : selected.some((genre) => c.genres?.includes(genre))))
+    await route.fulfill({ json: { items: url.searchParams.get('section') === 'new' ? filtered : [], hasMore: false } })
   })
   await page.route(/\/api\/v1\/metadata\/suggestions\/details\?/, async (route) => {
     detailsRequests += 1
@@ -98,6 +105,8 @@ test.beforeEach(async () => {
   detailsRequests = 0
   releaseRequests = []
   detailsHandler = null
+  suggestionsHandler = null
+  suggestionRequests = []
   await resize(1100)
   expect((await api('/settings', { theme: 'dark', language: 'en' })).ok).toBe(true)
   await page.goto(`${page.url().split('#')[0]}#/downloads`)
@@ -208,17 +217,18 @@ test('one type filter shares the search row and genres filter suggestions and mi
   const toggle = page.locator('[data-test="suggestion-filter"]')
   const field = page.locator('[data-test="find-title"]')
   const genre = page.locator('[data-test="find-genre"]')
-  await expect(page.locator('.find .v-btn-toggle')).toHaveCount(1)
+  await expect(page.locator('[data-test="suggestion-filter"]')).toHaveCount(1)
   await expect(toggle.getByRole('button')).toHaveText(['All', 'Series', 'Movies'])
   for (const filter of ['all', 'series', 'movie']) {
     await page.locator(`[data-test="suggestion-filter-${filter}"]`).click()
     const boxes = await Promise.all([toggle.boundingBox(), field.boundingBox(), genre.boundingBox(), page.locator('[data-test="find-search"]').boundingBox()])
     const centers = boxes.map((box) => box!.y + box!.height / 2)
-    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(3)
+    expect(Math.max(...centers) - Math.min(...centers), JSON.stringify({ filter, boxes })).toBeLessThan(3)
   }
   await page.locator('[data-test="suggestion-filter-all"]').click()
-  await genre.click()
+  await genre.locator('.v-select .v-field').click()
   await page.getByRole('option', { name: 'Drama', exact: true }).click()
+  await page.keyboard.press('Escape')
   await expect(page.locator('[data-test="suggestion-item"]')).toHaveCount(1)
   await expect(card('Severance')).toBeVisible()
   await page.locator('[data-test="find-title"] input').fill('a')
@@ -235,6 +245,130 @@ test('one type filter shares the search row and genres filter suggestions and mi
   await resize(360)
   expect(await page.locator('.find__row').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
 })
+
+test('genres refetch full matching pages and Show more keeps filters and removes duplicates', async () => {
+  const discovered = { ...movie, externalId: '800001', title: 'Discovered Drama', genres: ['Drama', 'Science Fiction'] }
+  const next = { ...discovered, externalId: '800002', title: 'More Drama' }
+  let failNextPage = true
+  suggestionsHandler = async (route) => {
+    const params = new URL(route.request().url()).searchParams
+    if (params.get('section') === 'new' && params.get('page') === '2' && failNextPage) {
+      failNextPage = false
+      await route.fulfill({ status: 503, json: { error: { code: 'unreachable', message: 'Page unavailable' } } })
+      return
+    }
+    const result = params.get('section') !== 'new' ? [] : params.get('page') === '2' ? [discovered, next, next] : [items[2], discovered]
+    await route.fulfill({ json: { items: result, hasMore: params.get('section') === 'new' && params.get('page') === '1' } })
+  }
+  const genre = page.locator('[data-test="find-genre"]')
+  await genre.locator('.v-select .v-field').click()
+  // Thriller is available in the catalog even though none of the initial cards has it.
+  await expect(page.getByRole('option', { name: 'Thriller', exact: true })).toHaveCount(1)
+  await page.getByRole('option', { name: 'Drama', exact: true }).click()
+  await page.keyboard.press('Escape')
+  await expect(card(discovered.title)).toBeVisible()
+  const section = page.locator('[data-test="suggestion-section"]').first()
+  await expect(section.locator('[data-test="suggestion-item"]')).toHaveCount(2)
+  await section.locator('[data-test="suggestion-more"]').click()
+  await expect(section.locator('[data-test="suggestion-error"]')).toContainText('Page unavailable')
+  await expect(section.locator('[data-test="suggestion-item"]')).toHaveCount(2)
+  await section.locator('[data-test="suggestion-retry"]').click()
+  await expect(section.locator('[data-test="suggestion-item"]')).toHaveCount(3)
+  await expect(section.locator('[data-test="suggestion-more"]')).toHaveCount(0)
+  expect(suggestionRequests.filter((url) => url.searchParams.get('section') === 'new').slice(-3).map((url) => [url.searchParams.get('page'), url.searchParams.get('genres')])).toEqual([['1', 'Drama'], ['2', 'Drama'], ['2', 'Drama']])
+
+  // Removing a chip resets pagination to page one and restores unfiltered results.
+  suggestionsHandler = null
+  await genre.locator('.v-chip').getByRole('button', { name: /close/i }).click()
+  await expect(card('Interstellar')).toBeVisible()
+  await expect(section.locator('[data-test="suggestion-item"]')).toHaveCount(4)
+  expect(suggestionRequests.filter((url) => url.searchParams.get('section') === 'new').at(-1)?.searchParams.get('page')).toBe('1')
+})
+
+test('multiple genres use Any and All consistently for suggestions and title search matches', async () => {
+  const genre = page.locator('[data-test="find-genre"]')
+  await genre.locator('.v-select .v-field').click()
+  await page.getByRole('option', { name: 'Drama', exact: true }).click()
+  await page.getByRole('option', { name: 'Science Fiction', exact: true }).click()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-test="suggestion-item"]')).toHaveCount(4)
+  expect(suggestionRequests.filter((url) => url.searchParams.get('section') === 'new').at(-1)?.searchParams.get('genres')).toBe('Drama|Science Fiction')
+  await resize(360)
+  expect(await page.locator('.find__row').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  expect(await genre.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await resize(1100)
+  await genre.getByRole('button', { name: 'All', exact: true }).click()
+  await expect(page.locator('[data-test="suggestion-section"]').first()).toContainText('No suggestions match these filters.')
+  await expect(page.locator('[data-test="suggestion-item"]')).toHaveCount(0)
+  expect(suggestionRequests.filter((url) => url.searchParams.get('section') === 'new').at(-1)?.searchParams.get('genreMode')).toBe('all')
+  await page.locator('[data-test="find-title"] input').fill('a')
+  await page.locator('[data-test="find-search"]').click()
+  await expect(page.locator('.find__body')).toContainText('TMDB found nothing for this search.')
+  await genre.getByRole('button', { name: 'Any', exact: true }).click()
+  await expect(page.locator('[data-test="match-list"] [data-test="suggestion-item"]')).toHaveCount(2)
+  await genre.getByRole('button', { name: /clear/i }).click()
+  await page.locator('[data-test="find-title"] input').fill('')
+  await expect(page.locator('[data-test="suggestion-item"]')).toHaveCount(4)
+})
+
+test('the full genre catalog can be retried after a failed lookup', async () => {
+  const catalogRoute = '**/api/v1/metadata/genres'
+  await page.route(catalogRoute, async (route) => {
+    await route.fulfill({ status: 503, json: { error: { code: 'unreachable', message: 'Genre catalog unavailable' } } })
+  })
+  try {
+    await page.reload()
+    await expect(page.locator('[data-test="genre-error"]')).toContainText('Genre catalog unavailable')
+    await page.unroute(catalogRoute)
+    await page.locator('[data-test="genre-error"]').getByRole('button', { name: 'Retry', exact: true }).click()
+    await expect(page.locator('[data-test="genre-error"]')).toHaveCount(0)
+    await page.locator('[data-test="find-genre"] .v-select .v-field').click()
+    await expect(page.getByRole('option', { name: 'Comedy', exact: true })).toBeVisible()
+    await page.keyboard.press('Escape')
+  } finally {
+    await page.unroute(catalogRoute)
+  }
+})
+
+for (const staleOutcome of ['results', 'error'] as const) {
+  test(`rapid genre changes ignore late ${staleOutcome} and failed pages can be retried`, async () => {
+    let finish!: () => void
+    const pending = new Promise<void>((resolve) => { finish = resolve })
+    suggestionsHandler = async (route) => {
+      const params = new URL(route.request().url()).searchParams
+      if (params.get('section') === 'new' && params.get('genres') === 'Drama') {
+        await pending
+        await route.fulfill(staleOutcome === 'error'
+          ? { status: 503, json: { error: { code: 'unreachable', message: 'Stale provider error' } } }
+          : { json: { items: [items[2]], hasMore: true } })
+      } else await route.fulfill({ json: { items: params.get('section') === 'new' ? [movie] : [], hasMore: false } })
+    }
+    const genre = page.locator('[data-test="find-genre"]')
+    await genre.locator('.v-select .v-field').click()
+    await page.getByRole('option', { name: 'Drama', exact: true }).click()
+    await expect.poll(() => suggestionRequests.some((url) => url.searchParams.get('section') === 'new' && url.searchParams.get('genres') === 'Drama')).toBe(true)
+    await page.getByRole('option', { name: 'Adventure', exact: true }).click()
+    await page.keyboard.press('Escape')
+    await expect(card('Interstellar')).toBeVisible()
+    const late = page.waitForResponse((response) => new URL(response.url()).searchParams.get('genres') === 'Drama' && new URL(response.url()).searchParams.get('section') === 'new')
+    finish()
+    await late
+    await expect(page.locator('[data-test="suggestion-item"]')).toHaveCount(1)
+    await expect(page.locator('[data-test="suggestion-error"]')).toHaveCount(0)
+    await expect(page.getByText('Stale provider error')).toHaveCount(0)
+
+    suggestionsHandler = async (route) => {
+      await route.fulfill({ status: 503, json: { error: { code: 'unreachable', message: 'Provider offline' } } })
+    }
+    await genre.getByRole('button', { name: /clear/i }).click()
+    const section = page.locator('[data-test="suggestion-section"]').first()
+    await expect(section.locator('[data-test="suggestion-error"]')).toContainText('Provider offline')
+    suggestionsHandler = null
+    await section.locator('[data-test="suggestion-retry"]').click()
+    await expect(card('Interstellar')).toBeVisible()
+    await expect(section.locator('[data-test="suggestion-error"]')).toHaveCount(0)
+  })
+}
 
 test('cards open details without searching, retain keyboard focus, and preserve type filtering', async () => {
   await card(longTitle).hover()

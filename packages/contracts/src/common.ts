@@ -19,3 +19,7 @@ export const ApiError = z.object({
 export type ApiError = z.infer<typeof ApiError>
 
 export const IsoDate = z.string().datetime({ offset: true })
+
+/** Whether a title must match any selected genre or every selected genre. */
+export const GenreMode = z.enum(['any', 'all'])
+export type GenreMode = z.infer<typeof GenreMode>

@@ -103,6 +103,7 @@ describe('without a key', () => {
     expect(suggestions.status).toBe(409)
     expect(((await suggestions.json()) as { error: { code: string } }).error.code).toBe('no_key')
     expect((await send('GET', '/metadata/suggestions/details?kind=movie&externalId=157336')).status).toBe(409)
+    expect((await send('GET', '/metadata/genres')).status).toBe(409)
   })
 })
 
@@ -260,6 +261,27 @@ describe('manual identification', () => {
     expect((await send('GET', '/metadata/suggestions?section=year')).status).toBe(400)
     const fresh = MetadataSuggestionsResult.parse(await get('/metadata/suggestions?section=new'))
     expect(fresh).toEqual({ items: [], hasMore: false }) // nothing in the fake data came out in the last weeks
+  })
+
+  it('provides the full provider genre catalog, including genres absent from suggestions or the library', async () => {
+    const { genres } = GenreList.parse(await get('/metadata/genres'))
+    expect(genres).toEqual([...new Set(genres)].sort((a, b) => a.localeCompare(b)))
+    expect(genres).toEqual(expect.arrayContaining(['Action', 'Comedy', 'Thriller', 'Sci-Fi & Fantasy']))
+  })
+
+  it('separates suggestion caches by genres and mode and normalizes equivalent selections', async () => {
+    const query = (genres: string, genreMode = 'any') => `/metadata/suggestions?${new URLSearchParams({ section: 'year', year: '2015', genres, genreMode })}`
+    const any = MetadataSuggestionsResult.parse(await get(query('Action|Drama')))
+    expect(any.items.map((c) => c.title)).toEqual(['Mad Max: Fury Road'])
+    const before = fake.requests.length
+    expect(MetadataSuggestionsResult.parse(await get(query(' Drama |Action|Drama')))).toEqual(any)
+    expect(fake.requests).toHaveLength(before)
+    expect(MetadataSuggestionsResult.parse(await get(query('Action|Drama', 'all')))).toEqual({ items: [], hasMore: false })
+    expect(MetadataSuggestionsResult.parse(await get(query('Action|Adventure', 'all'))).items).toHaveLength(1)
+    expect(MetadataSuggestionsResult.parse(await get(query('Not a provider genre')))).toEqual({ items: [], hasMore: false })
+    expect(MetadataSuggestionsResult.parse(await get('/metadata/suggestions?section=year&year=2015')).items).toHaveLength(1)
+    expect((await send('GET', query('Drama', 'invalid'))).status).toBe(400)
+    expect((await send('GET', query('x'.repeat(1001)))).status).toBe(400)
   })
 
   it('gives the IMDb id and trailer of a suggestion on request', async () => {

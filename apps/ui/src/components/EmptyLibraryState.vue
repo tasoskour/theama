@@ -37,7 +37,7 @@ defineEmits<{ addFolder: [] }>()
   opacity: 0.9;
 }
 .empty__title {
-  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-size: clamp(1.5rem, calc(3vw * var(--th-text-scale)), 2rem);
   margin: 8px 0 0;
 }
 .empty__body {

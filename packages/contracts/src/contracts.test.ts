@@ -3,13 +3,23 @@ import { AppSettings, AppSettingsPatch, DEFAULT_SETTINGS, LogQuery, ReleaseQuery
 
 describe('settings contract', () => {
   it('fills defaults', () => {
-    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'system', visualMode: 'standard', graphicsQuality: 'medium', backdropScene: 'classic', backdropByGenre: true, backdropByKind: true, logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], autoPlayNext: true, nextEpisodeCountdownSeconds: 5, renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}', downloadMovieSourceId: null, downloadSeriesSourceId: null, downloadsShowAll: false })
+    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'system', textSize: 'default', visualMode: 'standard', graphicsQuality: 'medium', backdropScene: 'classic', backdropByGenre: true, backdropByKind: true, logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], autoPlayNext: true, nextEpisodeCountdownSeconds: 5, renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}', downloadMovieSourceId: null, downloadSeriesSourceId: null, downloadsShowAll: false })
   })
   it('rejects unknown language', () => {
     expect(AppSettings.safeParse({ language: 'fr' }).success).toBe(false)
   })
   it('patch is partial', () => {
     expect(AppSettingsPatch.parse({ theme: 'dark' })).toEqual({ theme: 'dark' })
+  })
+  it('defaults old settings to the responsive baseline and validates text size presets', () => {
+    expect(AppSettings.parse({ theme: 'light' }).textSize).toBe('default')
+    expect(AppSettingsPatch.parse({})).not.toHaveProperty('textSize')
+    for (const textSize of ['small', 'default', 'large', 'extra-large']) {
+      expect(AppSettingsPatch.parse({ textSize })).toEqual({ textSize })
+    }
+    for (const textSize of ['huge', 130, null]) {
+      expect(AppSettingsPatch.safeParse({ textSize }).success).toBe(false)
+    }
   })
   it('accepts the visual mode and graphics quality, and nothing else', () => {
     expect(AppSettingsPatch.parse({ visualMode: 'immersive', graphicsQuality: 'high' })).toEqual({ visualMode: 'immersive', graphicsQuality: 'high' })

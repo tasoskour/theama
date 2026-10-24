@@ -256,7 +256,7 @@ const heroStyle = computed(() => {
   border: 1px solid rgb(var(--v-theme-hairline));
 }
 .hero__title {
-  font-size: clamp(2rem, 4.5vw, 3.2rem);
+  font-size: clamp(2rem, calc(4.5vw * var(--th-text-scale)), 3.2rem);
   margin: 4px 0 8px;
   outline: none;
 }

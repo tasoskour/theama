@@ -95,7 +95,7 @@ async function install(account: ServiceAccountChoice | null): Promise<void> {
   padding-top: 64px;
 }
 .title {
-  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-size: clamp(1.6rem, calc(3vw * var(--th-text-scale)), 2.2rem);
   margin: 8px 0 0;
 }
 .lead {

@@ -3,7 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { mdiClose } from '@mdi/js'
 import { useI18n } from 'vue-i18n'
-import type { MatchCandidate, ReleaseKind } from '@theama/contracts'
+import type { GenreMode, MatchCandidate, ReleaseKind } from '@theama/contracts'
+import GenreFilter from '@/components/common/GenreFilter.vue'
 import ActiveDownloads from '@/components/downloads/ActiveDownloads.vue'
 import DownloadToolsPanel from '@/components/downloads/DownloadToolsPanel.vue'
 import ReleaseList from '@/components/downloads/ReleaseList.vue'
@@ -29,8 +30,13 @@ const tab = ref<'find' | 'favorites' | 'active'>('find')
 const favoriteKind = ref<ReleaseKind | 'all'>('all')
 const shownFavorites = computed(() => favorites.items.filter((item) => favoriteKind.value === 'all' || item.kind === favoriteKind.value))
 const kind = ref<ReleaseKind | 'all'>('all')
-const genre = ref<string | null>(null)
+const genres = ref<string[]>([])
+const genreMode = ref<GenreMode>('any')
 const suggestionGenres = ref<string[]>([])
+const genreProblem = ref<string | null>(null)
+const genreRetry = ref(0)
+const genreLoading = ref(false)
+const suggestionFilterKey = computed(() => JSON.stringify([[...genres.value].sort(), genres.value.length > 1 ? genreMode.value : 'any']))
 const text = ref('')
 const year = ref<number | null>(null)
 const season = ref('')
@@ -45,15 +51,13 @@ const searching = ref(false)
 const matches = ref<MatchCandidate[] | null>(null)
 const problem = ref<string | null>(null)
 const query = ref<Query[] | null>(null)
-const shownMatches = computed(() => matches.value?.filter((c) => !genre.value || c.genres?.includes(genre.value)) ?? [])
+const shownMatches = computed(() => matches.value?.filter((c) => genres.value.length === 0 || (
+  genreMode.value === 'all' ? genres.value.every((genre) => c.genres?.includes(genre)) : genres.value.some((genre) => c.genres?.includes(genre))
+)) ?? [])
 const genreItems = computed(() => [...new Set([
   ...suggestionGenres.value,
   ...(matches.value ?? []).flatMap((c) => c.genres ?? []),
 ])].sort((a, b) => a.localeCompare(b)))
-
-function rememberGenres(genres: string[]): void {
-  suggestionGenres.value = [...new Set([...suggestionGenres.value, ...genres])]
-}
 
 let searchGeneration = 0
 onBeforeUnmount(() => { searchGeneration += 1 })
@@ -61,6 +65,21 @@ onBeforeUnmount(() => { searchGeneration += 1 })
 const setUp = computed(() => downloads.client?.state !== 'not_configured' || downloads.indexer?.state !== 'not_configured')
 const hasKey = computed(() => metadata.status?.configured === true)
 const noKey = computed(() => metadata.status !== null && !hasKey.value)
+watch([hasKey, genreRetry], async ([configured], _previous, onCleanup) => {
+  let current = true
+  onCleanup(() => { current = false })
+  genreProblem.value = null
+  genreLoading.value = configured
+  if (!configured) {
+    suggestionGenres.value = []
+    return
+  }
+  const res = await metadata.genres()
+  if (!current) return
+  genreLoading.value = false
+  if (res.ok) suggestionGenres.value = res.genres
+  else genreProblem.value = res.message
+}, { immediate: true })
 const activeCount = computed(() => downloads.list?.items.length ?? 0)
 
 // The suggestion sections: what is new, then this year and the years before it, five at a time.
@@ -264,15 +283,11 @@ function changeKind(): void {
           data-test="find-title"
           @click:clear="text = ''"
         />
-        <v-select
+        <GenreFilter
           v-if="hasKey"
-          v-model="genre"
+          v-model="genres"
+          v-model:mode="genreMode"
           :items="genreItems"
-          :label="$t('titles.genres')"
-          :no-data-text="$t('titles.noGenres')"
-          density="compact"
-          hide-details
-          clearable
           class="find__genre"
           data-test="find-genre"
         />
@@ -288,14 +303,18 @@ function changeKind(): void {
           class="find__year"
           data-test="find-year"
         />
-        <template v-else-if="kind === 'series'">
+        <div v-else-if="kind === 'series'" class="find__episodes">
           <v-text-field v-model="season" :label="$t('downloads.find.season')" inputmode="numeric" density="compact" hide-details class="find__small" data-test="find-season" />
           <v-text-field v-model="episode" :label="$t('downloads.find.episode')" inputmode="numeric" density="compact" :disabled="num(season) === undefined" hide-details class="find__small" data-test="find-episode" />
-        </template>
+        </div>
         <v-btn type="submit" color="primary" :loading="searching" :disabled="!text.trim()" data-test="find-search">{{ $t('downloads.find.search') }}</v-btn>
       </form>
 
       <v-alert v-if="problem" type="warning" variant="tonal" density="compact" class="mt-3">{{ problem }}</v-alert>
+      <v-alert v-if="genreProblem" type="warning" variant="tonal" density="compact" class="mt-3" data-test="genre-error">
+        {{ genreProblem }}
+        <v-btn variant="text" size="small" :loading="genreLoading" @click="genreRetry += 1">{{ $t('common.retry') }}</v-btn>
+      </v-alert>
 
       <div class="find__body" aria-live="polite">
         <template v-if="query">
@@ -315,25 +334,24 @@ function changeKind(): void {
           <p v-if="noKey" class="th-muted">{{ $t('downloads.find.noKey') }}</p>
           <template v-else-if="hasKey">
             <SuggestionSection
+              :key="`new:${suggestionFilterKey}`"
               :heading="$t('downloads.suggestions.new')"
               section="new"
               :kind="kind"
-              :genre="genre"
-              @genres="rememberGenres"
+              :genres="genres"
+              :genre-mode="genreMode"
               @preview="openPreview"
-              @problem="problem = $event"
             />
             <SuggestionSection
               v-for="y in sectionYears"
-              :key="y"
+              :key="`${y}:${suggestionFilterKey}`"
               :heading="$t('downloads.suggestions.year', { year: y })"
               section="year"
               :kind="kind"
-              :genre="genre"
+              :genres="genres"
+              :genre-mode="genreMode"
               :year="y"
-              @genres="rememberGenres"
               @preview="openPreview"
-              @problem="problem = $event"
             />
             <v-btn variant="text" size="small" data-test="suggestion-more-years" @click="yearCount += YEARS_PER_STEP">{{ $t('downloads.suggestions.moreYears') }}</v-btn>
           </template>
@@ -385,21 +403,28 @@ function changeKind(): void {
   align-items: center;
 }
 .find__text {
-  flex: 1 1 180px;
+  flex: 1 1 140px;
   min-width: 0;
 }
 .find__kind {
   flex: 0 0 auto;
 }
 .find__genre {
-  flex: 0 1 180px;
-  min-width: 140px;
+  flex: 0 1 320px;
+  min-width: 300px;
+}
+.find__episodes {
+  display: flex;
+  flex: 0 1 230px;
+  gap: 10px;
+  min-width: 0;
 }
 .find__small {
   flex: 0 1 110px;
+  min-width: 0;
 }
 .find__year {
-  flex: 0 1 140px;
+  flex: 0 1 120px;
 }
 .find__body {
   margin-top: 16px;
@@ -407,13 +432,21 @@ function changeKind(): void {
 .find__releases + .find__releases {
   margin-top: 24px;
 }
+@media (min-width: 701px) and (max-width: 1200px) {
+  .find__episodes {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
 @media (max-width: 700px) {
   .find__row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
   .find__kind,
-  .find__text {
+  .find__text,
+  .find__genre,
+  .find__episodes {
     grid-column: 1 / -1;
   }
   .find__row > * {

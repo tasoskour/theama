@@ -12,6 +12,7 @@ export const useSettingsStore = defineStore('settings', () => {
     ...DEFAULT_SETTINGS,
     language: cached.language ?? DEFAULT_SETTINGS.language,
     theme: cached.theme ?? DEFAULT_SETTINGS.theme,
+    textSize: cached.textSize ?? DEFAULT_SETTINGS.textSize,
     visualMode: cached.visualMode ?? DEFAULT_SETTINGS.visualMode,
     graphicsQuality: cached.graphicsQuality ?? DEFAULT_SETTINGS.graphicsQuality,
     backdropScene: cached.backdropScene ?? DEFAULT_SETTINGS.backdropScene,
@@ -28,6 +29,7 @@ export const useSettingsStore = defineStore('settings', () => {
     writeCachedPrefs({
       language: next.language,
       theme: next.theme,
+      textSize: next.textSize,
       visualMode: next.visualMode,
       graphicsQuality: next.graphicsQuality,
       backdropScene: next.backdropScene,

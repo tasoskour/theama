@@ -1,5 +1,5 @@
 import { createI18n } from 'vue-i18n'
-import type { BackdropScene, GraphicsQuality, UiLanguage, VisualMode } from '@theama/contracts'
+import { TextSize, type BackdropScene, type GraphicsQuality, type UiLanguage, type VisualMode } from '@theama/contracts'
 import en from './locales/en.json'
 import el from './locales/el.json'
 
@@ -13,6 +13,7 @@ const PREFS_KEY = 'theama.prefs'
 export interface CachedPrefs {
   language?: UiLanguage
   theme?: 'system' | 'dark' | 'light'
+  textSize?: TextSize
   visualMode?: VisualMode
   graphicsQuality?: GraphicsQuality
   backdropScene?: BackdropScene
@@ -23,7 +24,10 @@ export interface CachedPrefs {
 /** Last-known preferences, read before the API answers so first paint is correct. */
 export function readCachedPrefs(): CachedPrefs {
   try {
-    return JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as CachedPrefs
+    const parsed: unknown = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const prefs = parsed as CachedPrefs
+    return { ...prefs, textSize: TextSize.catch('default').parse(prefs.textSize) }
   } catch {
     return {}
   }

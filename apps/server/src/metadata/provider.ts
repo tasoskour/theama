@@ -1,4 +1,4 @@
-import type { MatchKind } from '@theama/contracts'
+import type { GenreMode, MatchKind } from '@theama/contracts'
 
 /** Why a provider call failed, in terms the rest of the app can act on. */
 export type ProviderErrorKind = 'auth' | 'unavailable' | 'not_found'
@@ -42,6 +42,8 @@ export interface SuggestionsQuery {
   year?: number | undefined
   /** 1-based. */
   page: number
+  genres?: string[] | undefined
+  genreMode?: GenreMode | undefined
   language: string
   /** Today as `YYYY-MM-DD`; "new" counts back from here. */
   today: string
@@ -101,6 +103,8 @@ export type ImageSize = 'thumb' | 'poster' | 'backdrop' | 'still'
 
 export interface MetadataProvider {
   readonly id: string
+  /** All movie and TV genre names in the requested language. */
+  genres(language: string): Promise<string[]>
   search(query: SearchQuery): Promise<ProviderCandidate[]>
   /** One page of popular movies and series together, alternating, for a "new" or a "year" section. */
   suggestions(query: SuggestionsQuery): Promise<{ items: ProviderCandidate[]; hasMore: boolean }>

@@ -242,6 +242,11 @@ export class TmdbProvider implements MetadataProvider {
     })
   }
 
+  async genres(language: string): Promise<string[]> {
+    const lists = await Promise.all([this.genreList('movie', language), this.genreList('series', language)])
+    return [...new Set(lists.flatMap((list) => [...list.values()]))].sort((a, b) => a.localeCompare(b))
+  }
+
   async search(q: SearchQuery): Promise<ProviderCandidate[]> {
     const tv = q.kind === 'series'
     const data = parse(
@@ -274,12 +279,22 @@ export class TmdbProvider implements MetadataProvider {
       movieFilter = { 'primary_release_date.gte': gte, 'primary_release_date.lte': q.today }
       tvFilter = { 'first_air_date.gte': gte, 'first_air_date.lte': q.today }
     }
-    const [movies, series] = await Promise.all([
-      this.call('/discover/movie', { ...base, ...movieFilter }),
-      this.call('/discover/tv', { ...base, ...tvFilter }),
-    ])
-    const m = parse(SearchResponse, movies)
-    const s = parse(SearchResponse, series)
+    const discover = async (kind: MatchKind, filter: Record<string, string | number>): Promise<z.output<typeof SearchResponse>> => {
+      const selected = [...new Set(q.genres ?? [])]
+      let withGenres: string | undefined
+      if (selected.length > 0) {
+        const list = await this.genreList(kind, q.language)
+        const byName = new Map([...list].map(([id, name]) => [name, id]))
+        const ids = selected.flatMap((name) => byName.has(name) ? [byName.get(name)!] : [])
+        // Never fall back to an unfiltered request when this kind cannot match the selection.
+        if (ids.length === 0 || (q.genreMode === 'all' && ids.length !== selected.length)) {
+          return { results: [], total_pages: 0 }
+        }
+        withGenres = ids.join(q.genreMode === 'all' ? ',' : '|')
+      }
+      return parse(SearchResponse, await this.call(`/discover/${kind === 'series' ? 'tv' : 'movie'}`, { ...base, ...filter, with_genres: withGenres }))
+    }
+    const [m, s] = await Promise.all([discover('movie', movieFilter), discover('series', tvFilter)])
     const [movieAll, seriesAll] = await Promise.all([
       this.candidates('movie', m, q.language),
       this.candidates('series', s, q.language),

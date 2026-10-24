@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { IsoDate } from './common'
+import { GenreMode, IsoDate } from './common'
+export { GenreMode } from './common'
 import { MediaFile } from './media'
 import { CollectionRef } from './collection-ref'
 import { PlaybackInfo } from './playback-info'
@@ -42,9 +43,6 @@ export const TitleSummary = z.object({
 })
 export type TitleSummary = z.infer<typeof TitleSummary>
 
-export const GenreMode = z.enum(['any', 'all'])
-export type GenreMode = z.infer<typeof GenreMode>
-
 export const TitleQuery = z.object({
   kind: TitleKind.optional(),
   /** Full-text search over titles, episode titles and path words (accent- and case-insensitive). */
@@ -60,7 +58,7 @@ export const TitleQuery = z.object({
 })
 export type TitleQuery = z.input<typeof TitleQuery>
 
-/** Separates genre names in `TitleQuery.genres`. */
+/** Separates genre names in title and suggestion queries. */
 export const GENRE_SEPARATOR = '|'
 
 export const GenreQuery = z.object({ kind: TitleKind.optional() })

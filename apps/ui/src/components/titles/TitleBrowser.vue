@@ -57,17 +57,22 @@ watch(items, (next, previous) => {
 
 <style scoped>
 .toolbar {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(300px, 400px) minmax(170px, 210px) auto auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-bottom: 20px;
 }
 .search {
+  flex: 1 1 15rem;
   min-width: 0;
 }
 .sort {
+  flex: 1 1 11rem;
   min-width: 0;
+}
+.genres {
+  flex: 1 1 20rem;
 }
 .availability {
   flex: 0 0 auto;
@@ -121,6 +126,7 @@ watch(items, (next, previous) => {
 }
 @media (max-width: 700px) {
   .toolbar {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
   }
   .search {

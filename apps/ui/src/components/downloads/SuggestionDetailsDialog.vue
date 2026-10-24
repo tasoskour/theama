@@ -101,7 +101,7 @@ const favorites = useFavoritesStore()
 }
 .details__title {
   margin: 0;
-  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-size: clamp(1.5rem, calc(3vw * var(--th-text-scale)), 2rem);
   line-height: 1.2;
   overflow-wrap: anywhere;
 }

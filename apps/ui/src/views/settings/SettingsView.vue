@@ -53,11 +53,12 @@ const SECTIONS = [
 <style scoped>
 .layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 15rem) minmax(0, 1fr);
   gap: 32px;
   align-items: start;
 }
 .sections {
+  min-width: 0;
   position: sticky;
   top: 24px;
   padding: 8px;
@@ -67,6 +68,10 @@ const SECTIONS = [
 }
 .sections :deep(.v-list-item--active) {
   background: rgba(var(--v-theme-primary), 0.12);
+}
+.sections :deep(.v-list-item-title) {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .content {
   min-width: 0;

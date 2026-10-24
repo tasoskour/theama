@@ -647,7 +647,7 @@ const metaChips = computed(() => {
 }
 .hero__title {
   max-width: 22ch;
-  font-size: clamp(2.25rem, 4.5vw, 4rem);
+  font-size: clamp(2.25rem, calc(4.5vw * var(--th-text-scale)), 4rem);
   line-height: 1.02;
   overflow-wrap: anywhere;
   margin: 6px 0 14px;
@@ -930,7 +930,7 @@ const metaChips = computed(() => {
     max-width: 200px;
   }
   .hero__title {
-    font-size: clamp(2rem, 6vw, 3rem);
+    font-size: clamp(2rem, calc(6vw * var(--th-text-scale)), 3rem);
   }
 }
 @media (max-width: 640px) {

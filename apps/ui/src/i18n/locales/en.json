@@ -470,6 +470,15 @@
       "languageHint": "Applies immediately; no restart needed.",
       "theme": "Theme",
       "themeHint": "System follows your Windows appearance setting.",
+      "textSize": "Text size",
+      "textSizeHint": "Applies immediately throughout the app. Text also grows automatically in larger windows. Choose Default to reset.",
+      "textSizePreview": "Find your next favourite film, series, or memory.",
+      "textSizes": {
+        "small": "Small (90%)",
+        "default": "Default (100%)",
+        "large": "Large (115%)",
+        "extra-large": "Extra large (130%)"
+      },
       "themes": {
         "system": "System",
         "dark": "Dark",
@@ -808,7 +817,7 @@
         "movie": "Movies",
         "series": "Series"
       },
-      "noneOfKind": "No suggestions match these filters in the titles loaded so far.",
+      "noneOfKind": "No suggestions match these filters.",
       "new": "New",
       "year": "From {year}",
       "showMore": "Show more",

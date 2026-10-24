@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { IsoDate } from './common'
+import { GenreMode, IsoDate } from './common'
 
 /** Only series and movies are identified; personal videos are never matched. */
 export const MatchKind = z.enum(['movie', 'series'])
@@ -151,6 +151,9 @@ export const MetadataSuggestionsQuery = z
     section: SuggestionSection,
     year: z.coerce.number().int().min(1870).max(2200).optional(),
     page: z.coerce.number().int().min(1).max(500).default(1),
+    /** Genre names separated by GENRE_SEPARATOR, as in TitleQuery. */
+    genres: z.string().max(1000).optional(),
+    genreMode: GenreMode.default('any'),
   })
   .refine((q) => q.section !== 'year' || q.year !== undefined, { message: 'A year section needs a year', path: ['year'] })
 export type MetadataSuggestionsQuery = z.input<typeof MetadataSuggestionsQuery>

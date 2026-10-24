@@ -558,6 +558,14 @@ export async function buildApp(deps: AppDeps) {
     }
   })
 
+  app.get(`${API_PREFIX}/metadata/genres`, async (): Promise<GenreList> => {
+    try {
+      return await metadata.genres()
+    } catch (err) {
+      return metadataFailure(err)
+    }
+  })
+
   app.get(`${API_PREFIX}/metadata/suggestions`, async (req): Promise<MetadataSuggestionsResult> => {
     const q = MetadataSuggestionsQuery.parse(req.query)
     try {

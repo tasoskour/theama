@@ -97,7 +97,11 @@ export async function startFakeTmdb(options = {}) {
     const pick = (item, key, fallback) => (lang === 'el' && item.el && key in item.el ? item.el[key] : fallback)
 
     const genreList = [...new Set([...MOVIES, ...SHOWS].flatMap((x) => x.genres))].map((name, i) => ({ id: i + 1, name }))
-    if (/^\/genre\/(movie|tv)\/list$/.test(path)) return json(200, { genres: genreList })
+    const genreKind = path.match(/^\/genre\/(movie|tv)\/list$/)
+    if (genreKind) {
+      const names = new Set((genreKind[1] === 'tv' ? SHOWS : MOVIES).flatMap((x) => x.genres))
+      return json(200, { genres: genreList.filter((genre) => names.has(genre.name)) })
+    }
 
     const PAGE_SIZE = 20
     const results = (list, tv, page = 1) =>
@@ -126,7 +130,13 @@ export async function startFakeTmdb(options = {}) {
       const year = query.primary_release_year ?? query.first_air_date_year
       const from = query['primary_release_date.gte'] ?? query['first_air_date.gte']
       const to = query['primary_release_date.lte'] ?? query['first_air_date.lte']
+      const selected = query.with_genres?.split(/[|,]/).map(Number) ?? []
+      const matchesGenre = (x) => {
+        const ids = genreList.filter((genre) => x.genres.includes(genre.name)).map((genre) => genre.id)
+        return selected.length === 0 || (query.with_genres.includes('|') ? selected.some((id) => ids.includes(id)) : selected.every((id) => ids.includes(id)))
+      }
       const list = (tv ? SHOWS : MOVIES)
+        .filter(matchesGenre)
         .filter((x) => (!year || dateOf(x).slice(0, 4) === year) && (!from || dateOf(x) >= from) && (!to || dateOf(x) <= to) && (x.vote_count ?? 0) >= Number(query['vote_count.gte'] ?? 0))
         .sort((a, b) => b.popularity - a.popularity)
       return results(list, tv, Number(query.page ?? 1))

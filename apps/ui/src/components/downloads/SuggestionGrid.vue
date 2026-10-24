@@ -34,6 +34,7 @@ const favorites = useFavoritesStore()
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path :d="mdiStar" fill="currentColor" /></svg>{{ c.rating.toFixed(1) }}
           </span>
         </span>
+        <span v-if="c.genres?.length" class="card__genres th-muted" data-test="suggestion-genres">{{ c.genres.join(' · ') }}</span>
       </button>
       <v-btn
         class="item__favorite"
@@ -148,5 +149,10 @@ const favorites = useFavoritesStore()
   font-weight: 600;
   white-space: nowrap;
   color: rgb(var(--v-theme-primary));
+}
+.card__genres {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 </style>

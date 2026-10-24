@@ -46,7 +46,7 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
   <ImmersiveBackdrop v-if="immersive.active.value" />
   <TheamaTopNavigation v-if="!mobile" />
   <v-app-bar v-if="mobile" flat color="surface" class="th-hairline appbar" density="comfortable">
-    <div class="px-4"><BrandLogo :size="28" /></div>
+    <div class="px-4"><BrandLogo :size="28" :wordmark="!display.xs.value" /></div>
     <v-spacer />
     <div class="pr-3"><ConnectionChip /></div>
   </v-app-bar>

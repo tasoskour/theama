@@ -7,9 +7,12 @@ import type {
   MetadataStatus,
   MetadataSuggestionDetails,
   MetadataSuggestionsResult,
+  GenreList,
+  GenreMode,
   ServerEvent,
   SuggestionSection,
 } from '@theama/contracts'
+import { GENRE_SEPARATOR } from '@theama/contracts'
 import type { CollectionRepo } from '../collections/store'
 import type { MediaFileRepo } from '../scan/store'
 import { ArtworkCache, artworkUrl } from './artwork'
@@ -443,20 +446,29 @@ export class MetadataManager {
     }
   }
 
-  /**
-   * One page of a downloads-page section: what is new, or the most popular titles of a year; movies and
-   * series together. Remembered for an hour so visiting the page is free.
-   */
-  async suggestions(q: { section: SuggestionSection; year?: number | undefined; page: number }): Promise<MetadataSuggestionsResult> {
+  /** The provider's complete genre catalog, independent of the library or loaded suggestion pages. */
+  async genres(): Promise<GenreList> {
+    this.requireKey()
+    try {
+      return { genres: await this.d.provider.genres(this.tag()) }
+    } catch (err) {
+      return this.translate(err)
+    }
+  }
+
+  /** One page of popular movies and series, remembered for an hour for each set of filters. */
+  async suggestions(q: { section: SuggestionSection; year?: number | undefined; page: number; genres?: string | undefined; genreMode?: GenreMode | undefined }): Promise<MetadataSuggestionsResult> {
     this.requireKey()
     const language = this.tag()
     const today = this.now().toISOString().slice(0, 10)
     // The date is part of the key so "new" moves on at midnight.
-    const cacheKey = `${q.section}:${q.year ?? ''}:${q.page}:${language}:${today}`
+    const genres = [...new Set((q.genres ?? '').split(GENRE_SEPARATOR).map((genre) => genre.trim()).filter(Boolean))].sort()
+    const genreMode = genres.length > 1 ? q.genreMode ?? 'any' : 'any'
+    const cacheKey = JSON.stringify([q.section, q.year, q.page, language, today, genres, genreMode])
     const cached = this.suggestionCache.get(cacheKey)
     if (cached && cached.until > this.now().getTime()) return cached.result
     try {
-      const page = await this.d.provider.suggestions({ section: q.section, year: q.year, page: q.page, language, today })
+      const page = await this.d.provider.suggestions({ section: q.section, year: q.year, page: q.page, genres, genreMode, language, today })
       const items: MetadataSuggestionsResult['items'] = []
       for (const c of page.items) {
         const file = await this.d.artwork.ensure(c.posterPath, 'thumb')

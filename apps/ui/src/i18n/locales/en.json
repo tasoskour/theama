@@ -768,7 +768,11 @@
     "markUnwatched": "Mark {name} as not watched",
     "markWatchedShort": "Mark as watched",
     "episode": "Play {name}",
-    "version": "Play {name}"
+    "version": "Play {name}",
+    "nextUpTitle": "Up next",
+    "nextUpIn": "Starting {label} in {seconds} second | Starting {label} in {seconds} seconds",
+    "playNow": "Play now",
+    "cancel": "Cancel"
   },
   "playback": {
     "intro": "Theama opens your videos in the media player you choose. It starts the player on the file (with a subtitle in your preferred language when one sits next to the video) and keeps track of what you mark as watched.",
@@ -789,6 +793,12 @@
     "noLanguages": "No preference: the player decides.",
     "subtitleHint": "When you play something, Theama looks next to the video (and in Subs or Subtitles folders) for a subtitle file in the first of these languages and hands it to the player. Forced-only subtitles are never chosen.",
     "tracking": "What Theama knows about watching",
+    "autoNext": "Next episode",
+    "autoNextSwitch": "Play the next episode automatically",
+    "autoNextHint": "When an episode ends, Theama comes to the front and starts the next one after a short countdown. You can cancel it or play right away. This works with the players Theama can follow: VLC, mpv, MPC-HC and MPC-BE.",
+    "autoNextCountdown": "Countdown before it starts",
+    "autoNextSeconds": "{count} second | {count} seconds",
+    "autoNextImmediately": "Immediately",
     "trackingText": "With VLC, mpv, MPC-HC and MPC-BE, Theama sees how far you got. Stop after at least 5 minutes and it remembers the minute and carries on from there next time; from 90% of the runtime the episode or film counts as watched and Continue watching moves on to the next episode. Other players are only remembered as started: mark those as watched yourself (per episode, season or title).",
     "tracked": "Resumes and marks watched",
     "trackedHint": "Theama can see how far you got in this player"

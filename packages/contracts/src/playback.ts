@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { IsoDate } from './common'
 import { MediaKind, SubtitleTrack } from './media'
+import { NextEpisode } from './playback-info'
 import { TitleSummary } from './titles'
 
 /** Everything the desktop shell needs to start a player on one file; the shell never takes a path from the UI. */
@@ -64,7 +65,20 @@ export const ProgressRequest = z.object({
 })
 export type ProgressRequest = z.input<typeof ProgressRequest>
 
-export const ProgressResult = z.object({ outcome: z.enum(['ignored', 'saved', 'watched']) })
+/** An episode just ended and the next one is ready to start after a short countdown. */
+export const NextUp = z.object({
+  next: NextEpisode,
+  /** Series title, for the prompt. */
+  title: z.string(),
+  countdownSeconds: z.number().int().min(0).max(30),
+})
+export type NextUp = z.infer<typeof NextUp>
+
+export const ProgressResult = z.object({
+  outcome: z.enum(['ignored', 'saved', 'watched']),
+  /** Only on the last report of a viewing that reached the end, when "play next episode" is on and one follows. */
+  nextUp: NextUp.optional(),
+})
 export type ProgressResult = z.infer<typeof ProgressResult>
 
 /** Playback shorter than this is not remembered. */

@@ -43,6 +43,25 @@ export function nextEpisode(files: readonly EpisodeFile[]): NextEpisode | null {
   return { fileId: file.id, season: next.season, episode: next.episode, label: episodeLabel(next.season, next.episode), resumeSeconds }
 }
 
+/**
+ * The episode that follows the given file's episode, whatever has been watched: the next numbered local episode,
+ * across seasons. Used when a viewing ends, so re-watching an old episode still leads to the one after it.
+ * Specials, files without a number and episodes the library lacks are skipped; null after the last one.
+ */
+export function episodeAfter(files: readonly EpisodeFile[], fileId: number): NextEpisode | null {
+  const current = files.find((f) => f.id === fileId)
+  if (!current || current.season === null || current.episode === null || current.season <= 0) return null
+  const key = (season: number, episode: number): number => season * 100_000 + episode
+  const after = key(current.season, current.episode)
+  const candidates = files.filter((f) => f.season !== null && f.episode !== null && f.season > 0 && key(f.season, f.episode) > after && f.available)
+  if (candidates.length === 0) return null
+  const nextKey = Math.min(...candidates.map((f) => key(f.season!, f.episode!)))
+  const same = candidates.filter((f) => key(f.season!, f.episode!) === nextKey)
+  const file = same[0]!
+  const resumeSeconds = same.find((f) => f.positionSeconds !== null)?.positionSeconds ?? null
+  return { fileId: file.id, season: file.season!, episode: file.episode!, label: episodeLabel(file.season!, file.episode!), resumeSeconds }
+}
+
 /** The columns the rule reads from the database, as one row. */
 export interface EpisodeFileRow {
   id: number

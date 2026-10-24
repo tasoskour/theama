@@ -6,9 +6,11 @@ import ConnectionChip from './ConnectionChip.vue'
 import TheamaBottomNavigation from './TheamaBottomNavigation.vue'
 import TheamaTopNavigation from './TheamaTopNavigation.vue'
 import RecoveryScreen from '@/components/service/RecoveryScreen.vue'
+import NextEpisodeDialog from '@/components/titles/NextEpisodeDialog.vue'
 import { useGlobalShortcuts } from '@/composables/useGlobalShortcuts'
 import { useImmersive } from '@/composables/useImmersive'
 import { useConnectionStore } from '@/stores/connection'
+import { useNextUpStore } from '@/stores/nextUp'
 import { useTitleActionsStore } from '@/stores/titleActions'
 
 // Only fetched when the immersive mode is on; Standard never loads the 3D code.
@@ -20,6 +22,7 @@ const mobile = computed(() => display.smAndDown.value)
 const connection = useConnectionStore()
 const titleActions = useTitleActionsStore()
 useGlobalShortcuts()
+useNextUpStore() // listens for "an episode ended" from the desktop app
 
 // Brief reconnects (a service restart, a missed heartbeat) should not flash the
 // recovery screen; only an outage that lasts a moment does.
@@ -62,6 +65,7 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
   </v-main>
 
   <TheamaBottomNavigation v-if="mobile" />
+  <NextEpisodeDialog />
   <v-snackbar :model-value="titleActions.message !== null" :timeout="4500" :color="titleActions.color" @update:model-value="titleActions.clear()">
     {{ titleActions.message }}
   </v-snackbar>

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ServiceAccountChoice, ServiceStatus } from './service'
 import type { UiLanguage } from './settings'
 import { LogEntry } from './logs'
+import type { NextUp } from './playback'
 
 /**
  * Narrow, typed IPC surface between the sandboxed renderer and the Electron
@@ -37,6 +38,8 @@ export const IPC = {
   playersPlay: 'players:play',
   /** Main to renderer push: the trailer was closed from inside the video (Escape). */
   evTrailerClosed: 'ev:trailer-closed',
+  /** Main to renderer push: an episode ended and the next one should start after a countdown. */
+  evNextUp: 'ev:next-up',
   /** Main to renderer push: service status changed. */
   evServiceStatus: 'ev:service-status',
 } as const
@@ -184,5 +187,7 @@ export interface TheamaBridge {
     addCustom(): Promise<PlayerInfo[] | null>
     remove(id: string): Promise<PlayerInfo[]>
     play(request: PlayRequest): Promise<PlayResult>
+    /** A watched episode ended and the next one is due (only when "play next episode" is on). */
+    onNextUp(listener: (nextUp: NextUp) => void): () => void
   }
 }

@@ -67,8 +67,8 @@ export interface TrackJob {
   plan: TrackingPlan
 }
 
-/** Forwards a sample to the backend. `final` marks the last one of this viewing. */
-export type ReportProgress = (fileId: number, sample: PositionSample, final: boolean) => Promise<void>
+/** Forwards a sample to the backend. `final` marks the last one of this viewing. Resolves to whatever the backend answered. */
+export type ReportProgress<R = void> = (fileId: number, sample: PositionSample, final: boolean) => Promise<R>
 
 const normal = (s: string): string => s.normalize('NFC').trim().toLowerCase()
 const sameName = (a: string, b: string): boolean => normal(a) === normal(b)
@@ -243,13 +243,14 @@ function sourceFor(job: TrackJob, options: TrackerOptions): Source {
 
 /**
  * Watches one started player and forwards its position to the backend: now and then while it plays, and once
- * more (marked final) when it closes. Returns a function that stops watching. Never rejects.
+ * more (marked final) when it closes. Returns a function that stops watching, and `done`, which resolves to the
+ * backend's answer to the final report (undefined if there was none). Never rejects.
  */
-export function trackPlayback(job: TrackJob, report: ReportProgress, options: TrackerOptions = DEFAULT_TRACKER_OPTIONS): { stop(): void; done: Promise<void> } {
+export function trackPlayback<R = void>(job: TrackJob, report: ReportProgress<R>, options: TrackerOptions = DEFAULT_TRACKER_OPTIONS): { stop(): void; done: Promise<R | undefined> } {
   let stopRequested = false
   let last: PositionSample | null = null
   let lastReportAt = 0
-  const safeReport = (sample: PositionSample, final: boolean): Promise<void> => report(job.fileId, sample, final).catch(() => undefined)
+  const safeReport = (sample: PositionSample, final: boolean): Promise<R | undefined> => report(job.fileId, sample, final).catch(() => undefined)
 
   const done = (async () => {
     try {
@@ -266,7 +267,7 @@ export function trackPlayback(job: TrackJob, report: ReportProgress, options: Tr
     } catch {
       // A source that fails simply ends tracking.
     }
-    if (last) await safeReport(last, true)
+    return last ? safeReport(last, true) : undefined
   })()
   return { stop: () => void (stopRequested = true), done }
 }

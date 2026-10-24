@@ -53,6 +53,8 @@ export type LogDetail = z.infer<typeof LogDetail>
 
 const LogRetentionDays = z.number().int().min(1).max(365)
 
+const NextEpisodeCountdown = z.number().int().min(0).max(30)
+
 const SubtitleLanguages = z.array(z.string().regex(/^[a-z]{2}$/)).max(6)
 
 export const AppSettings = z.object({
@@ -71,6 +73,10 @@ export const AppSettings = z.object({
   metadataLanguage: MetadataLanguage.default('en'),
   /** Subtitle languages to prefer when starting a video, most wanted first (ISO 639-1). */
   subtitleLanguages: SubtitleLanguages.default(['el', 'en']),
+  /** When a series episode ends, offer the next one and start it automatically after a short countdown. */
+  autoPlayNext: z.boolean().default(true),
+  /** Length of that countdown; 0 starts the next episode at once. */
+  nextEpisodeCountdownSeconds: NextEpisodeCountdown.default(5),
   renameMovieTemplate: Template.default(DEFAULT_MOVIE_TEMPLATE),
   renameEpisodeTemplate: Template.default(DEFAULT_EPISODE_TEMPLATE),
 })
@@ -89,6 +95,8 @@ export const AppSettingsPatch = z.object({
   logDetail: LogDetail.optional(),
   metadataLanguage: MetadataLanguage.optional(),
   subtitleLanguages: SubtitleLanguages.optional(),
+  autoPlayNext: z.boolean().optional(),
+  nextEpisodeCountdownSeconds: NextEpisodeCountdown.optional(),
   renameMovieTemplate: Template.optional(),
   renameEpisodeTemplate: Template.optional(),
 })

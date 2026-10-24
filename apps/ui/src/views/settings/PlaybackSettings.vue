@@ -28,6 +28,11 @@ const chosen = computed(() => settings.settings.subtitleLanguages)
 const addable = computed(() => LANGUAGE_CODES.filter((c) => !chosen.value.includes(c)).map((c) => ({ value: c, title: nameOf(c) })))
 const toAdd = ref<string | null>(null)
 
+const countdownItems = computed(() => [0, 3, 5, 10, 15, 30].map((n) => ({ value: n, title: n === 0 ? t('playback.autoNextImmediately') : t('playback.autoNextSeconds', { count: n }, n) })))
+async function saveAutoNext(patch: { autoPlayNext?: boolean; nextEpisodeCountdownSeconds?: number }): Promise<void> {
+  if (await settings.update(patch)) snackbar.value = t('settings.general.saved')
+}
+
 async function saveLanguages(next: string[]): Promise<void> {
   if (await settings.update({ subtitleLanguages: next })) snackbar.value = t('settings.general.saved')
 }
@@ -108,6 +113,31 @@ async function addLanguage(code: string | null): Promise<void> {
         @update:model-value="addLanguage"
       />
       <p class="th-muted hint">{{ $t('playback.subtitleHint') }}</p>
+    </div>
+
+    <div class="field th-form-section">
+      <span class="label">{{ $t('playback.autoNext') }}</span>
+      <v-switch
+        :model-value="settings.settings.autoPlayNext"
+        :label="$t('playback.autoNextSwitch')"
+        :disabled="!connection.isConnected"
+        color="primary"
+        hide-details
+        density="compact"
+        data-test="auto-next"
+        @update:model-value="(v: boolean | null) => saveAutoNext({ autoPlayNext: v === true })"
+      />
+      <v-select
+        :model-value="settings.settings.nextEpisodeCountdownSeconds"
+        :items="countdownItems"
+        :label="$t('playback.autoNextCountdown')"
+        :disabled="!connection.isConnected || !settings.settings.autoPlayNext"
+        style="max-width: 280px"
+        hide-details
+        data-test="auto-next-seconds"
+        @update:model-value="(v: number) => saveAutoNext({ nextEpisodeCountdownSeconds: v })"
+      />
+      <p class="th-muted hint">{{ $t('playback.autoNextHint') }}</p>
     </div>
 
     <div class="field th-form-section">

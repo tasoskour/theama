@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, Menu, net, protocol, screen, session, shell
 import { appendFileSync, existsSync } from 'node:fs'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { IPC, LaunchInfo, type DesktopSettings, type DesktopSettingsPatch, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
+import { IPC, LaunchInfo, ProgressResult, type DesktopSettings, type DesktopSettingsPatch, type NextUp, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
 import { defaultDataDir, resolveDataPaths } from '@theama/logs'
 import { registerIpc } from './ipc'
 import { menuStrings } from './menu-strings'
@@ -165,6 +165,17 @@ function showWindow(): void {
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
   mainWindow.focus()
+}
+
+/** The episode ended: bring Theama forward and let its window run the countdown to the next one. */
+function offerNextEpisode(nextUp: NextUp): void {
+  const hadWindow = mainWindow !== null
+  showWindow()
+  const win = mainWindow
+  if (!win) return
+  const send = (): void => void win.webContents.send(IPC.evNextUp, nextUp)
+  if (hadWindow && !win.webContents.isLoading()) send()
+  else win.webContents.once('did-finish-load', () => setTimeout(send, 1000))
 }
 
 function setWindowTheme(theme: 'dark' | 'light'): void {
@@ -362,14 +373,19 @@ async function main(): Promise<void> {
     track: testPlayerLog
       ? undefined
       : (job) => {
-          trackPlayback(job, async (fileId, sample, final) => {
+          void trackPlayback(job, async (fileId, sample, final) => {
             const conn = connection()
-            if (!conn) return
-            await fetch(`${conn.base}/api/v1/playback/files/${fileId}/progress`, {
+            if (!conn) return undefined
+            const res = await fetch(`${conn.base}/api/v1/playback/files/${fileId}/progress`, {
               method: 'PUT',
               headers: { Authorization: `Bearer ${conn.token}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({ positionSeconds: sample.positionSeconds, durationSeconds: sample.durationSeconds, final }),
             })
+            if (!final) return undefined
+            const parsed = ProgressResult.safeParse(await res.json().catch(() => null))
+            return parsed.success ? parsed.data : undefined
+          }).done.then((result) => {
+            if (result?.nextUp) offerNextEpisode(result.nextUp)
           })
         },
   })

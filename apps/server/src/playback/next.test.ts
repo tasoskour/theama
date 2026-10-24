@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextEpisode, type EpisodeFile } from './next'
+import { episodeAfter, nextEpisode, type EpisodeFile } from './next'
 
 let id = 0
 const ep = (season: number | null, episode: number | null, watched = false, available = true, positionSeconds: number | null = null): EpisodeFile => ({ id: ++id, season, episode, watched, positionSeconds, available })
@@ -55,5 +55,34 @@ describe('nextEpisode', () => {
   it('leaves out specials and files without numbers', () => {
     expect(nextEpisode([ep(0, 1), ep(null, null), ep(1, null)])).toBeNull()
     expect(nextEpisode([ep(0, 1), ep(1, 1)])).toMatchObject({ label: 'S01E01' })
+  })
+})
+
+describe('episodeAfter', () => {
+  it('is the following numbered episode, watched or not', () => {
+    const files = [ep(1, 1, true), ep(1, 2, true), ep(1, 3, true)]
+    expect(episodeAfter(files, files[0]!.id)).toMatchObject({ fileId: files[1]!.id, label: 'S01E02' })
+  })
+
+  it('crosses into the next season and skips specials and gaps', () => {
+    const files = [ep(0, 1), ep(1, 9), ep(2, 3), ep(2, 4)]
+    expect(episodeAfter(files, files[1]!.id)).toMatchObject({ label: 'S02E03' })
+  })
+
+  it('ignores episodes that cannot be played', () => {
+    const files = [ep(1, 1), ep(1, 2, false, false), ep(1, 3)]
+    expect(episodeAfter(files, files[0]!.id)).toMatchObject({ label: 'S01E03' })
+  })
+
+  it('carries the remembered position of the next episode', () => {
+    const files = [ep(1, 1), ep(1, 2, false, true, 600)]
+    expect(episodeAfter(files, files[0]!.id)).toMatchObject({ resumeSeconds: 600 })
+  })
+
+  it('is null after the last episode, for a special, or for an unknown file', () => {
+    const files = [ep(1, 1), ep(1, 2), ep(0, 1)]
+    expect(episodeAfter(files, files[1]!.id)).toBeNull()
+    expect(episodeAfter(files, files[2]!.id)).toBeNull()
+    expect(episodeAfter(files, 99999)).toBeNull()
   })
 })

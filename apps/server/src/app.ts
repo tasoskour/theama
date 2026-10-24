@@ -65,6 +65,7 @@ import {
   type LogPage,
   type ServiceEventList,
   type SystemInfo,
+  WATCHED_FRACTION,
 } from '@theama/contracts'
 import { pruneLogs, readAppLogs, readServiceOutput } from '@theama/logs'
 import { z } from 'zod'
@@ -609,7 +610,11 @@ export async function buildApp(deps: AppDeps) {
     const outcome = playbackCall(() => playback.recordProgress(id, body.positionSeconds, body.durationSeconds, nowIso()))
     // Periodic saves stay quiet; lists refresh when the file turns watched or the viewing ends.
     if (outcome === 'watched' || (body.final && outcome !== 'ignored')) events.broadcast({ type: 'library.changed' })
-    return { outcome }
+    // When a viewing reaches the end, the desktop shell can offer the next episode (after a countdown).
+    const { autoPlayNext, nextEpisodeCountdownSeconds } = settings.get()
+    const finished = body.final && body.durationSeconds !== null && body.durationSeconds > 0 && body.positionSeconds >= body.durationSeconds * WATCHED_FRACTION
+    const following = finished && autoPlayNext ? playback.followingEpisode(id) : null
+    return following ? { outcome, nextUp: { ...following, countdownSeconds: nextEpisodeCountdownSeconds } } : { outcome }
   })
 
   app.get(`${API_PREFIX}/library/files/:id/subtitles`, async (req): Promise<FileSubtitles> => {

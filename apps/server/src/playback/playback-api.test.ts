@@ -182,6 +182,36 @@ describe('where playback stopped', () => {
   })
 })
 
+describe('offering the next episode when a viewing ends', () => {
+  const finish = async (id: number, position: number, final = true) =>
+    (await (await send('PUT', `/playback/files/${id}/progress`, { positionSeconds: position, durationSeconds: 2700, final })).json()) as { nextUp?: { next: { label: string }; title: string; countdownSeconds: number } }
+
+  it('names the following episode and the countdown, only for a finished, final report', async () => {
+    const id = await episodeId(1)
+    expect((await finish(id, 2600)).nextUp).toMatchObject({ next: { label: 'S01E02' }, title: 'Show', countdownSeconds: 5 })
+    expect((await finish(id, 2600, false)).nextUp).toBeUndefined()
+    expect((await finish(id, 1200)).nextUp).toBeUndefined()
+    await send('PUT', `/playback/files/${id}`, { watched: false })
+  })
+
+  it('follows the settings: off, or another countdown', async () => {
+    const id = await episodeId(1)
+    await send('PUT', '/settings', { nextEpisodeCountdownSeconds: 12 })
+    expect((await finish(id, 2600)).nextUp?.countdownSeconds).toBe(12)
+    await send('PUT', '/settings', { autoPlayNext: false })
+    expect((await finish(id, 2600)).nextUp).toBeUndefined()
+    await send('PUT', '/settings', { autoPlayNext: true, nextEpisodeCountdownSeconds: 5 })
+    await send('PUT', `/playback/files/${id}`, { watched: false })
+  })
+
+  it('has nothing to offer after the last episode', async () => {
+    const files = (await detail((await byTitle('Show')).key)).files
+    const last = files.filter((f) => f.season !== null && f.episode !== null).sort((a, b) => a.season! * 1000 + a.episode! - (b.season! * 1000 + b.episode!)).at(-1)!
+    expect((await finish(last.id, 2600)).nextUp).toBeUndefined()
+    await send('PUT', '/playback/titles', { key: (await byTitle('Show')).key, watched: false })
+  })
+})
+
 describe('starting a player', () => {
   it('gives the shell the path and the subtitle that fits the language preferences (Greek first by default)', async () => {
     const info = LaunchInfo.parse(await get(`/playback/files/${await episodeId(1)}/launch`))

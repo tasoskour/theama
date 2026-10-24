@@ -1,8 +1,8 @@
 import type Database from 'better-sqlite3'
-import { MIN_TRACKED_SECONDS, WATCHED_FRACTION, type ContinueItem, type MediaKind, type ProgressResult, type SubtitleTrack } from '@theama/contracts'
+import { MIN_TRACKED_SECONDS, WATCHED_FRACTION, type ContinueItem, type MediaKind, type NextEpisode, type ProgressResult, type SubtitleTrack } from '@theama/contracts'
 import { parseTracks } from '../scan/store'
 import type { TitleRepo } from '../scan/titles'
-import { nextEpisode, toEpisodeFile, type EpisodeFile } from './next'
+import { episodeAfter, nextEpisode, toEpisodeFile, type EpisodeFile } from './next'
 
 export class PlaybackProblem extends Error {
   constructor(
@@ -153,6 +153,14 @@ export class PlaybackRepo {
       )
       .all(key) as FileRow[]
     return rows.map(toEpisodeFile)
+  }
+
+  /** The episode that follows this file's, with the series name; null for anything but an episode, or after the last one. */
+  followingEpisode(fileId: number): { next: NextEpisode; title: string } | null {
+    const r = this.raw.prepare('SELECT title_key AS key, kind, guessed_title AS title FROM media_file WHERE id = ?').get(fileId) as { key: string | null; kind: MediaKind; title: string } | undefined
+    if (!r || r.kind !== 'episode' || !r.key) return null
+    const next = episodeAfter(this.episodeFiles(r.key), fileId)
+    return next ? { next, title: r.title } : null
   }
 
   /** The "continue watching" rail: series with a next episode, and films started but not marked watched. */

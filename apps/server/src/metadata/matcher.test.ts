@@ -10,6 +10,7 @@ const cand = (over: Partial<ProviderCandidate> & { title: string }): ProviderCan
   overview: null,
   posterPath: null,
   popularity: 10,
+  rating: null,
   ...over,
 })
 

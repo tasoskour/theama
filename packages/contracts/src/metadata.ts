@@ -133,8 +133,35 @@ export const MetadataSearchQuery = z.object({
 })
 export type MetadataSearchQuery = z.input<typeof MetadataSearchQuery>
 
-export const MetadataSuggestionsQuery = z.object({ kind: MatchKind })
+/** A suggested title: a candidate that also says how well the provider's users rated it. */
+export const Suggestion = MatchCandidate.extend({
+  /** 0–10, from the provider's own voters; null when nobody has voted yet. */
+  rating: z.number().nullable(),
+})
+export type Suggestion = z.infer<typeof Suggestion>
+
+/** `new`: popular releases of the last weeks. `year`: the most popular titles of one year. */
+export const SuggestionSection = z.enum(['new', 'year'])
+export type SuggestionSection = z.infer<typeof SuggestionSection>
+
+export const MetadataSuggestionsQuery = z
+  .object({
+    section: SuggestionSection,
+    year: z.coerce.number().int().min(1870).max(2200).optional(),
+    page: z.coerce.number().int().min(1).max(500).default(1),
+  })
+  .refine((q) => q.section !== 'year' || q.year !== undefined, { message: 'A year section needs a year', path: ['year'] })
 export type MetadataSuggestionsQuery = z.input<typeof MetadataSuggestionsQuery>
+
+export const MetadataSuggestionsResult = z.object({ items: z.array(Suggestion), hasMore: z.boolean() })
+export type MetadataSuggestionsResult = z.infer<typeof MetadataSuggestionsResult>
+
+export const MetadataSuggestionDetailsQuery = z.object({ kind: MatchKind, externalId: z.string().regex(/^\d{1,12}$/) })
+export type MetadataSuggestionDetailsQuery = z.input<typeof MetadataSuggestionDetailsQuery>
+
+/** What a suggestion card fetches on demand: the links that need a per-title call to the provider. */
+export const MetadataSuggestionDetails = z.object({ imdbId: z.string().nullable(), trailer: ExternalVideo.nullable() })
+export type MetadataSuggestionDetails = z.infer<typeof MetadataSuggestionDetails>
 
 export const MetadataSearchResult = z.object({ items: z.array(MatchCandidate) })
 export type MetadataSearchResult = z.infer<typeof MetadataSearchResult>

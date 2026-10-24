@@ -10,6 +10,7 @@ import {
   type ProviderEpisode,
   type ProviderTitle,
   type SearchQuery,
+  type SuggestionsQuery,
 } from './provider'
 
 export const TMDB_API_BASE = 'https://api.themoviedb.org/3'
@@ -46,8 +47,23 @@ const SearchResult = z.object({
     .number()
     .nullish()
     .transform((v) => v ?? 0),
+  vote_average: num,
+  vote_count: num,
 })
-const SearchResponse = z.object({ results: z.array(SearchResult) })
+const SearchResponse = z.object({
+  results: z.array(SearchResult),
+  total_pages: z
+    .number()
+    .nullish()
+    .transform((v) => v ?? 1),
+})
+
+/** Each page of suggestions holds this many movies and this many series, alternating. */
+const SUGGESTIONS_PER_KIND = 10
+/** "New" looks back this far. */
+const NEW_WINDOW_DAYS = 60
+/** A year's suggestions need this many votes, so obscure titles do not outrank known ones. */
+const YEAR_MIN_VOTES = 100
 
 const Detail = z.object({
   id: z.number().int(),
@@ -199,6 +215,7 @@ export class TmdbProvider implements MetadataProvider {
         overview: r.overview,
         posterPath: r.poster_path,
         popularity: r.popularity,
+        rating: r.vote_average !== null && r.vote_count ? r.vote_average : null,
       }
     })
   }
@@ -218,19 +235,42 @@ export class TmdbProvider implements MetadataProvider {
     return this.candidates(q.kind, data)
   }
 
-  async suggestions(kind: MatchKind, language: string): Promise<ProviderCandidate[]> {
-    const tv = kind === 'series'
-    const type = tv ? 'tv' : 'movie'
-    const [trending, popular] = await Promise.all([
-      this.call(`/trending/${type}/week`, { language, page: 1 }),
-      this.call(`/${type}/popular`, { language, page: 1 }),
+  async suggestions(q: SuggestionsQuery): Promise<{ items: ProviderCandidate[]; hasMore: boolean }> {
+    // TMDB pages hold 20 per kind; ours hold half of that, so two of ours make one of theirs.
+    const tmdbPage = Math.ceil(q.page / 2)
+    const offset = ((q.page - 1) % 2) * SUGGESTIONS_PER_KIND
+    const base = { language: q.language, page: tmdbPage, sort_by: 'popularity.desc', include_adult: 'false' }
+    let movieFilter: Record<string, string | number>
+    let tvFilter: Record<string, string | number>
+    if (q.section === 'year' && q.year !== undefined) {
+      movieFilter = { primary_release_year: q.year, 'vote_count.gte': YEAR_MIN_VOTES }
+      tvFilter = { first_air_date_year: q.year, 'vote_count.gte': YEAR_MIN_VOTES }
+    } else {
+      const from = new Date(`${q.today}T00:00:00Z`)
+      from.setUTCDate(from.getUTCDate() - NEW_WINDOW_DAYS)
+      const gte = from.toISOString().slice(0, 10)
+      movieFilter = { 'primary_release_date.gte': gte, 'primary_release_date.lte': q.today }
+      tvFilter = { 'first_air_date.gte': gte, 'first_air_date.lte': q.today }
+    }
+    const [movies, series] = await Promise.all([
+      this.call('/discover/movie', { ...base, ...movieFilter }),
+      this.call('/discover/tv', { ...base, ...tvFilter }),
     ])
-    const seen = new Set<string>()
-    return [...this.candidates(kind, parse(SearchResponse, trending)), ...this.candidates(kind, parse(SearchResponse, popular))].filter((c) => {
-      if (seen.has(c.externalId)) return false
-      seen.add(c.externalId)
-      return true
-    })
+    const m = parse(SearchResponse, movies)
+    const s = parse(SearchResponse, series)
+    const movieAll = this.candidates('movie', m)
+    const seriesAll = this.candidates('series', s)
+    const movieItems = movieAll.slice(offset, offset + SUGGESTIONS_PER_KIND)
+    const seriesItems = seriesAll.slice(offset, offset + SUGGESTIONS_PER_KIND)
+    const items: ProviderCandidate[] = []
+    for (let i = 0; i < SUGGESTIONS_PER_KIND; i++) {
+      const movie = movieItems[i]
+      const show = seriesItems[i]
+      if (movie) items.push(movie)
+      if (show) items.push(show)
+    }
+    const more = (all: unknown[], pages: number): boolean => all.length > offset + SUGGESTIONS_PER_KIND || tmdbPage < pages
+    return { items, hasMore: more(movieAll, m.total_pages) || more(seriesAll, s.total_pages) }
   }
 
   private async detail(kind: MatchKind, id: string, language: string): Promise<ProviderTitle> {

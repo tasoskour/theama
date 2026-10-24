@@ -695,7 +695,20 @@
       "openSettings": "Άνοιγμα ρυθμίσεων λήψεων"
     },
     "suggestions": {
-      "label": "Προτάσεις"
+      "label": "Προτάσεις",
+      "new": "Νέα",
+      "year": "Από το {year}",
+      "showMore": "Περισσότερα",
+      "moreYears": "Παλαιότερα έτη",
+      "description": "Περιγραφή",
+      "trailer": "Αναπαραγωγή τρέιλερ",
+      "imdb": "Άνοιγμα στο IMDb",
+      "noTrailer": "Δεν υπάρχει διαθέσιμο τρέιλερ",
+      "noImdb": "Δεν υπάρχει σελίδα IMDb",
+      "details": "Δεν φορτώθηκαν οι σύνδεσμοι: {message}",
+      "rating": "Βαθμολογία {value} στα 10",
+      "movie": "Ταινία",
+      "series": "Σειρά"
     },
     "releases": {
       "back": "Πίσω",

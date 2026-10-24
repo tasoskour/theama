@@ -5,7 +5,10 @@ import type {
   MetadataLanguage,
   MetadataState,
   MetadataStatus,
+  MetadataSuggestionDetails,
+  MetadataSuggestionsResult,
   ServerEvent,
+  SuggestionSection,
 } from '@theama/contracts'
 import type { CollectionRepo } from '../collections/store'
 import type { MediaFileRepo } from '../scan/store'
@@ -21,7 +24,6 @@ const BATCH = 25
 /** Official collections change rarely; a stored one is re-read after this long (or when a member is refreshed by hand). */
 const COLLECTION_FRESH_MS = 30 * DAY_MS
 const SUGGESTION_FRESH_MS = 60 * 60 * 1000
-const SUGGESTION_LIMIT = 24
 
 export interface ManagerDeps {
   provider: MetadataProvider
@@ -69,7 +71,8 @@ export class MetadataManager {
   private idle: Promise<void> = Promise.resolve()
   /** Collections already read in the current pass, so three films of one set cost one request. */
   private readonly collectionsThisPass = new Set<string>()
-  private readonly suggestionCache = new Map<string, { items: MatchCandidate[]; until: number }>()
+  private readonly suggestionCache = new Map<string, { result: MetadataSuggestionsResult; until: number }>()
+  private readonly suggestionDetailsCache = new Map<string, { details: MetadataSuggestionDetails; until: number }>()
 
   constructor(private readonly d: ManagerDeps) {}
 
@@ -439,19 +442,45 @@ export class MetadataManager {
     }
   }
 
-  /** Trending and popular titles for the downloads page. Remembered for an hour so visiting the page is free. */
-  async suggestions(kind: MatchKind): Promise<MatchCandidate[]> {
+  /**
+   * One page of a downloads-page section: what is new, or the most popular titles of a year; movies and
+   * series together. Remembered for an hour so visiting the page is free.
+   */
+  async suggestions(q: { section: SuggestionSection; year?: number | undefined; page: number }): Promise<MetadataSuggestionsResult> {
     this.requireKey()
     const language = this.tag()
-    const cacheKey = `${kind}:${language}`
+    const today = this.now().toISOString().slice(0, 10)
+    // The date is part of the key so "new" moves on at midnight.
+    const cacheKey = `${q.section}:${q.year ?? ''}:${q.page}:${language}:${today}`
     const cached = this.suggestionCache.get(cacheKey)
-    if (cached && cached.until > this.now().getTime()) return cached.items
+    if (cached && cached.until > this.now().getTime()) return cached.result
     try {
-      const results = (await this.d.provider.suggestions(kind, language)).slice(0, SUGGESTION_LIMIT)
-      const items: MatchCandidate[] = []
-      for (const c of results) items.push(this.toCandidate(c, null, await this.d.artwork.ensure(c.posterPath, 'thumb')))
-      this.suggestionCache.set(cacheKey, { items, until: this.now().getTime() + SUGGESTION_FRESH_MS })
-      return items
+      const page = await this.d.provider.suggestions({ section: q.section, year: q.year, page: q.page, language, today })
+      const items: MetadataSuggestionsResult['items'] = []
+      for (const c of page.items) {
+        const file = await this.d.artwork.ensure(c.posterPath, 'thumb')
+        items.push({ ...this.toCandidate(c, null, file), rating: c.rating })
+      }
+      const result = { items, hasMore: page.hasMore }
+      this.suggestionCache.set(cacheKey, { result, until: this.now().getTime() + SUGGESTION_FRESH_MS })
+      return result
+    } catch (err) {
+      return this.translate(err)
+    }
+  }
+
+  /** The IMDb id and trailer of one suggestion. Asked for when the user wants them, since each is a call of its own. */
+  async suggestionDetails(kind: MatchKind, externalId: string): Promise<MetadataSuggestionDetails> {
+    this.requireKey()
+    const language = this.tag()
+    const cacheKey = `${kind}:${externalId}:${language}`
+    const cached = this.suggestionDetailsCache.get(cacheKey)
+    if (cached && cached.until > this.now().getTime()) return cached.details
+    try {
+      const title = await this.d.provider.fetchTitle(kind, externalId, language)
+      const details = { imdbId: title.imdbId, trailer: title.trailer }
+      this.suggestionDetailsCache.set(cacheKey, { details, until: this.now().getTime() + SUGGESTION_FRESH_MS })
+      return details
     } catch (err) {
       return this.translate(err)
     }

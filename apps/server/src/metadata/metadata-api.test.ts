@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { GenreList, LibraryStatus, MetadataSearchResult, MetadataStatus, TitleDetail, TitlePage, type TitleSummary } from '@theama/contracts'
+import { GenreList, LibraryStatus, MetadataSearchResult, MetadataStatus, MetadataSuggestionDetails, MetadataSuggestionsResult, TitleDetail, TitlePage, type TitleSummary } from '@theama/contracts'
 import { GOOD_KEY, startFakeTmdb, type FakeTmdb } from '../../../../tools/fake-tmdb/server.mjs'
 import { startServer, type RunningServer } from '../bootstrap'
 import { loadConfig } from '../config'
@@ -99,9 +99,10 @@ describe('without a key', () => {
     const res = await send('GET', '/metadata/search?kind=movie&q=dune')
     expect(res.status).toBe(409)
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('no_key')
-    const suggestions = await send('GET', '/metadata/suggestions?kind=movie')
+    const suggestions = await send('GET', '/metadata/suggestions?section=new')
     expect(suggestions.status).toBe(409)
     expect(((await suggestions.json()) as { error: { code: string } }).error.code).toBe('no_key')
+    expect((await send('GET', '/metadata/suggestions/details?kind=movie&externalId=157336')).status).toBe(409)
   })
 })
 
@@ -239,18 +240,34 @@ describe('manual identification', () => {
     expect(res.items.every((c) => typeof c.score === 'number')).toBe(true)
   })
 
-  it('suggests trending and popular titles once, with thumbnails and no duplicates', async () => {
-    const res = MetadataSearchResult.parse(await get('/metadata/suggestions?kind=movie'))
-    const ids = res.items.map((c) => c.externalId)
-    expect(ids.length).toBeGreaterThan(3)
-    expect(new Set(ids).size).toBe(ids.length)
-    expect(res.items.every((c) => c.kind === 'movie' && c.score === null)).toBe(true)
-    expect(res.items.some((c) => c.posterUrl?.startsWith('/api/v1/artwork/thumb-'))).toBe(true)
+  it('suggests a year\'s popular movies and series together, rated, with thumbnails', async () => {
+    const res = MetadataSuggestionsResult.parse(await get('/metadata/suggestions?section=year&year=2022'))
+    expect(res.items.map((c) => [c.kind, c.title])).toEqual([['series', 'Severance']])
+    expect(res.items[0]).toMatchObject({ year: 2022, rating: 8.4, score: null })
+    expect(res.hasMore).toBe(false)
+
+    const movies = MetadataSuggestionsResult.parse(await get('/metadata/suggestions?section=year&year=2015'))
+    expect(movies.items.map((c) => [c.kind, c.title])).toEqual([['movie', 'Mad Max: Fury Road']])
+    expect(movies.items.every((c) => c.posterUrl?.startsWith('/api/v1/artwork/thumb-'))).toBe(true)
 
     const before = fake.requests.length
-    expect(MetadataSearchResult.parse(await get('/metadata/suggestions?kind=movie')).items).toEqual(res.items)
+    expect(MetadataSuggestionsResult.parse(await get('/metadata/suggestions?section=year&year=2015'))).toEqual(movies)
     expect(fake.requests).toHaveLength(before) // the second visit is served from memory
-    expect(MetadataSearchResult.parse(await get('/metadata/suggestions?kind=series')).items.every((c) => c.kind === 'series')).toBe(true)
+  })
+
+  it('asks for a year when the section needs one, and for nothing new when nothing is new', async () => {
+    expect((await send('GET', '/metadata/suggestions?section=year')).status).toBe(400)
+    const fresh = MetadataSuggestionsResult.parse(await get('/metadata/suggestions?section=new'))
+    expect(fresh).toEqual({ items: [], hasMore: false }) // nothing in the fake data came out in the last weeks
+  })
+
+  it('gives the IMDb id and trailer of a suggestion on request', async () => {
+    expect(MetadataSuggestionDetails.parse(await get('/metadata/suggestions/details?kind=movie&externalId=157336'))).toEqual({
+      imdbId: 'tt0816692',
+      trailer: { site: 'youtube', key: 'zSWdZVtXT7E' },
+    })
+    expect(MetadataSuggestionDetails.parse(await get('/metadata/suggestions/details?kind=movie&externalId=700001'))).toEqual({ imdbId: null, trailer: null })
+    expect((await send('GET', '/metadata/suggestions/details?kind=movie&externalId=abc')).status).toBe(400)
   })
 
   it('offers the candidates for an ambiguous title, then locks the user choice', async () => {

@@ -1,6 +1,14 @@
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { MetadataSearchResult, MetadataStatus, type MatchCandidate, type MatchKind } from '@theama/contracts'
+import {
+  MetadataSearchResult,
+  MetadataStatus,
+  MetadataSuggestionDetails,
+  MetadataSuggestionsResult,
+  type MatchCandidate,
+  type MatchKind,
+  type SuggestionSection,
+} from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
 import { useConnectionStore } from './connection'
 
@@ -57,17 +65,33 @@ export const useMetadataStore = defineStore('metadata', () => {
     }
   }
 
-  /** Trending and popular titles. Kept per kind, so switching tabs or kinds does not ask again. */
-  const suggested = ref<Partial<Record<MatchKind, MatchCandidate[]>>>({})
-
-  async function suggestions(kind: MatchKind): Promise<{ ok: true; items: MatchCandidate[] } | { ok: false; code: string; message: string }> {
-    const known = suggested.value[kind]
-    if (known) return { ok: true, items: known }
+  /** One page of a suggestions section (what is new, or a year's most popular). The server remembers pages, so asking again is cheap. */
+  async function suggestions(
+    section: SuggestionSection,
+    year: number | undefined,
+    page: number,
+  ): Promise<({ ok: true } & MetadataSuggestionsResult) | { ok: false; code: string; message: string }> {
     if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
     try {
-      const res = await connection.client.get('/metadata/suggestions', MetadataSearchResult, { kind })
-      suggested.value = { ...suggested.value, [kind]: res.items }
-      return { ok: true, items: res.items }
+      const res = await connection.client.get('/metadata/suggestions', MetadataSuggestionsResult, { section, year, page })
+      return { ok: true, ...res }
+    } catch (err) {
+      return failure(err) as { ok: false; code: string; message: string }
+    }
+  }
+
+  /** The IMDb id and trailer of a suggestion, looked up the first time they are wanted. */
+  const details = new Map<string, MetadataSuggestionDetails>()
+
+  async function suggestionDetails(kind: MatchKind, externalId: string): Promise<({ ok: true } & MetadataSuggestionDetails) | { ok: false; code: string; message: string }> {
+    const key = `${kind}:${externalId}`
+    const known = details.get(key)
+    if (known) return { ok: true, ...known }
+    if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
+    try {
+      const res = await connection.client.get('/metadata/suggestions/details', MetadataSuggestionDetails, { kind, externalId })
+      details.set(key, res)
+      return { ok: true, ...res }
     } catch (err) {
       return failure(err) as { ok: false; code: string; message: string }
     }
@@ -84,5 +108,5 @@ export const useMetadataStore = defineStore('metadata', () => {
     if (e.type === 'metadata.status') status.value = e.status
   })
 
-  return { status, error, load, saveKey, retry, search, suggestions }
+  return { status, error, load, saveKey, retry, search, suggestions, suggestionDetails }
 })

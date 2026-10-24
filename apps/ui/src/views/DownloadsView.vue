@@ -2,16 +2,21 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { mdiClose } from '@mdi/js'
+import { useI18n } from 'vue-i18n'
 import type { MatchCandidate, ReleaseKind } from '@theama/contracts'
 import ActiveDownloads from '@/components/downloads/ActiveDownloads.vue'
 import ReleaseList from '@/components/downloads/ReleaseList.vue'
 import SuggestionGrid from '@/components/downloads/SuggestionGrid.vue'
+import SuggestionSection from '@/components/downloads/SuggestionSection.vue'
+import TrailerDialog from '@/components/titles/TrailerDialog.vue'
+import { imdbLinkFor, openExternal, trailerInApp } from '@/composables/useExternalLinks'
 import { useDownloadsStore } from '@/stores/downloads'
 import { useMetadataStore } from '@/stores/metadata'
 
 type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined }
 
 const route = useRoute()
+const { t } = useI18n()
 const downloads = useDownloadsStore()
 const metadata = useMetadataStore()
 
@@ -30,8 +35,6 @@ const years = Array.from({ length: lastYear - FIRST_YEAR + 1 }, (_, i) => lastYe
 const searching = ref(false)
 const matches = ref<MatchCandidate[] | null>(null)
 const problem = ref<string | null>(null)
-const suggested = ref<MatchCandidate[]>([])
-const loadingSuggested = ref(false)
 const query = ref<Query | null>(null)
 
 const setUp = computed(() => downloads.client?.state !== 'not_configured' || downloads.indexer?.state !== 'not_configured')
@@ -39,25 +42,55 @@ const hasKey = computed(() => metadata.status?.configured === true)
 const noKey = computed(() => metadata.status !== null && !hasKey.value)
 const activeCount = computed(() => downloads.list?.items.length ?? 0)
 
-async function loadSuggestions(): Promise<void> {
-  if (!hasKey.value) {
-    suggested.value = []
+// The suggestion sections: what is new, then this year and the years before it, five at a time.
+const THIS_YEAR = new Date().getFullYear()
+const YEARS_PER_STEP = 5
+const yearCount = ref(YEARS_PER_STEP)
+const sectionYears = computed(() => Array.from({ length: yearCount.value }, (_, i) => THIS_YEAR - i).filter((y) => y >= FIRST_YEAR))
+
+// Trailer and IMDb link of a suggestion cost a request each, so they are fetched when the card's button is pressed.
+const busy = ref<string | null>(null)
+const trailer = ref<{ key: string; title: string } | null>(null)
+const trailerOpen = ref(false)
+
+async function withDetails(c: MatchCandidate, then: (d: { imdbId: string | null; trailer: { key: string } | null }) => void | Promise<void>): Promise<void> {
+  if (busy.value) return
+  busy.value = `${c.kind}:${c.externalId}`
+  problem.value = null
+  const res = await metadata.suggestionDetails(c.kind, c.externalId)
+  busy.value = null
+  if (!res.ok) {
+    problem.value = t('downloads.suggestions.details', { message: res.message })
     return
   }
-  const k = kind.value
-  loadingSuggested.value = true
-  const res = await metadata.suggestions(k)
-  if (k !== kind.value) return // another kind was chosen meanwhile
-  loadingSuggested.value = false
-  if (res.ok) suggested.value = res.items
-  else {
-    suggested.value = []
-    problem.value = res.message
+  try {
+    await then(res)
+  } catch (err) {
+    problem.value = err instanceof Error ? err.message : String(err)
   }
 }
 
-// Suggestions load once a TMDB key is known to be set, and again for each kind.
-watch([hasKey, kind], () => void loadSuggestions(), { immediate: true })
+const showTrailer = (c: MatchCandidate): Promise<void> =>
+  withDetails(c, (d) => {
+    if (!d.trailer) {
+      problem.value = `${c.title}: ${t('downloads.suggestions.noTrailer')}`
+      return
+    }
+    if (trailerInApp) {
+      trailer.value = { key: d.trailer.key, title: c.title }
+      trailerOpen.value = true
+    } else return openExternal({ service: 'youtube', id: d.trailer.key })
+  })
+
+const showImdb = (c: MatchCandidate): Promise<void> =>
+  withDetails(c, (d) => {
+    const link = imdbLinkFor(d.imdbId)
+    if (!link) {
+      problem.value = `${c.title}: ${t('downloads.suggestions.noImdb')}`
+      return
+    }
+    return openExternal(link)
+  })
 
 // Emptying the title leaves the search and shows the suggestions again.
 watch(text, (v) => {
@@ -109,7 +142,11 @@ async function search(): Promise<void> {
   else problem.value = res.message
 }
 
-const pick = (c: MatchCandidate): void => openReleases(c.title, c.year ?? undefined)
+// Suggestions mix movies and series, so the pick decides which kind of release to look for.
+const pick = (c: MatchCandidate): void => {
+  kind.value = c.kind
+  openReleases(c.title, c.year ?? undefined)
+}
 
 function changeKind(): void {
   matches.value = null
@@ -180,21 +217,43 @@ function changeKind(): void {
 
         <template v-else-if="matches">
           <p v-if="matches.length === 0" class="th-muted">{{ $t('downloads.find.noMatches') }}</p>
-          <SuggestionGrid v-else :items="matches" data-test="match-list" @pick="pick" />
+          <SuggestionGrid v-else :items="matches" :busy="busy" data-test="match-list" @pick="pick" @trailer="showTrailer" @imdb="showImdb" />
           <v-btn variant="text" size="small" class="mt-2" data-test="match-direct" @click="openReleases(text)">{{ $t('downloads.find.direct', { title: text.trim() }) }}</v-btn>
         </template>
 
         <template v-else>
           <p v-if="noKey" class="th-muted">{{ $t('downloads.find.noKey') }}</p>
-          <template v-else>
-            <v-progress-linear v-if="loadingSuggested" indeterminate height="2" :aria-label="$t('downloads.suggestions.label')" />
-            <SuggestionGrid v-if="suggested.length > 0" :items="suggested" :aria-label="$t('downloads.suggestions.label')" @pick="pick" />
+          <template v-else-if="hasKey">
+            <SuggestionSection
+              :heading="$t('downloads.suggestions.new')"
+              section="new"
+              :busy="busy"
+              @pick="pick"
+              @trailer="showTrailer"
+              @imdb="showImdb"
+              @problem="problem = $event"
+            />
+            <SuggestionSection
+              v-for="y in sectionYears"
+              :key="y"
+              :heading="$t('downloads.suggestions.year', { year: y })"
+              section="year"
+              :year="y"
+              :busy="busy"
+              @pick="pick"
+              @trailer="showTrailer"
+              @imdb="showImdb"
+              @problem="problem = $event"
+            />
+            <v-btn variant="text" size="small" data-test="suggestion-more-years" @click="yearCount += YEARS_PER_STEP">{{ $t('downloads.suggestions.moreYears') }}</v-btn>
           </template>
         </template>
       </div>
     </section>
 
     <ActiveDownloads v-show="tab === 'active'" @find="tab = 'find'" />
+
+    <TrailerDialog v-if="trailerInApp && trailer" v-model="trailerOpen" :video-id="trailer.key" :title="trailer.title" @youtube="openExternal({ service: 'youtube', id: trailer.key })" />
   </div>
 </template>
 

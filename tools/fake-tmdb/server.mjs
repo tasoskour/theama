@@ -96,10 +96,12 @@ export async function startFakeTmdb(options = {}) {
 
     const pick = (item, key, fallback) => (lang === 'el' && item.el && key in item.el ? item.el[key] : fallback)
 
-    const results = (list, tv) =>
+    const PAGE_SIZE = 20
+    const results = (list, tv, page = 1) =>
       json(200, {
-        page: 1,
-        results: list.map((x) => ({
+        page,
+        total_pages: Math.max(1, Math.ceil(list.length / PAGE_SIZE)),
+        results: list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((x) => ({
           id: x.id,
           [tv ? 'name' : 'title']: pick(x, 'title', x.title ?? x.name),
           [tv ? 'original_name' : 'original_title']: x.original_title ?? x.original_name,
@@ -107,8 +109,24 @@ export async function startFakeTmdb(options = {}) {
           overview: pick(x, 'overview', x.overview),
           poster_path: x.poster_path,
           popularity: x.popularity,
+          vote_average: x.vote_average ?? 0,
+          vote_count: x.vote_count ?? 0,
         })),
       })
+
+    // Like the real discover: filtered by year or by date range, most popular first, 20 to a page.
+    const discover = path.match(/^\/discover\/(movie|tv)$/)
+    if (discover) {
+      const tv = discover[1] === 'tv'
+      const dateOf = (x) => (tv ? x.first_air_date : x.release_date)
+      const year = query.primary_release_year ?? query.first_air_date_year
+      const from = query['primary_release_date.gte'] ?? query['first_air_date.gte']
+      const to = query['primary_release_date.lte'] ?? query['first_air_date.lte']
+      const list = (tv ? SHOWS : MOVIES)
+        .filter((x) => (!year || dateOf(x).slice(0, 4) === year) && (!from || dateOf(x) >= from) && (!to || dateOf(x) <= to) && (x.vote_count ?? 0) >= Number(query['vote_count.gte'] ?? 0))
+        .sort((a, b) => b.popularity - a.popularity)
+      return results(list, tv, Number(query.page ?? 1))
+    }
 
     if (path === '/search/movie' || path === '/search/tv') {
       const tv = path === '/search/tv'
@@ -119,14 +137,6 @@ export async function startFakeTmdb(options = {}) {
         return matches(query.query ?? '', x.title ?? x.name, x.original_title ?? x.original_name, x.el?.title)
       })
       return results(list, tv)
-    }
-
-    // Trending is the three most popular; "popular" is everything, so the two overlap like the real ones.
-    const lists = path.match(/^\/(trending\/(movie|tv)\/week|(movie|tv)\/popular)$/)
-    if (lists) {
-      const tv = (lists[2] ?? lists[3]) === 'tv'
-      const sorted = [...(tv ? SHOWS : MOVIES)].sort((a, b) => b.popularity - a.popularity)
-      return results(lists[2] ? sorted.slice(0, 3) : sorted, tv)
     }
 
     const movie = path.match(/^\/movie\/(\d+)$/)

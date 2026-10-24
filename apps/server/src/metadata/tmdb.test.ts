@@ -29,6 +29,32 @@ describe('TmdbProvider', () => {
     expect(shows[0]).toMatchObject({ externalId: '95396', title: 'Severance', year: 2022, kind: 'series' })
   })
 
+  it('suggests a page of movies and series, alternating and rated, from the right slice of the provider\'s list', async () => {
+    const p = provider()
+    const year = await p.suggestions({ section: 'year', year: 2017, page: 1, language: 'en-US', today: '2026-10-24' })
+    expect(year.items.map((c) => [c.kind, c.title, c.rating])).toEqual([['series', 'Dark', 8.4]])
+    expect(year.hasMore).toBe(false)
+    expect(fake.requests.map((r) => r.path).sort()).toEqual(['/discover/movie', '/discover/tv'])
+    expect(fake.requests[0]?.query).toMatchObject({ primary_release_year: '2017', 'vote_count.gte': '100', sort_by: 'popularity.desc', page: '1' })
+
+    // Our page 2 is the second half of TMDB's page 1; the fake's lists are short, so it is empty and the end.
+    fake.requests.length = 0
+    const second = await p.suggestions({ section: 'year', year: 2017, page: 2, language: 'en-US', today: '2026-10-24' })
+    expect(second).toEqual({ items: [], hasMore: false })
+    expect(fake.requests[0]?.query.page).toBe('1')
+    fake.requests.length = 0
+    await p.suggestions({ section: 'year', year: 2017, page: 3, language: 'en-US', today: '2026-10-24' })
+    expect(fake.requests[0]?.query.page).toBe('2')
+  })
+
+  it('suggests what is new from a window of weeks before today', async () => {
+    const p = provider()
+    const fresh = await p.suggestions({ section: 'new', page: 1, language: 'en-US', today: '2022-03-01' })
+    expect(fresh.items.map((c) => c.title)).toEqual(['Severance'])
+    const movieCall = fake.requests.find((r) => r.path === '/discover/movie')
+    expect(movieCall?.query).toMatchObject({ 'primary_release_date.gte': '2021-12-31', 'primary_release_date.lte': '2022-03-01' })
+  })
+
   it('finds a title by its translated or original name', async () => {
     const p = provider()
     expect((await p.search({ kind: 'movie', title: 'Παράσιτο', language: 'el-GR' }))[0]).toMatchObject({ externalId: '496243' })

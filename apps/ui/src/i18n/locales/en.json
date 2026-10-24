@@ -695,7 +695,20 @@
       "openSettings": "Open download settings"
     },
     "suggestions": {
-      "label": "Suggestions"
+      "label": "Suggestions",
+      "new": "New",
+      "year": "From {year}",
+      "showMore": "Show more",
+      "moreYears": "Show older years",
+      "description": "Description",
+      "trailer": "Play trailer",
+      "imdb": "Open on IMDb",
+      "noTrailer": "No trailer available",
+      "noImdb": "No IMDb page available",
+      "details": "Could not load the links: {message}",
+      "rating": "Rated {value} out of 10",
+      "movie": "Movie",
+      "series": "Series"
     },
     "releases": {
       "back": "Back",

@@ -31,6 +31,19 @@ export interface ProviderCandidate {
   overview: string | null
   posterPath: string | null
   popularity: number
+  /** 0–10 from the provider's voters; null when nobody has voted. */
+  rating: number | null
+}
+
+export interface SuggestionsQuery {
+  section: 'new' | 'year'
+  /** Required for `year`. */
+  year?: number | undefined
+  /** 1-based. */
+  page: number
+  language: string
+  /** Today as `YYYY-MM-DD`; "new" counts back from here. */
+  today: string
 }
 
 export interface ProviderTitle {
@@ -88,8 +101,8 @@ export type ImageSize = 'thumb' | 'poster' | 'backdrop' | 'still'
 export interface MetadataProvider {
   readonly id: string
   search(query: SearchQuery): Promise<ProviderCandidate[]>
-  /** What is trending and popular right now, trending first, without duplicates. */
-  suggestions(kind: MatchKind, language: string): Promise<ProviderCandidate[]>
+  /** One page of popular movies and series together, alternating, for a "new" or a "year" section. */
+  suggestions(query: SuggestionsQuery): Promise<{ items: ProviderCandidate[]; hasMore: boolean }>
   fetchTitle(kind: MatchKind, externalId: string, language: string): Promise<ProviderTitle>
   fetchSeason(seriesId: string, season: number, language: string): Promise<ProviderEpisode[]>
   fetchCollection(externalId: string, language: string): Promise<ProviderCollection>

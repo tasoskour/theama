@@ -27,6 +27,7 @@ import {
   IdentifyRequest,
   MetadataSearchQuery,
   MetadataSuggestionsQuery,
+  MetadataSuggestionDetailsQuery,
   SetCredentialsRequest,
   SetDownloadClientRequest,
   SetIndexerRequest,
@@ -63,6 +64,8 @@ import {
   type CollectionList,
   type LibraryStatus,
   type MetadataSearchResult,
+  type MetadataSuggestionsResult,
+  type MetadataSuggestionDetails,
   type MetadataStatus,
   type ReclassifyTitleResult,
   type RemoveTitleResult,
@@ -533,10 +536,19 @@ export async function buildApp(deps: AppDeps) {
     }
   })
 
-  app.get(`${API_PREFIX}/metadata/suggestions`, async (req): Promise<MetadataSearchResult> => {
+  app.get(`${API_PREFIX}/metadata/suggestions`, async (req): Promise<MetadataSuggestionsResult> => {
     const q = MetadataSuggestionsQuery.parse(req.query)
     try {
-      return { items: await metadata.suggestions(q.kind) }
+      return await metadata.suggestions(q)
+    } catch (err) {
+      return metadataFailure(err)
+    }
+  })
+
+  app.get(`${API_PREFIX}/metadata/suggestions/details`, async (req): Promise<MetadataSuggestionDetails> => {
+    const q = MetadataSuggestionDetailsQuery.parse(req.query)
+    try {
+      return await metadata.suggestionDetails(q.kind, q.externalId)
     } catch (err) {
       return metadataFailure(err)
     }

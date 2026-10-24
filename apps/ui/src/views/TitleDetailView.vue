@@ -14,6 +14,7 @@ import IdentifyDialog from '@/components/titles/IdentifyDialog.vue'
 import PlayButton from '@/components/titles/PlayButton.vue'
 import TrailerDialog from '@/components/titles/TrailerDialog.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
+import { imdbLinkFor, openExternal as openLink, trailerInApp } from '@/composables/useExternalLinks'
 import { useSceneHint } from '@/composables/useSceneHint'
 import { useConnectionStore } from '@/stores/connection'
 import { useDownloadsStore } from '@/stores/downloads'
@@ -102,28 +103,17 @@ const tmdbLink = computed<ExternalLinkRequest | null>(() => {
     ? { service: 'tmdb', kind: s.kind, id: m.externalId }
     : null
 })
-const imdbLink = computed<ExternalLinkRequest | null>(() =>
-  meta.value?.imdbId && /^tt\d{5,12}$/.test(meta.value.imdbId) ? { service: 'imdb', id: meta.value.imdbId } : null,
-)
+const imdbLink = computed<ExternalLinkRequest | null>(() => imdbLinkFor(meta.value?.imdbId))
 const trailerLink = computed<ExternalLinkRequest | null>(() =>
   meta.value?.trailer?.site === 'youtube' ? { service: 'youtube', id: meta.value.trailer.key } : null,
 )
 
-/** The desktop app can play the trailer inside the page; a browser tab can only link to YouTube. */
-const trailerInApp = typeof window !== 'undefined' && window.theama !== undefined
 const trailerOpen = ref(false)
-
-function externalUrl(link: ExternalLinkRequest): string {
-  if (link.service === 'tmdb') return `https://www.themoviedb.org/${link.kind === 'series' ? 'tv' : 'movie'}/${link.id}`
-  if (link.service === 'imdb') return `https://www.imdb.com/title/${link.id}/`
-  return `https://www.youtube.com/watch?v=${link.id}`
-}
 
 async function openExternal(link: ExternalLinkRequest): Promise<void> {
   actionError.value = null
   try {
-    if (window.theama) await window.theama.openExternal(link)
-    else window.open(externalUrl(link), '_blank', 'noopener,noreferrer')
+    await openLink(link)
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : String(err)
   }

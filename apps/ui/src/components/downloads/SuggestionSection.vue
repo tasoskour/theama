@@ -96,6 +96,6 @@ onBeforeUnmount(() => {
 }
 /* About a row of posters, so the page does not jump as sections fill in. */
 .sugg__wait {
-  min-height: 220px;
+  min-height: 14rem;
 }
 </style>

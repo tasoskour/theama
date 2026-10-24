@@ -79,12 +79,12 @@ const summaryText = computed(() => {
   width: 100%;
 }
 .live {
-  flex: 1 1 260px;
+  flex: 1 1 16rem;
   display: grid;
   gap: 4px;
 }
 .result {
-  flex: 1 1 260px;
+  flex: 1 1 16rem;
   min-width: 0;
 }
 .details {
@@ -97,7 +97,7 @@ const summaryText = computed(() => {
 .details ul {
   margin: 6px 0 0;
   padding-left: 18px;
-  max-height: 160px;
+  max-height: 10rem;
   overflow: auto;
 }
 </style>

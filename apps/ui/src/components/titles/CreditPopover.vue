@@ -8,7 +8,7 @@ const connection = useConnectionStore()
 </script>
 
 <template>
-  <v-menu open-on-hover open-on-focus open-on-click :open-delay="120" :close-delay="180" location="top start" max-width="360">
+  <v-menu open-on-hover open-on-focus open-on-click :open-delay="120" :close-delay="180" location="top start" max-width="22.5rem">
     <template #activator="{ props: menuProps }">
       <button v-bind="menuProps" type="button" class="credit" :data-test="`credit-${credit.category}`">
         <span class="credit__name">{{ credit.name }}</span>
@@ -71,7 +71,7 @@ const connection = useConnectionStore()
   font-size: 0.85rem;
 }
 .credit-popover {
-  width: min(360px, calc(100vw - 24px));
+  width: min(22.5rem, calc(100vw - 24px));
   overflow: hidden;
 }
 .credit-popover__name {
@@ -84,14 +84,14 @@ const connection = useConnectionStore()
   line-height: 1.45;
 }
 .credit-popover__list {
-  max-height: 330px;
+  max-height: min(50dvh, 20.5rem);
   overflow-y: auto;
 }
 .credit-popover__title {
-  min-height: 76px;
+  min-height: 4.75rem;
 }
 .credit-popover__poster {
-  width: 38px;
+  width: 2.4rem;
   margin-right: 12px;
   border-radius: 5px;
   overflow: hidden;

@@ -110,7 +110,7 @@ const showHeaderAdd = computed(() => canAddMediaFolder.value && library.count > 
   gap: 24px;
 }
 .notice {
-  max-width: 640px;
+  max-width: min(40rem, 100%);
   margin: 0 auto;
 }
 .notice__link {
@@ -121,11 +121,11 @@ const showHeaderAdd = computed(() => canAddMediaFolder.value && library.count > 
   display: grid;
   justify-items: center;
   gap: 8px;
-  padding: 72px 16px;
+  padding: clamp(2rem, 8vh, 4.5rem) 1rem;
   text-align: center;
 }
 .scanning__bar {
-  width: min(320px, 100%);
+  width: min(20rem, 100%);
 }
 .scanning__title {
   font-size: 1.5rem;

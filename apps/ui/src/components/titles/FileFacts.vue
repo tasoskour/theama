@@ -127,6 +127,19 @@ dt {
 }
 dd {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* On a narrow window the label sits above its value instead of taking a third of the width. */
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  dt {
+    font-size: 0.8rem;
+    margin-top: 8px;
+  }
 }
 .path {
   word-break: break-all;
@@ -146,6 +159,9 @@ dd {
   display: grid;
   gap: 2px;
   font-size: 0.9rem;
+}
+.tracks li {
+  overflow-wrap: anywhere;
 }
 .actions {
   display: flex;

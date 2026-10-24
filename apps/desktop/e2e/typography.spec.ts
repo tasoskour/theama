@@ -163,6 +163,66 @@ test('cached startup sizing is applied before the settings API responds', async 
   }
 })
 
+interface Box { top: number; bottom: number; left: number; right: number; height: number }
+
+async function box(locator: ReturnType<Page['locator']>): Promise<Box> {
+  return locator.first().evaluate((el) => {
+    const r = el.getBoundingClientRect()
+    return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height }
+  })
+}
+
+const controlHeight = (): Promise<number> => page.evaluate(() => {
+  const probe = document.createElement('div')
+  probe.style.height = 'var(--th-control-h)'
+  document.body.append(probe)
+  const h = probe.getBoundingClientRect().height
+  probe.remove()
+  return h
+})
+
+test('search and downloads toolbars keep compact controls at every size', async ({ browserName: _browserName }, testInfo) => {
+  await api('/settings', 'PUT', { textSize: 'extra-large', language: 'en', theme: 'dark' })
+  for (const width of [360, 1280, 2560, 4096]) {
+    await resize(width)
+    await visit('/search')
+    await page.evaluate(() => localStorage.setItem('theama.recentSearches', JSON.stringify(['ted lasso'])))
+    await page.reload()
+    await expect(page.locator('.th-page h1').first()).toBeVisible()
+    await expect(page.locator('.start__head')).toBeVisible()
+    const control = await controlHeight()
+    const field = await box(page.locator('.search-row .th-search-control').first())
+    // The field must never stretch to the height of the genre column.
+    expect(field.height).toBeLessThanOrEqual(control * 1.3)
+    const select = await box(page.locator('.search-row .genre-filter__select'))
+    const toggle = await box(page.locator('.search-row .genre-filter__mode'))
+    if (width >= 1280) expect(Math.abs((select.top + select.bottom) / 2 - (toggle.top + toggle.bottom) / 2)).toBeLessThanOrEqual(2)
+    await expectNoPageOverflow()
+    await page.screenshot({ path: testInfo.outputPath(`search-${width}.png`) })
+    // "Clear" sits next to its heading, not at the far edge of the panel.
+    const heading = await box(page.locator('.start__head h2'))
+    const clear = await box(page.locator('.start__head .v-btn'))
+    if (clear.top < heading.bottom) expect(clear.left - heading.right).toBeLessThan(control * 4)
+
+    await visit('/downloads')
+    const row = page.locator('.find__row')
+    for (const sel of ['.find__kind', '.find__text', '.find__genre .genre-filter__select']) {
+      const b = await box(row.locator(sel))
+      expect(b.height).toBeLessThanOrEqual(control * 1.4)
+    }
+    // Chips (when present) must not poke out of their field.
+    const chips = await row.locator('.genre-filter__chip').evaluateAll((els) => els.map((el) => {
+      const field = el.closest('.v-field')!.getBoundingClientRect()
+      const chip = el.getBoundingClientRect()
+      return chip.top >= field.top - 1 && chip.bottom <= field.bottom + 1
+    }))
+    expect(chips.every(Boolean)).toBe(true)
+    await expectNoPageOverflow()
+    await page.screenshot({ path: testInfo.outputPath(`downloads-${width}.png`) })
+  }
+  expect(errors).toEqual([])
+})
+
 for (const language of ['en', 'el'] as const) {
   for (const theme of ['dark', 'light'] as const) {
     test(`Extra large fits library, detail, settings, and dialogs: ${language}, ${theme}`, async ({ browserName: _browserName }, testInfo) => {
@@ -170,7 +230,7 @@ for (const language of ['en', 'el'] as const) {
       await expect(page.locator('html')).toHaveAttribute('lang', language)
       for (const width of [360, 1280, 1920, 2560, 3840, 4096]) {
         await resize(width)
-        for (const route of ['/movies', `/title?key=${encodeURIComponent(titleKey)}`, '/settings/general']) {
+        for (const route of ['/movies', '/search', '/downloads', '/collections', `/title?key=${encodeURIComponent(titleKey)}`, '/settings/downloads', '/settings/advanced/logs', '/settings/advanced/backup', '/settings/general']) {
           await visit(route)
           if (route.startsWith('/title?')) await expect(page.locator('h1.hero__title')).toHaveText('Interstellar')
           await expectNoPageOverflow()

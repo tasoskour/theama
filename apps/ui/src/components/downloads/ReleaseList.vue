@@ -93,8 +93,8 @@ const heading = computed(() => {
     <div class="rel__head">
       <v-btn :icon="mdiArrowLeft" variant="text" size="small" :aria-label="$t('downloads.releases.back')" data-test="releases-back" @click="$emit('back')" />
       <h2 class="th-display rel__title">{{ heading }}</h2>
-      <v-progress-circular v-if="loading" indeterminate size="18" width="2" :aria-label="$t('downloads.releases.searching')" />
-      <v-chip-group v-if="resolutions.length > 1" v-model="resolution" class="rel__chips" :aria-label="$t('detail.facts.resolution')">
+      <v-progress-circular v-if="loading" indeterminate size="1.15em" width="2" :aria-label="$t('downloads.releases.searching')" />
+      <v-chip-group v-if="resolutions.length > 1" v-model="resolution" column class="rel__chips" :aria-label="$t('detail.facts.resolution')">
         <v-chip v-for="r in resolutions" :key="r" :value="r" filter variant="tonal" size="small">{{ r }}</v-chip>
       </v-chip-group>
     </div>
@@ -177,7 +177,7 @@ const heading = computed(() => {
 .release__seeders {
   font-size: 0.82rem;
 }
-@media (max-width: 600px) {
+@media (max-width: 40rem) {
   .release {
     grid-template-columns: minmax(0, 1fr) auto;
   }

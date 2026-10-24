@@ -111,11 +111,11 @@ watch(input, (el) => el?.focus(), { once: true })
       <template v-if="recent.length > 0">
         <div class="start__head">
           <h2 class="th-eyebrow">{{ $t('search.recent') }}</h2>
-          <v-btn variant="text" size="small" @click="clearRecent">{{ $t('search.clear') }}</v-btn>
+          <v-btn variant="text" size="small" density="comfortable" @click="clearRecent">{{ $t('search.clear') }}</v-btn>
         </div>
         <ul class="recent" role="list">
           <li v-for="r in recent" :key="r">
-            <v-chip :prepend-icon="mdiHistory" label variant="tonal" @click="text = r">{{ r }}</v-chip>
+            <v-chip :prepend-icon="mdiHistory" label variant="tonal" class="recent__chip" @click="text = r">{{ r }}</v-chip>
           </li>
         </ul>
       </template>
@@ -146,18 +146,20 @@ watch(input, (el) => el?.focus(), { once: true })
 .search-row {
   display: flex;
   flex-wrap: wrap;
+  /* Never stretch the field to the height of the genre column when its Any/All switch wraps. */
+  align-items: flex-start;
   gap: 8px;
 }
 .field {
-  flex: 1 1 320px;
+  flex: 1 1 20rem;
   min-width: 0;
 }
 .genres {
-  flex: 0 1 400px;
-  min-width: 300px;
+  flex: 1 1 26rem;
+  min-width: min(100%, 18rem);
 }
 .search-panel {
-  max-width: 800px;
+  max-width: min(100%, 60rem);
   margin-bottom: 20px;
 }
 .search-help {
@@ -168,9 +170,15 @@ watch(input, (el) => el?.focus(), { once: true })
 }
 .start__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  max-width: 640px;
+  gap: 0 0.75rem;
+}
+.start__head .th-eyebrow {
+  margin: 0;
+}
+.recent__chip {
+  max-width: 100%;
 }
 .recent {
   list-style: none;
@@ -185,8 +193,8 @@ watch(input, (el) => el?.focus(), { once: true })
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 28px 20px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--th-poster-min), 1fr));
+  gap: var(--th-poster-gap);
 }
 .group {
   margin-top: 28px;
@@ -201,16 +209,5 @@ watch(input, (el) => el?.focus(), { once: true })
 }
 .none {
   padding: 32px 0;
-}
-@media (min-width: 1500px) {
-  .found {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  }
-}
-@media (max-width: 600px) {
-  .found {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 20px 14px;
-  }
 }
 </style>

@@ -65,6 +65,18 @@ function onResize(): void {
   scene?.resize()
 }
 
+// Moving the window to another monitor, or changing the OS scale, changes devicePixelRatio without a resize event.
+let dprQuery: MediaQueryList | null = null
+function watchPixelRatio(): void {
+  dprQuery?.removeEventListener('change', onPixelRatio)
+  dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+  dprQuery.addEventListener('change', onPixelRatio)
+}
+function onPixelRatio(): void {
+  scene?.resize()
+  watchPixelRatio()
+}
+
 onMounted(async () => {
   const el = canvas.value
   if (!el) return
@@ -95,6 +107,7 @@ onMounted(async () => {
   window.addEventListener('pointermove', onPointer, { passive: true })
   window.addEventListener('scroll', onScroll, { passive: true })
   window.addEventListener('resize', onResize)
+  watchPixelRatio()
   onScroll()
 })
 
@@ -113,6 +126,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointer)
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('resize', onResize)
+  dprQuery?.removeEventListener('change', onPixelRatio)
+  dprQuery = null
   scene?.dispose()
   scene = null
 })
@@ -127,8 +142,9 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: -1;
-  width: 100vw;
-  height: 100vh;
+  /* 100%, not 100vw: vw includes the scrollbar and would overflow the page sideways. */
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   animation: backdrop-in 600ms var(--th-ease) both;
 }

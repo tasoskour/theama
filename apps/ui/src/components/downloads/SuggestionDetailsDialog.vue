@@ -20,7 +20,7 @@ const favorites = useFavoritesStore()
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="760" :aria-labelledby="headingId" class="suggestion-dialog" @after-leave="$emit('closed')">
+  <v-dialog v-model="open" max-width="48rem" :aria-labelledby="headingId" class="suggestion-dialog" @after-leave="$emit('closed')">
     <v-card class="details" data-test="suggestion-dialog">
       <header class="details__header">
         <span class="th-eyebrow">{{ $t('downloads.suggestions.description') }}</span>
@@ -38,7 +38,7 @@ const favorites = useFavoritesStore()
             <span>{{ $t(`downloads.suggestions.${candidate.kind}`) }}</span>
             <span v-if="candidate.year">{{ candidate.year }}</span>
             <span v-if="candidate.rating != null" class="details__rating" :aria-label="$t('downloads.suggestions.rating', { value: candidate.rating.toFixed(1) })" data-test="suggestion-detail-rating">
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path :d="mdiStar" fill="currentColor" /></svg>{{ candidate.rating.toFixed(1) }}<span class="th-muted">/ 10</span>
+              <svg viewBox="0 0 24 24" class="th-icon" aria-hidden="true"><path :d="mdiStar" fill="currentColor" /></svg>{{ candidate.rating.toFixed(1) }}<span class="th-muted">/ 10</span>
             </span>
           </div>
           <p class="details__description" :class="{ 'th-muted': !candidate.overview?.trim() }" data-test="suggestion-description">{{ candidate.overview?.trim() || $t('downloads.suggestions.noDescription') }}</p>
@@ -71,7 +71,7 @@ const favorites = useFavoritesStore()
 .details {
   display: flex;
   flex-direction: column;
-  max-height: calc(100dvh - 48px);
+  max-height: calc(100dvh - 3rem);
   overflow: hidden;
   border-radius: var(--th-radius-lg);
 }
@@ -85,7 +85,7 @@ const favorites = useFavoritesStore()
 }
 .details__body {
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
+  grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr);
   align-items: start;
   gap: 24px;
   padding: 16px 24px 24px;
@@ -142,20 +142,19 @@ const favorites = useFavoritesStore()
   gap: 12px;
 }
 .details__actions .v-btn {
-  min-height: 44px;
+  min-height: 2.75rem;
   height: auto;
   max-width: 100%;
-  padding-block: 10px;
+  padding-block: 0.6em;
 }
 .details__actions :deep(.v-btn__content) {
   white-space: normal;
 }
 @media (max-width: 639px) {
   .details__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .details__poster {
-    display: none;
+    grid-template-columns: minmax(5rem, 30%) minmax(0, 1fr);
+    gap: 16px;
+    padding-inline: 16px;
   }
   .details__actions .v-btn {
     flex: 1 1 100%;

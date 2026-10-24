@@ -36,6 +36,6 @@ watch(near, (now) => now && void list.reload())
 <style scoped>
 /* Roughly one rail tall, so the page does not jump as rails fill in. */
 .genre-rail__wait {
-  min-height: 300px;
+  min-height: 20rem;
 }
 </style>

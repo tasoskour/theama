@@ -19,8 +19,10 @@ const color = computed(() =>
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: 0.5em;
+  min-height: 2.25rem;
+  max-width: 100%;
+  padding: 0.4em 0.9em;
   border-radius: 999px;
   font-size: 0.78rem;
   color: rgb(var(--v-theme-on-surface-variant));
@@ -30,8 +32,14 @@ const color = computed(() =>
   color: rgb(var(--v-theme-on-surface));
 }
 .dot {
-  width: 8px;
-  height: 8px;
+  flex: none;
+  width: 0.6em;
+  height: 0.6em;
   border-radius: 50%;
+}
+.label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

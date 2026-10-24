@@ -80,5 +80,5 @@ onMounted(() => run(() => store.load(), null))
 .hint { margin: 0; max-width: 65ch; font-size: .85rem; }
 .provider { display: grid; gap: 12px; padding-block: 12px; }
 .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.row :deep(.v-input) { flex: 1 1 220px; }
+.row :deep(.v-input) { flex: 1 1 14rem; }
 </style>

@@ -66,9 +66,9 @@ onBeforeUnmount(() => {
       <header class="trailer__bar">
         <v-btn variant="text" :prepend-icon="mdiArrowLeft" data-test="trailer-back" @click="open = false">{{ $t('detail.trailerBack') }}</v-btn>
         <span class="trailer__title th-display">{{ $t('detail.trailerTitle', { title }) }}</span>
-        <v-btn variant="text" :append-icon="mdiOpenInNew" data-test="trailer-youtube" @click="emit('youtube')">{{ $t('detail.trailerYoutube') }}</v-btn>
+        <v-btn variant="text" :append-icon="mdiOpenInNew" :aria-label="$t('detail.trailerYoutube')" class="trailer__youtube" data-test="trailer-youtube" @click="emit('youtube')">{{ $t('detail.trailerYoutube') }}</v-btn>
         <v-btn icon variant="text" size="small" :aria-label="$t('detail.trailerClose')" :title="$t('detail.trailerClose')" data-test="trailer-close" @click="open = false">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path :d="mdiClose" fill="currentColor" /></svg>
+          <svg viewBox="0 0 24 24" class="th-icon" aria-hidden="true"><path :d="mdiClose" fill="currentColor" /></svg>
         </v-btn>
       </header>
       <div ref="stage" class="trailer__stage">
@@ -81,16 +81,17 @@ onBeforeUnmount(() => {
 <style scoped>
 .trailer {
   /* As wide as fits, but never so tall that the 16:9 video area is cut off. */
-  width: min(1100px, 92vw, calc((100vh - 120px) * 1.7778));
+  width: min(68.75rem, 92vw, calc((100dvh - 8.5rem) * 1.7778));
   overflow: hidden;
   border-radius: var(--th-radius-lg) var(--th-radius-lg) 0 0 !important;
 }
 .trailer__bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 56px;
-  padding: 0 8px 0 4px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-height: 3.5rem;
+  padding: 4px 8px 4px 4px;
   border-bottom: 1px solid rgba(var(--v-theme-hairline), 0.7);
 }
 .trailer__title {
@@ -110,7 +111,7 @@ onBeforeUnmount(() => {
   background: #000;
 }
 @media (max-width: 600px) {
-  .trailer__bar :deep(.v-btn:nth-child(3) .v-btn__content) {
+  .trailer__youtube :deep(.v-btn__content) {
     display: none;
   }
 }

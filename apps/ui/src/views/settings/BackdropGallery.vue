@@ -134,7 +134,7 @@ function choose(id: BackdropScene): void {
       >
         <span class="thumb" aria-hidden="true">
           <canvas v-if="card.scene" :ref="(el) => setCanvas(card.scene!, el)" width="320" height="200" />
-          <span v-else class="thumb__auto"><svg viewBox="0 0 24 24" width="40" height="40"><path :d="mdiAutoFix" fill="currentColor" /></svg></span>
+          <span v-else class="thumb__auto"><svg class="thumb__icon" viewBox="0 0 24 24"><path :d="mdiAutoFix" fill="currentColor" /></svg></span>
         </span>
         <span class="name">
           {{ card.id === 'auto' ? $t('settings.backdrop.auto.name') : $t(`settings.backdrop.scenes.${card.id}.name`) }}
@@ -184,7 +184,7 @@ function choose(id: BackdropScene): void {
 }
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
   gap: 14px;
   margin: 8px 0 12px;
 }
@@ -221,6 +221,10 @@ function choose(id: BackdropScene): void {
   width: 100%;
   height: 100%;
 }
+.thumb__icon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
 .thumb__auto {
   display: grid;
   place-items: center;
@@ -231,6 +235,7 @@ function choose(id: BackdropScene): void {
 }
 .name {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   font-weight: 600;

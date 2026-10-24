@@ -60,7 +60,7 @@ function created(detail: CollectionDetail): void {
     <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-4">{{ error }}</v-alert>
 
     <div v-if="items.length > 0" class="toolbar">
-      <v-btn-toggle v-model="filter" mandatory divided density="comfortable" color="primary" variant="outlined" :aria-label="$t('collections.filter')">
+      <v-btn-toggle v-model="filter" mandatory divided density="comfortable" color="primary" variant="outlined" class="wrap-toggle" :aria-label="$t('collections.filter')">
         <v-btn v-for="f in FILTERS" :key="f" :value="f" :aria-pressed="filter === f">{{ $t(`collections.filters.${f}`) }}</v-btn>
       </v-btn-toggle>
     </div>
@@ -70,7 +70,7 @@ function created(detail: CollectionDetail): void {
     </ul>
 
     <section v-else-if="loaded" class="empty">
-      <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path :d="mdiFolderMultipleOutline" fill="currentColor" /></svg>
+      <svg class="empty__icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiFolderMultipleOutline" fill="currentColor" /></svg>
       <h2 class="th-display">{{ $t(items.length > 0 ? 'collections.noneOfKind' : 'empty.collections.title') }}</h2>
       <p class="th-muted">{{ $t(items.length > 0 ? 'collections.noneOfKindHint' : 'collections.emptyBody') }}</p>
       <p v-if="items.length === 0 && metadata.status && !metadata.status.configured" class="th-muted">
@@ -94,17 +94,22 @@ function created(detail: CollectionDetail): void {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 28px 20px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--th-poster-min), 1fr));
+  gap: var(--th-poster-gap);
 }
 .empty {
   display: grid;
   justify-items: center;
   gap: 8px;
-  padding: 72px 16px;
+  padding: 4.5rem 1rem;
   text-align: center;
-  max-width: 560px;
+  max-width: 35rem;
   margin: 0 auto;
+}
+/* The icon is 2.5em of the surrounding text so it follows the text size. */
+.empty__icon {
+  width: 2.5rem;
+  height: 2.5rem;
 }
 .empty h2 {
   font-size: 1.5rem;
@@ -113,15 +118,10 @@ function created(detail: CollectionDetail): void {
 .empty p {
   margin: 0;
 }
-@media (min-width: 1500px) {
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  }
-}
-@media (max-width: 600px) {
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 20px 14px;
-  }
+/* A toggle with several long labels wraps instead of scrolling sideways. */
+.wrap-toggle.v-btn-toggle {
+  height: auto !important;
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 </style>

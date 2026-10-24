@@ -140,7 +140,7 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
           @click="descending = !descending"
         />
       </div>
-      <v-chip-group v-model="filter" mandatory class="tools__chips" data-test="downloads-filters">
+      <v-chip-group v-model="filter" mandatory column class="tools__chips" data-test="downloads-filters">
         <v-chip v-for="f in filterChoices" :key="f" :value="f" variant="outlined" size="small" filter :data-test="`filter-${f}`">
           {{ $t(`downloads.active.filters.${f}`) }}<span class="chip__count">{{ tally[f] }}</span>
         </v-chip>
@@ -161,7 +161,7 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
     <ul v-if="shown.length > 0" class="cards" role="list" data-test="download-list">
       <li v-for="item in shown" :key="item.hash" class="card" :class="[`card--${bucket(item.state)}`, tone(item) ? `card--${tone(item)}` : '']" :data-hash="item.hash">
         <div class="card__top">
-          <v-icon :icon="kindIcon(item)" size="20" class="card__kind" />
+          <v-icon :icon="kindIcon(item)" size="1.25em" class="card__kind" />
           <span class="card__name">{{ item.name }}</span>
           <div class="card__actions">
             <v-btn
@@ -194,9 +194,9 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
 
         <div class="card__meta">
           <v-chip :color="tone(item)" size="x-small" label variant="tonal" class="card__state">{{ $t(`downloads.active.state.${item.state}`) }}</v-chip>
-          <span v-if="moving(item)" class="stat"><v-icon :icon="mdiArrowDown" size="14" />{{ speedText(item.downloadSpeed) }}</span>
-          <span v-if="item.eta !== null" class="stat"><v-icon :icon="mdiClockOutline" size="14" />{{ $t('downloads.active.left', { time: formatDuration(item.eta * 1000, locale) }) }}</span>
-          <span v-if="item.size > 0" class="stat"><v-icon :icon="mdiHarddisk" size="14" />{{ formatBytes(item.size, locale) }}</span>
+          <span v-if="moving(item)" class="stat"><v-icon :icon="mdiArrowDown" size="1em" />{{ speedText(item.downloadSpeed) }}</span>
+          <span v-if="item.eta !== null" class="stat"><v-icon :icon="mdiClockOutline" size="1em" />{{ $t('downloads.active.left', { time: formatDuration(item.eta * 1000, locale) }) }}</span>
+          <span v-if="item.size > 0" class="stat"><v-icon :icon="mdiHarddisk" size="1em" />{{ formatBytes(item.size, locale) }}</span>
           <v-chip v-if="!item.own" size="x-small" label variant="outlined" data-test="not-ours">{{ $t('downloads.active.notOurs') }}</v-chip>
         </div>
       </li>
@@ -204,7 +204,7 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
 
     <FilesDialog v-model="choosingOpen" :item="choosing" @saved="snackbar = $t('downloads.active.files.saved')" />
 
-    <v-dialog :model-value="confirming !== null" max-width="460" @update:model-value="confirming = null">
+    <v-dialog :model-value="confirming !== null" max-width="29rem" @update:model-value="confirming = null">
       <v-card v-if="confirming">
         <v-card-title class="th-display">{{ $t('downloads.active.confirmDeleteTitle') }}</v-card-title>
         <v-card-text>{{ $t('downloads.active.confirmDeleteBody', { name: confirming.name }) }}</v-card-text>
@@ -244,16 +244,19 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
   margin-bottom: 16px;
 }
 .tools__search {
-  flex: 1 1 240px;
+  flex: 1 1 15rem;
   min-width: 0;
 }
 .tools__sort {
   display: flex;
+  flex: 1 1 12rem;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 .tools__select {
-  width: 150px;
+  flex: 1 1 9rem;
+  min-width: 9rem;
 }
 .tools__chips {
   flex: 1 1 100%;
@@ -283,7 +286,7 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 28rem), 1fr));
   gap: 12px;
 }
 .card {
@@ -346,7 +349,7 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
 .card__actions {
   display: flex;
   flex: none;
-  margin: -4px -4px 0 0;
+  margin: -0.25rem -0.25rem 0 0;
 }
 .card__progress {
   display: flex;

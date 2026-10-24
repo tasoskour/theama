@@ -132,7 +132,7 @@ async function remove(): Promise<void> {
         :aria-label="$t('titles.actions.menu', { title: title.title })"
         @click.stop
       >
-        <v-icon :icon="mdiDotsVertical" size="20" />
+        <v-icon :icon="mdiDotsVertical" size="1.25em" />
       </v-btn>
     </template>
 
@@ -189,7 +189,7 @@ async function remove(): Promise<void> {
     </v-list>
   </v-menu>
 
-  <v-dialog :model-value="confirmKind !== undefined" max-width="500" @update:model-value="confirmKind = undefined">
+  <v-dialog :model-value="confirmKind !== undefined" max-width="31rem" @update:model-value="confirmKind = undefined">
     <v-card>
       <v-card-title>{{ $t('titles.actions.moveConfirmTitle') }}</v-card-title>
       <v-card-text>
@@ -202,7 +202,7 @@ async function remove(): Promise<void> {
     </v-card>
   </v-dialog>
 
-  <v-dialog v-model="confirmRemove" max-width="500">
+  <v-dialog v-model="confirmRemove" max-width="31rem">
     <v-card>
       <v-card-title>{{ $t('titles.actions.removeConfirmTitle') }}</v-card-title>
       <v-card-text>{{ $t('titles.actions.removeConfirmBody', { count: title.fileCount }) }}</v-card-text>
@@ -215,11 +215,13 @@ async function remove(): Promise<void> {
 </template>
 
 <style scoped>
-.actions-button {
+.v-btn.actions-button {
   position: absolute;
   z-index: 3;
   top: 8px;
   right: 8px;
+  width: 1.9rem;
+  height: 1.9rem;
   color: #f5efe4;
   background: rgba(15, 14, 12, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -229,6 +231,7 @@ async function remove(): Promise<void> {
 .actions-button:focus-visible {
   background: rgba(132, 96, 52, 0.96);
 }
-.actions-list { min-width: 250px; max-width: min(320px, 90vw); }
-.file-list { min-width: 260px; max-width: min(420px, 88vw); max-height: 360px; overflow-y: auto; }
+.actions-list { min-width: min(16rem, 90vw); max-width: min(22rem, 90vw); }
+.actions-list :deep(.v-list-subheader__text) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-list { min-width: min(16rem, 88vw); max-width: min(28rem, 88vw); max-height: min(60dvh, 24rem); overflow-y: auto; }
 </style>

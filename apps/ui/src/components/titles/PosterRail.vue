@@ -115,11 +115,14 @@ watch(
 .rail__head {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 16px;
+  gap: 4px 16px;
   margin-bottom: 12px;
 }
 .rail__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 1.35rem;
   margin: 0;
 }
@@ -147,18 +150,19 @@ watch(
   scrollbar-width: thin;
 }
 .rail__item {
-  flex: 0 0 clamp(130px, 13vw, 180px);
+  flex: 0 0 clamp(8rem, 13vw, 13rem);
   min-width: 0;
   scroll-snap-align: start;
 }
 .rail__nav {
   position: absolute;
-  top: 38%;
+  /* Centre of the poster: half of its 2:3 height, whatever the text size or caption length. */
+  top: calc(clamp(8rem, 13vw, 13rem) * 0.75 + 10px - 2rem);
   z-index: 2;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 64px;
+  width: 2.5rem;
+  height: 4rem;
   border: 0;
   border-radius: 8px;
   background: rgba(15, 14, 12, 0.78);
@@ -177,7 +181,7 @@ watch(
 .rail__frame:focus-within .rail__nav {
   opacity: 1;
 }
-@media (hover: none) {
+@media (hover: none), (max-width: 600px) {
   .rail__nav {
     display: none; /* touch: swipe */
   }

@@ -16,23 +16,12 @@ withDefaults(defineProps<{ count?: number }>(), { count: 18 })
 <style scoped>
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 28px 20px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--th-poster-min), 1fr));
+  gap: var(--th-poster-gap);
   padding: 8px 4px 24px;
   overflow: hidden;
   /* One row's worth of height is enough; the rest is clipped so a big window never shows a wall of blocks. */
   max-height: 80vh;
-}
-@media (min-width: 1500px) {
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  }
-}
-@media (max-width: 600px) {
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 20px 14px;
-  }
 }
 .cell {
   display: grid;
@@ -49,7 +38,7 @@ withDefaults(defineProps<{ count?: number }>(), { count: 18 })
   aspect-ratio: 2 / 3;
 }
 .line {
-  height: 10px;
+  height: 0.7em;
   width: 80%;
 }
 .line--short {

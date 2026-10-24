@@ -25,7 +25,7 @@ function confirm(): void {
 <template>
   <v-dialog
     :model-value="modelValue"
-    max-width="520"
+    max-width="32rem"
     aria-labelledby="service-dialog-title"
     @update:model-value="emit('update:modelValue', $event)"
   >

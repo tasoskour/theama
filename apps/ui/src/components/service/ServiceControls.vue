@@ -58,7 +58,7 @@ function onConfirm(account: ServiceAccountChoice | null): void {
 </v-btn>
 
     <template v-if="isNssm || !installed">
-      <v-divider vertical class="mx-1" />
+      <v-divider vertical class="mx-1 controls__divider" />
       <v-btn
         v-if="!installed"
         variant="tonal"
@@ -89,5 +89,10 @@ function onConfirm(account: ServiceAccountChoice | null): void {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+@media (max-width: 600px) {
+  .controls__divider {
+    display: none;
+  }
 }
 </style>

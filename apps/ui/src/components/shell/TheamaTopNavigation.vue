@@ -1,11 +1,17 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import BrandLogo from './BrandLogo.vue'
 import ConnectionChip from './ConnectionChip.vue'
 import { NAV_ITEMS } from './nav'
+import { useRootFontSize } from '@/composables/useRootFontSize'
+
+const rootSize = useRootFontSize()
+// 4rem (64px at the base size); grows with the text so the brand and the links keep their room.
+const barHeight = computed(() => Math.max(64, Math.ceil(4 * rootSize.value)))
 </script>
 
 <template>
-  <v-app-bar flat color="surface" height="64" class="th-hairline topnav">
+  <v-app-bar flat color="surface" :height="barHeight" class="th-hairline topnav">
     <div class="topnav__area">
       <div class="topnav__brand"><BrandLogo :size="32" /></div>
       <nav class="topnav__links" :aria-label="$t('nav.main')">
@@ -19,7 +25,7 @@ import { NAV_ITEMS } from './nav'
           :title="$t(item.labelKey)"
           color="primary"
           variant="text"
-          class="topnav__link topnav__interactive"
+          class="topnav__link topnav__interactive th-btn-fixed"
         >
           <span class="topnav__label">{{ $t(item.labelKey) }}</span>
         </v-btn>
@@ -58,6 +64,7 @@ import { NAV_ITEMS } from './nav'
 }
 .topnav__link {
   min-width: 0;
+  height: 2.75em;
   padding-inline: 10px;
   border-radius: 10px;
 }
@@ -77,13 +84,13 @@ import { NAV_ITEMS } from './nav'
   -webkit-app-region: no-drag;
 }
 /* em follows the selected text size, so labels yield to icons before crowding. */
-@container topnav (max-width: 80em) {
+@container topnav (max-width: 90em) {
   .topnav__links {
     gap: 0;
   }
   .topnav__link {
-    width: 42px;
-    height: 42px;
+    width: 2.75em;
+    height: 2.75em;
     padding: 0;
   }
   .topnav__link :deep(.v-btn__prepend) {

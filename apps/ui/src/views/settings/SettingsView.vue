@@ -25,6 +25,7 @@ const SECTIONS = [
     <header class="th-page-header">
       <h1 class="th-display th-page-title">{{ $t('settings.title') }}</h1>
     </header>
+    <div class="layout-wrap">
     <div class="layout">
       <nav class="sections" :aria-label="$t('settings.title')">
         <v-list nav role="presentation" bg-color="transparent" density="comfortable" class="pa-0">
@@ -47,13 +48,17 @@ const SECTIONS = [
         </router-view>
       </main>
     </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.layout-wrap {
+  container: settings / inline-size;
+}
 .layout {
   display: grid;
-  grid-template-columns: minmax(240px, 15rem) minmax(0, 1fr);
+  grid-template-columns: minmax(15rem, 17rem) minmax(0, 1fr);
   gap: 32px;
   align-items: start;
 }
@@ -61,6 +66,9 @@ const SECTIONS = [
   min-width: 0;
   position: sticky;
   top: 24px;
+  /* On a short window or with large text the last item must still be reachable. */
+  max-height: calc(100dvh - 3rem - 64px);
+  overflow-y: auto;
   padding: 8px;
   border: 1px solid rgba(var(--v-theme-hairline), 0.72);
   border-radius: var(--th-radius-lg);
@@ -81,19 +89,30 @@ const SECTIONS = [
 .content > :deep(section) {
   min-width: 0;
 }
-@media (max-width: 960px) {
+/* The width is the page content, measured in text-size units, so large text stacks the menu sooner. */
+@container settings (max-width: 52rem) {
   .layout {
     grid-template-columns: 1fr;
     gap: 16px;
   }
   .sections {
     position: static;
+    max-height: none;
     overflow-x: auto;
+    overflow-y: hidden;
     padding: 4px;
   }
   .sections :deep(.v-list) {
     display: flex;
     gap: 4px;
+  }
+  /* The strip scrolls sideways; labels stay whole words. */
+  .sections :deep(.v-list-item) {
+    flex: 0 0 auto;
+  }
+  .sections :deep(.v-list-item-title) {
+    white-space: nowrap;
+    overflow-wrap: normal;
   }
 }
 </style>

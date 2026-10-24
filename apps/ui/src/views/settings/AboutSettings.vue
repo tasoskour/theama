@@ -94,6 +94,9 @@ v-for="row in [
 </template>
 
 <style scoped>
+section {
+  container: about / inline-size;
+}
 .grid {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -105,7 +108,18 @@ dt {
 }
 dd {
   margin: 0;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+/* Narrow or large-text windows: label above value, so values keep the full width. */
+@container about (max-width: 34rem) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  dt {
+    margin-top: 12px;
+    font-size: 0.85rem;
+  }
 }
 .diag {
   margin-top: 40px;
@@ -120,7 +134,8 @@ dd {
   font-size: 0.9rem;
 }
 .diag__state {
-  margin-left: 12px;
+  display: inline-block;
+  margin: 8px 0 0 12px;
 }
 .diag__state--bad {
   color: rgb(var(--v-theme-error));
@@ -129,5 +144,9 @@ dd {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.path > .th-mono {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 </style>

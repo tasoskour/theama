@@ -139,7 +139,7 @@ async function setLanguage(value: MetadataLanguage): Promise<void> {
         :model-value="settings.settings.metadataLanguage"
         :items="languages"
         :disabled="!connection.isConnected"
-        style="max-width: 220px"
+        style="min-width: 10rem; max-width: min(100%, 14rem)"
         @update:model-value="setLanguage"
       />
       <p class="th-muted hint">{{ $t('metadata.languageHint') }}</p>
@@ -174,8 +174,9 @@ async function setLanguage(value: MetadataLanguage): Promise<void> {
 }
 .label-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 4px 12px;
 }
 .hint {
   margin: 0;
@@ -184,14 +185,20 @@ async function setLanguage(value: MetadataLanguage): Promise<void> {
 }
 .key-row {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   align-items: flex-start;
-  max-width: 640px;
+  max-width: 40rem;
+}
+.key-row :deep(.v-input) {
+  flex: 1 1 14rem;
+  min-width: 0;
 }
 .key-saved {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
 }
 .counts {
   display: flex;

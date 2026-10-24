@@ -66,12 +66,12 @@ const label = computed(() =>
           :image-url="connection.assetUrl(title.posterUrl)"
         />
         <span v-if="offline" class="card__badge card__badge--offline" :title="$t('files.offlineHint')">
-          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path :d="mdiCloudOffOutline" fill="currentColor" /></svg>
+          <svg viewBox="0 0 24 24" class="th-icon card__badge-icon" aria-hidden="true"><path :d="mdiCloudOffOutline" fill="currentColor" /></svg>
           {{ $t('files.offline') }}
         </span>
         <span v-else-if="partly" class="card__badge" :title="$t('titles.partlyHint')" :data-text="`${title.availableCount}/${title.fileCount}`" />
         <span v-if="title.watchState === 'all'" class="card__seen" :title="$t('play.watched')">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path :d="mdiCheckCircle" fill="currentColor" /></svg>
+          <svg viewBox="0 0 24 24" class="th-icon card__seen-icon" aria-hidden="true"><path :d="mdiCheckCircle" fill="currentColor" /></svg>
         </span>
         <span v-if="needsId" class="card__badge card__badge--id" :title="$t('match.notIdentifiedHint')" data-text="?" />
       </div>{{ ' ' }}
@@ -89,7 +89,7 @@ const label = computed(() =>
   display: block;
   min-width: 0;
   content-visibility: auto;
-  contain-intrinsic-size: auto 330px;
+  contain-intrinsic-size: auto 20rem;
 }
 .card__link {
   display: block;
@@ -122,12 +122,24 @@ const label = computed(() =>
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  /* Leave room for the actions button in the opposite corner, and truncate on narrow cards. */
+  max-width: calc(100% - 3.25rem);
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 0.15em 0.6em;
   font-size: 0.7rem;
   border-radius: 999px;
   background: rgba(15, 14, 12, 0.82);
   color: #efe8da;
   border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.card__badge-icon {
+  width: 1.1em;
+  height: 1.1em;
+}
+.card__seen-icon {
+  width: 1.5em;
+  height: 1.5em;
 }
 .card__seen {
   position: absolute;
@@ -144,8 +156,8 @@ const label = computed(() =>
 .card__badge--id {
   left: auto;
   right: 8px;
-  top: 48px;
-  min-width: 22px;
+  top: 3.25rem;
+  min-width: 1.6em;
   justify-content: center;
   font-weight: 700;
   color: #dca94e;
@@ -173,6 +185,9 @@ const label = computed(() =>
   display: block;
   font-size: 0.8rem;
   margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 @media (prefers-reduced-motion: reduce) {
   .card:hover .card__art,

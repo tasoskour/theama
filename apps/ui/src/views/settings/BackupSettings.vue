@@ -108,8 +108,10 @@ const openFolder = (): void => void bridge?.openPath(list.value!.directory)
     <v-alert v-if="list?.pending" type="warning" variant="tonal" class="mb-6" :title="$t('backup.pendingTitle')" data-test="restore-pending">
       {{ $t('backup.pendingBody', { source: list.pending.source, files: list.pending.summary.files, titles: list.pending.summary.titles }) }}
       <template #append>
-        <v-btn v-if="service.supported" variant="flat" color="primary" :loading="service.busy === 'restart'" data-test="restart-now" @click="restartNow">{{ $t('backup.restartNow') }}</v-btn>
-        <v-btn variant="text" class="ml-2" :disabled="busy" @click="cancelPending">{{ $t('backup.cancelRestore') }}</v-btn>
+        <div class="th-action-row">
+          <v-btn v-if="service.supported" variant="flat" color="primary" :loading="service.busy === 'restart'" data-test="restart-now" @click="restartNow">{{ $t('backup.restartNow') }}</v-btn>
+          <v-btn variant="text" :disabled="busy" @click="cancelPending">{{ $t('backup.cancelRestore') }}</v-btn>
+        </div>
       </template>
       <p v-if="!service.supported" class="mt-2 mb-0">{{ $t('backup.restartByHand') }}</p>
     </v-alert>
@@ -134,7 +136,7 @@ const openFolder = (): void => void bridge?.openPath(list.value!.directory)
     </ul>
     <p class="th-muted hint">{{ $t('backup.what') }}</p>
 
-    <v-dialog :model-value="confirming !== null" max-width="520" aria-labelledby="restore-title" @update:model-value="(v: boolean) => !v && (confirming = null)">
+    <v-dialog :model-value="confirming !== null" max-width="32rem" aria-labelledby="restore-title" @update:model-value="(v: boolean) => !v && (confirming = null)">
       <v-card class="pa-2">
         <v-card-title id="restore-title" class="th-display">{{ $t('backup.confirmTitle') }}</v-card-title>
         <v-card-text>
@@ -149,7 +151,7 @@ const openFolder = (): void => void bridge?.openPath(list.value!.directory)
       </v-card>
     </v-dialog>
 
-    <v-dialog :model-value="deleting !== null" max-width="460" aria-labelledby="delete-backup-title" @update:model-value="(v: boolean) => !v && (deleting = null)">
+    <v-dialog :model-value="deleting !== null" max-width="29rem" aria-labelledby="delete-backup-title" @update:model-value="(v: boolean) => !v && (deleting = null)">
       <v-card class="pa-2">
         <v-card-title id="delete-backup-title" class="th-display">{{ $t('backup.deleteTitle') }}</v-card-title>
         <v-card-text>{{ $t('backup.deleteBody') }}</v-card-text>
@@ -185,10 +187,11 @@ const openFolder = (): void => void bridge?.openPath(list.value!.directory)
   padding: 0;
   display: grid;
   gap: 8px;
-  max-width: 720px;
+  max-width: 45rem;
 }
 .backup {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
@@ -196,14 +199,15 @@ const openFolder = (): void => void bridge?.openPath(list.value!.directory)
   border-radius: var(--th-radius);
 }
 .backup__main {
-  flex: 1;
+  flex: 1 1 14rem;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
 .backup__when {
-  min-width: 11em;
+  min-width: 0;
 }
 .backup__meta {
   font-size: 0.85rem;

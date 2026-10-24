@@ -251,8 +251,9 @@ onMounted(() => {
 }
 .label-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 4px 12px;
 }
 .hint {
   margin: 0;
@@ -262,7 +263,12 @@ onMounted(() => {
 .form {
   display: grid;
   gap: 8px;
-  max-width: 560px;
+  max-width: 35rem;
+}
+.saved > span {
+  flex: 1 1 14rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .actions,
 .saved {

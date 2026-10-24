@@ -76,4 +76,13 @@ const KIND_COLOR: Record<string, string> = { start: 'success', stop: 'secondary'
   background: rgb(var(--v-theme-surface));
   border-radius: var(--th-radius);
 }
+/* The reason is free text; give it room and let it wrap rather than stretching the table. */
+.history td:last-child {
+  min-width: 12rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.history td:first-child {
+  white-space: nowrap;
+}
 </style>

@@ -38,7 +38,7 @@ const scale = computed(() => titleScale(props.title))
       @load="loaded = true"
       @error="failed = true"
     />
-    <svg v-show="!loaded" class="art__icon" viewBox="0 0 24 24" width="18" height="18"><path :d="icon" fill="currentColor" /></svg>
+    <svg v-show="!loaded" class="art__icon" viewBox="0 0 24 24"><path :d="icon" fill="currentColor" /></svg>
     <div v-show="!loaded" class="art__mono th-display" :data-text="letters" />
     <div v-show="!loaded" class="art__text">
       <span class="art__rule" />
@@ -95,6 +95,8 @@ const scale = computed(() => titleScale(props.title))
   position: absolute;
   top: 8cqw;
   right: 8cqw;
+  width: 12cqw;
+  height: 12cqw;
   opacity: 0.55;
   color: var(--accent);
 }

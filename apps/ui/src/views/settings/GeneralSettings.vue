@@ -153,7 +153,7 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
         :items="retentionItems"
         :aria-label="$t('settings.general.logRetention')"
         :disabled="!connection.isConnected"
-        style="max-width: 220px"
+        style="min-width: 10rem; max-width: min(100%, 14rem)"
         @update:model-value="(v: number) => save({ logRetentionDays: v })"
       />
       <p class="th-muted hint">{{ $t('settings.general.logRetentionHint') }}</p>
@@ -166,7 +166,7 @@ async function save(patch: Parameters<typeof store.update>[0]): Promise<void> {
         :items="logDetailItems"
         :aria-label="$t('settings.general.logDetail')"
         :disabled="!connection.isConnected"
-        style="max-width: 280px"
+        style="min-width: 10rem; max-width: min(100%, 18rem)"
         @update:model-value="(v: LogDetail) => save({ logDetail: v })"
       />
       <p class="th-muted hint">{{ $t('settings.general.logDetailHint') }}</p>

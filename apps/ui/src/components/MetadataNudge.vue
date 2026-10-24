@@ -31,8 +31,10 @@ function dismiss(): void {
   <v-alert v-if="visible" type="info" variant="tonal" density="comfortable" class="nudge" :title="$t('metadata.nudge.title')" data-test="metadata-nudge">
     {{ $t('metadata.nudge.body') }}
     <template #append>
-      <v-btn variant="flat" color="primary" to="/settings/metadata">{{ $t('metadata.nudge.action') }}</v-btn>
-      <v-btn variant="text" class="ml-2" @click="dismiss">{{ $t('metadata.nudge.dismiss') }}</v-btn>
+      <div class="th-action-row">
+        <v-btn variant="flat" color="primary" to="/settings/metadata">{{ $t('metadata.nudge.action') }}</v-btn>
+        <v-btn variant="text" @click="dismiss">{{ $t('metadata.nudge.dismiss') }}</v-btn>
+      </div>
     </template>
   </v-alert>
 </template>

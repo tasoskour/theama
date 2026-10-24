@@ -12,6 +12,9 @@
   --th-ease: cubic-bezier(0.2, 0, 0, 1);
   --th-motion: 160ms var(--th-ease);
   --th-content-reading: 72ch;
+  /* Smallest poster column. Grows with the window and with the text size. */
+  --th-poster-min: clamp(7.5rem, 9vw, 11rem);
+  --th-poster-gap: clamp(1.25rem, 1.6vw, 1.75rem) clamp(0.9rem, 1.2vw, 1.25rem);
 }
 
 html,
@@ -38,11 +41,31 @@ body {
   font-size: 1rem;
 }
 
+/* Vuetify sizes field height and the floating-label strip in px; the text grows with rem.
+   Tie the control height to the text size and reserve room for the label so it never overlaps the value. */
+.v-input {
+  --v-input-control-height: var(--th-control-h);
+}
+.v-input--density-default {
+  --v-input-control-height: calc(var(--th-control-h) + 0.5rem);
+}
+.v-input--density-comfortable {
+  --v-input-control-height: calc(var(--th-control-h) + 0.25rem);
+}
+.v-field--variant-filled .v-field__input,
+.v-field--variant-solo-filled .v-field__input {
+  --v-field-padding-top: 0.35rem;
+}
+.v-field:not(.v-field--single-line) .v-label.v-field-label--floating {
+  line-height: 1.2;
+}
+
 .v-selection-control .v-label {
   white-space: normal;
 }
 
-/* Actions may need another line with larger text or longer translations. */
+/* Buttons may need another line with larger text or longer translations. Opt out with .th-btn-fixed. */
+.v-btn:not(.v-btn--icon):not(.v-tab):not(.th-btn-fixed):not(.th-btn-quiet),
 .th-action-row .v-btn:not(.v-btn--icon),
 .th-form-section .v-btn:not(.v-btn--icon),
 .v-dialog .v-btn:not(.v-btn--icon) {
@@ -51,12 +74,65 @@ body {
   max-width: 100%;
   padding-block: 0.5em;
 }
+.v-btn-toggle .v-btn:not(.v-btn--icon) {
+  min-height: calc(var(--th-control-h) - 8px);
+}
 
+.v-btn:not(.v-tab):not(.th-btn-fixed) .v-btn__content,
 .th-action-row .v-btn__content,
 .th-form-section .v-btn__content,
 .v-dialog .v-btn__content {
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+/* Small icon buttons keep their look but get a finger-sized hit area on touch screens. */
+@media (pointer: coarse) {
+  .v-btn--icon.v-btn--size-small,
+  .v-btn--icon.v-btn--size-x-small {
+    position: relative;
+  }
+  .v-btn--icon.v-btn--size-small::after,
+  .v-btn--icon.v-btn--size-x-small::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Chips are px-high in Vuetify; let them grow with the text and truncate instead of clipping. */
+.v-chip:not(.th-chip-fixed) {
+  height: auto;
+  min-height: var(--v-chip-height);
+  max-width: 100%;
+  padding-block: 0.15em;
+  line-height: 1.35;
+}
+.v-chip .v-chip__content {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Inline svg icons that sit next to text follow the text size. */
+.th-icon {
+  width: 1.25em;
+  height: 1.25em;
+  flex: none;
+}
+
+/* Under ~40rem an alert's trailing actions drop under the message instead of squeezing it. */
+@media (max-width: 640px) {
+  .v-alert:has(.v-alert__append) {
+    flex-wrap: wrap;
+  }
+  .v-alert .v-alert__append {
+    flex: 1 1 100%;
+    margin: 0.75rem 0 0;
+  }
 }
 
 /* Editorial display type for page titles and hero text. */
@@ -91,18 +167,29 @@ body {
 
 .th-page {
   padding: clamp(24px, 3vw, 40px) clamp(16px, 4vw, 56px) 56px;
-  max-width: 1400px;
+  max-width: 90rem;
   margin-inline: auto;
 }
 
 /* Browsing surfaces use more of a wide window so another shelf of posters fits. */
 .th-page--wide {
-  max-width: 1800px;
+  max-width: 112rem;
 }
 
 .th-mono {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+/* Poster grids share one column size and gap so every browsing page grows the same way. */
+.th-poster-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--th-poster-min), 1fr));
+  gap: var(--th-poster-gap);
 }
 
 /* Shared page hierarchy and calm surfaces. */
@@ -129,7 +216,7 @@ body {
 
 .th-form-section {
   min-width: 0;
-  max-width: 760px;
+  max-width: 48rem;
   padding: clamp(16px, 2vw, 24px);
   border: 1px solid rgba(var(--v-theme-hairline), 0.76);
   border-radius: var(--th-radius-lg);
@@ -163,7 +250,9 @@ body {
 
 /* Quiet secondary action: hairline outline, muted text, wakes up on hover. */
 .v-btn.th-btn-quiet {
-  height: 44px;
+  height: auto;
+  min-height: 2.75rem;
+  padding-block: 0.4em;
   padding-inline: 16px;
   border: var(--th-border);
   border-radius: var(--th-radius);
@@ -213,6 +302,17 @@ body {
   display: none;
 }
 
+/* A segmented toggle that lines up with the text fields next to it, whatever the text size. */
+.v-btn-toggle.th-toggle-control {
+  box-sizing: border-box;
+  height: var(--th-control-h) !important;
+}
+.v-btn-toggle.th-toggle-control .v-btn:not(.v-btn--icon) {
+  height: 100% !important;
+  min-height: 0 !important;
+  padding-block: 0;
+}
+
 /* Selected and focused are intentionally different: selection is filled, focus has the ring. */
 .v-btn-toggle .v-btn--active,
 .v-tabs .v-tab--selected {
@@ -235,7 +335,6 @@ body {
   border: 1px solid rgba(var(--v-theme-hairline), 0.82);
   background: rgb(var(--v-theme-surface));
 }
-
 .v-dialog .v-card-title {
   padding: 20px 20px 6px;
   font-size: 1.35rem;

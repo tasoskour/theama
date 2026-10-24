@@ -86,19 +86,8 @@ watch(
   margin: 0;
   padding: 8px 4px 24px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 28px 20px;
-}
-@media (min-width: 1500px) {
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  }
-}
-@media (max-width: 600px) {
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 20px 14px;
-  }
+  grid-template-columns: repeat(auto-fill, minmax(var(--th-poster-min), 1fr));
+  gap: var(--th-poster-gap);
 }
 .cell {
   min-width: 0;

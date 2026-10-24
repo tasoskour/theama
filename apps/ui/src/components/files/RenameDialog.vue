@@ -118,7 +118,7 @@ const example = '{season:00}'
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="860" scrollable aria-labelledby="rename-dialog-title">
+  <v-dialog v-model="open" max-width="54rem" scrollable aria-labelledby="rename-dialog-title">
     <v-card class="pa-2">
       <v-card-title id="rename-dialog-title" class="th-display">{{ $t('rename.title') }}</v-card-title>
       <v-card-text>
@@ -155,7 +155,7 @@ const example = '{season:00}'
               <div class="row__names">
                 <span class="th-mono row__from" :title="i.from">{{ i.fromName }}</span>
                 <template v-if="i.status !== 'unchanged' && i.status !== 'skipped' && i.status !== 'unavailable' && i.status !== 'missing'">
-                  <svg class="row__arrow" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path :d="mdiArrowRight" fill="currentColor" /></svg>
+                  <svg class="row__arrow th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiArrowRight" fill="currentColor" /></svg>
                   <span class="th-mono row__to" :title="i.to">{{ i.toName }}</span>
                 </template>
               </div>
@@ -203,8 +203,13 @@ const example = '{season:00}'
 }
 .tpl {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: flex-start;
+}
+.tpl > .v-input {
+  flex: 1 1 14rem;
+  min-width: 0;
 }
 .rows {
   list-style: none;
@@ -215,8 +220,9 @@ const example = '{season:00}'
 }
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   padding: 4px 8px;
   border-radius: 6px;
 }
@@ -224,17 +230,17 @@ const example = '{season:00}'
   background: rgb(var(--v-theme-surface-light));
 }
 .row--sub {
-  margin-left: 28px;
+  margin-left: 1.75rem;
 }
 .row--off {
   opacity: 0.8;
 }
 .row__gap {
-  width: 40px;
+  width: 2.5rem;
   flex: none;
 }
 .row__names {
-  flex: 1;
+  flex: 1 1 12rem;
   min-width: 0;
   display: flex;
   align-items: center;

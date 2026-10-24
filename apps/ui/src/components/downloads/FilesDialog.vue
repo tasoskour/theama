@@ -81,16 +81,16 @@ async function save(): Promise<void> {
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="760" scrollable aria-labelledby="files-title">
+  <v-dialog v-model="open" max-width="48rem" scrollable aria-labelledby="files-title">
     <v-card>
       <v-card-title id="files-title" class="th-display">{{ $t('downloads.active.files.title') }}</v-card-title>
       <v-card-subtitle class="subtitle">{{ item?.name }}</v-card-subtitle>
       <v-card-text>
         <p class="th-muted intro">{{ $t('downloads.active.files.intro') }}</p>
 
-        <p v-if="loading && files.length === 0" class="th-muted" aria-live="polite"><v-progress-circular indeterminate size="18" width="2" class="mr-2" />{{ $t('common.loading') }}</p>
+        <p v-if="loading && files.length === 0" class="th-muted" aria-live="polite"><v-progress-circular indeterminate size="1.15em" width="2" class="mr-2" />{{ $t('common.loading') }}</p>
         <p v-else-if="fetching" class="th-muted" aria-live="polite" data-test="files-fetching">
-          <v-progress-circular indeterminate size="18" width="2" class="mr-2" />{{ $t('downloads.active.files.fetching') }}
+          <v-progress-circular indeterminate size="1.15em" width="2" class="mr-2" />{{ $t('downloads.active.files.fetching') }}
         </p>
         <v-alert v-if="error" type="warning" variant="tonal" density="compact" class="mb-3" data-test="files-error">{{ error }}</v-alert>
 
@@ -148,7 +148,8 @@ async function save(): Promise<void> {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 2px 0;
+  min-height: 2.5rem;
+  padding: 0.25rem 0;
   border-bottom: 1px solid rgba(var(--v-theme-hairline), 0.5);
 }
 .file__name {

@@ -59,7 +59,7 @@ watch(items, (next, previous) => {
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin-bottom: 20px;
 }
@@ -72,10 +72,12 @@ watch(items, (next, previous) => {
   min-width: 0;
 }
 .genres {
-  flex: 1 1 20rem;
+  flex: 1 1 22rem;
+  min-width: min(100%, 18rem);
 }
 .availability {
   flex: 0 0 auto;
+  align-self: center;
   margin-inline: 4px;
 }
 /* The default inset switch has an off-state track that vanishes into the dark surface; give it an outline. */
@@ -94,7 +96,9 @@ watch(items, (next, previous) => {
   letter-spacing: 0;
 }
 .count {
+  align-self: center;
   margin-left: auto;
+  min-width: 0;
   padding-inline: 4px;
   color: rgb(var(--v-theme-on-surface-variant));
   font-size: 0.85rem;
@@ -140,6 +144,14 @@ watch(items, (next, previous) => {
   }
   .count {
     margin-left: 0;
+  }
+}
+@media (max-width: 480px) {
+  .availability {
+    grid-column: 1 / -1;
+  }
+  .count {
+    grid-column: 1 / -1;
   }
 }
 </style>

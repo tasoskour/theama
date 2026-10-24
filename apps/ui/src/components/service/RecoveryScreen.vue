@@ -54,7 +54,7 @@ async function install(account: ServiceAccountChoice | null): Promise<void> {
 
 <template>
   <div class="th-page recovery">
-    <v-icon :icon="mdiServerNetworkOff" size="56" color="warning" />
+    <v-icon :icon="mdiServerNetworkOff" size="3.5rem" color="warning" />
     <h1 class="th-display title">{{ $t('recovery.title') }}</h1>
     <p class="th-muted lead">{{ $t('recovery.body') }}</p>
     <v-alert type="info" variant="tonal" class="state" density="comfortable">{{ message }}</v-alert>
@@ -78,7 +78,7 @@ async function install(account: ServiceAccountChoice | null): Promise<void> {
     <section class="logs">
       <h2 class="th-eyebrow mb-3">{{ $t('recovery.viewLogs') }}</h2>
       <p v-if="logs.items.length === 0" class="th-muted">{{ $t('recovery.noLogs') }}</p>
-      <LogList v-else :items="logs.items" :height="260" />
+      <LogList v-else :items="logs.items" height="16rem" />
     </section>
 
     <ServiceInstallDialog v-model="installOpen" mode="install" @confirm="install" />
@@ -92,18 +92,18 @@ async function install(account: ServiceAccountChoice | null): Promise<void> {
   align-items: center;
   text-align: center;
   gap: 12px;
-  padding-top: 64px;
+  padding-top: 4rem;
 }
 .title {
   font-size: clamp(1.6rem, calc(3vw * var(--th-text-scale)), 2.2rem);
   margin: 8px 0 0;
 }
 .lead {
-  max-width: 560px;
+  max-width: 35rem;
   margin: 0;
 }
 .state {
-  width: min(560px, 100%);
+  width: min(35rem, 100%);
   text-align: left;
 }
 .actions {
@@ -114,7 +114,7 @@ async function install(account: ServiceAccountChoice | null): Promise<void> {
   margin-top: 8px;
 }
 .logs {
-  width: min(900px, 100%);
+  width: min(56rem, 100%);
   margin-top: 32px;
   text-align: left;
 }

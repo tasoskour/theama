@@ -6,7 +6,8 @@ withDefaults(defineProps<{ size?: number; wordmark?: boolean }>(), { size: 36, w
 
 <template>
   <div class="brand" role="img" :aria-label="$t('app.name')">
-    <img :src="logoMark" :width="size" :height="size" alt="" />
+    <!-- size is given in base-size px; it is drawn in rem so the logo follows the text size and big screens. -->
+    <img :src="logoMark" :width="size" :height="size" :style="{ width: `${size / 16}rem`, height: `${size / 16}rem` }" alt="" class="brand__mark" />
     <div v-if="wordmark" class="brand__text">
       <span class="brand__name th-display">THEAMA</span>
       <span class="brand__greek th-eyebrow">ΘΕΑΜΑ</span>
@@ -17,10 +18,15 @@ withDefaults(defineProps<{ size?: number; wordmark?: boolean }>(), { size: 36, w
 <style scoped>
 .brand {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 12px;
 }
+.brand__mark {
+  flex: none;
+}
 .brand__text {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   line-height: 1;
@@ -32,6 +38,6 @@ withDefaults(defineProps<{ size?: number; wordmark?: boolean }>(), { size: 36, w
 .brand__greek {
   margin-top: 4px;
   letter-spacing: 0.4em;
-  font-size: 0.6rem;
+  font-size: 0.65rem;
 }
 </style>

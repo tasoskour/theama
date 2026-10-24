@@ -53,9 +53,9 @@ async function openFolder(): Promise<void> {
 
     <div class="filters th-filter-panel">
       <SearchField v-model="logs.filters.q" :label="$t('logs.filters.search')" class="f-search" :loading="logs.loading" />
-      <v-select v-model="logs.filters.level" :items="levelItems" :label="$t('logs.filters.level')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
-      <v-select v-model="logs.filters.source" :items="sourceItems" :label="$t('logs.filters.source')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
-      <v-select v-model="logs.filters.range" :items="rangeItems" :label="$t('logs.filters.range')" variant="solo-filled" bg-color="surface-bright" hide-details class="f-select" />
+      <v-select v-model="logs.filters.level" :items="levelItems" :label="$t('logs.filters.level')" variant="solo-filled" flat bg-color="surface-bright" hide-details class="f-select th-search-control" />
+      <v-select v-model="logs.filters.source" :items="sourceItems" :label="$t('logs.filters.source')" variant="solo-filled" flat bg-color="surface-bright" hide-details class="f-select th-search-control" />
+      <v-select v-model="logs.filters.range" :items="rangeItems" :label="$t('logs.filters.range')" variant="solo-filled" flat bg-color="surface-bright" hide-details class="f-select th-search-control" />
     </div>
 
     <div class="toolbar">
@@ -81,7 +81,7 @@ async function openFolder(): Promise<void> {
     <v-alert v-if="serviceSource" type="info" variant="tonal" density="compact" class="mb-3">{{ $t('logs.serviceOutputNote') }}</v-alert>
 
     <p v-if="!logs.loading && logs.items.length === 0" class="th-muted empty">{{ $t('logs.empty') }}</p>
-    <LogList v-else :items="logs.items" height="calc(100vh - 430px)" class="list" />
+    <LogList v-else :items="logs.items" height="max(16rem, calc(100dvh - 28rem))" class="list" />
 
     <div v-if="logs.items.length > 0" class="more">
       <v-btn v-if="logs.hasMore" variant="tonal" :loading="logs.loading" @click="logs.load(true)">{{ $t('logs.loadMore') }}</v-btn>
@@ -97,11 +97,12 @@ async function openFolder(): Promise<void> {
 }
 .filters {
   display: grid;
-  grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
   gap: 8px;
   margin-bottom: 12px;
 }
 .f-search {
+  grid-column: 1 / -1;
   min-width: 0;
 }
 .f-select {
@@ -115,7 +116,7 @@ async function openFolder(): Promise<void> {
   margin-bottom: 12px;
 }
 .list {
-  min-height: 260px;
+  min-height: 16rem;
 }
 .more {
   display: flex;
@@ -125,21 +126,5 @@ async function openFolder(): Promise<void> {
 .empty {
   padding: 48px 0;
   text-align: center;
-}
-@media (max-width: 1000px) {
-  .filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .f-search {
-    grid-column: 1 / -1;
-  }
-}
-@media (max-width: 600px) {
-  .filters {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .f-search {
-    grid-column: auto;
-  }
 }
 </style>

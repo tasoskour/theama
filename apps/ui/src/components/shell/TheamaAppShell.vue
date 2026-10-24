@@ -77,6 +77,7 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
 }
 .main {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 .splash {
   display: grid;
@@ -86,6 +87,6 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
   min-height: 80vh;
 }
 .splash__bar {
-  width: 160px;
+  width: 10rem;
 }
 </style>

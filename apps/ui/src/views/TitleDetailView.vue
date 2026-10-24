@@ -402,7 +402,7 @@ const metaChips = computed(() => {
                     data-test="trailer-link"
                     @click="openExternal(trailerLink)"
                   >
-                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path :d="mdiYoutube" fill="currentColor" /></svg>
+                    <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiYoutube" fill="currentColor" /></svg>
                   </v-btn>
                 </v-btn-group>
                 <v-btn v-else variant="outlined" class="th-btn-quiet" :prepend-icon="mdiYoutube" :append-icon="mdiOpenInNew" data-test="trailer-link" @click="openExternal(trailerLink)">
@@ -551,7 +551,7 @@ const metaChips = computed(() => {
                   data-test="toggle-watched"
                   @click="setFileWatched(r.file, !r.file.watched)"
                 >
-                  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path :d="r.file.watched ? mdiCheckCircle : mdiCheckCircleOutline" fill="currentColor" /></svg>
+                  <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="r.file.watched ? mdiCheckCircle : mdiCheckCircleOutline" fill="currentColor" /></svg>
                 </v-btn>
                 <PlayButton
                   icon
@@ -611,7 +611,7 @@ const metaChips = computed(() => {
 <style scoped>
 .detail {
   padding-top: 16px;
-  max-width: 1600px;
+  max-width: 100rem;
 }
 .back {
   margin-left: -12px;
@@ -619,7 +619,7 @@ const metaChips = computed(() => {
 }
 .hero {
   display: grid;
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
   gap: clamp(24px, 4vw, 56px);
   align-items: start;
   padding: clamp(20px, 3vw, 40px);
@@ -632,7 +632,7 @@ const metaChips = computed(() => {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 240px;
+  max-width: 15rem;
   min-width: 0;
   overflow: hidden;
   border-radius: var(--th-radius);
@@ -717,7 +717,7 @@ const metaChips = computed(() => {
   gap: 12px;
 }
 .match > :first-child {
-  flex: 1 1 360px;
+  flex: 1 1 22rem;
 }
 .match__line {
   display: flex;
@@ -733,7 +733,7 @@ const metaChips = computed(() => {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr));
   gap: 8px 24px;
 }
 .cast__group {
@@ -752,9 +752,14 @@ const metaChips = computed(() => {
   gap: 16px;
   margin-bottom: 12px;
 }
+.ep__about > div {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .ep__still {
   flex: none;
-  width: 160px;
+  width: min(10rem, 40%);
+  align-self: flex-start;
   aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: 8px;
@@ -781,6 +786,10 @@ const metaChips = computed(() => {
 .episodes,
 .files {
   margin-top: 32px;
+}
+/* Episode rows respond to the width of the list, in units that follow the text size. */
+.episodes {
+  container: episodes / inline-size;
 }
 .tab-count {
   margin-left: 8px;
@@ -810,6 +819,11 @@ const metaChips = computed(() => {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+/* The trailer split button is a group, not a .v-btn, so give it the same height as its quiet siblings. */
+.cta__row .v-btn-group.th-btn-quiet {
+  height: auto;
+  min-height: 2.75rem;
 }
 /* The least-used action sits apart, at the far end, so the row reads Play first. */
 .cta__rename {
@@ -868,7 +882,7 @@ const metaChips = computed(() => {
   color: rgb(var(--v-theme-primary));
 }
 .ep__name {
-  flex: 1;
+  flex: 1 1 8rem;
   min-width: 0;
   display: grid;
 }
@@ -876,7 +890,10 @@ const metaChips = computed(() => {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 .ep__file {
   font-size: 0.78rem;
@@ -886,9 +903,12 @@ const metaChips = computed(() => {
 }
 .ep__meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  flex: none;
+  justify-content: flex-end;
+  gap: 6px 10px;
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: 0.82rem;
 }
 .num {
@@ -910,8 +930,9 @@ const metaChips = computed(() => {
 }
 .file__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
   margin-bottom: 12px;
 }
 .file__name {
@@ -923,11 +944,11 @@ const metaChips = computed(() => {
 }
 @media (max-width: 900px) {
   .hero {
-    grid-template-columns: minmax(150px, 200px) minmax(0, 1fr);
+    grid-template-columns: minmax(9rem, 12.5rem) minmax(0, 1fr);
     gap: 24px;
   }
   .hero__poster {
-    max-width: 200px;
+    max-width: 12.5rem;
   }
   .hero__title {
     font-size: clamp(2rem, calc(6vw * var(--th-text-scale)), 3rem);
@@ -939,7 +960,7 @@ const metaChips = computed(() => {
     align-items: start;
   }
   .hero__poster {
-    width: min(58vw, 220px);
+    width: min(58vw, 14rem);
     max-width: none;
   }
   .hero__info {
@@ -949,6 +970,11 @@ const metaChips = computed(() => {
   .hero__title {
     max-width: none;
   }
+  .file__head {
+    flex-wrap: wrap;
+  }
+}
+@container episodes (max-width: 40rem) {
   .ep__row {
     flex-wrap: wrap;
     gap: 8px 12px;
@@ -957,14 +983,11 @@ const metaChips = computed(() => {
     align-items: flex-start;
   }
   .ep__meta {
-    width: 100%;
-    flex-wrap: wrap;
+    flex-basis: 100%;
+    justify-content: flex-start;
   }
   .ep__actions {
     padding-top: 8px;
-  }
-  .file__head {
-    flex-wrap: wrap;
   }
   .ep__facts {
     padding-left: 16px;

@@ -60,6 +60,10 @@ const label = computed(() => [props.collection.kind === 'user' ? t('collections.
   position: absolute;
   top: 8px;
   left: 8px;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 2px 8px;
   font-size: 0.7rem;
   border-radius: 999px;
@@ -77,6 +81,11 @@ const label = computed(() => [props.collection.kind === 'user' ? t('collections.
   font-size: 0.92rem;
   line-height: 1.25;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .card__detail {
   display: block;

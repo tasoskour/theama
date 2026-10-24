@@ -11,7 +11,7 @@ const progress = computed(() => {
 </script>
 
 <template>
-  <v-dialog :model-value="nextUp.open" max-width="440" persistent @keydown.esc="nextUp.cancel()">
+  <v-dialog :model-value="nextUp.open" max-width="28rem" persistent @keydown.esc="nextUp.cancel()">
     <v-card v-if="nextUp.current" role="alertdialog" aria-labelledby="next-up-title" data-test="next-up">
       <v-card-text class="next-up">
         <span class="th-muted next-up__kicker">{{ $t('play.nextUpTitle') }}</span>

@@ -21,6 +21,7 @@ defineExpose({
     :prepend-inner-icon="mdiMagnify"
     clearable
     hide-details
+    density="compact"
     variant="solo-filled"
     flat
     bg-color="surface-bright"

@@ -160,6 +160,7 @@ const heroStyle = computed(() => {
             density="comfortable"
             color="primary"
             variant="outlined"
+            class="wrap-toggle"
             :aria-label="$t('collections.order')"
             @update:model-value="(v: CollectionOrder) => setOrder(v)"
           >
@@ -192,21 +193,21 @@ const heroStyle = computed(() => {
           </div>
           <div v-if="arranging && m.titleKey" class="member__tools" role="group" :aria-label="$t('collections.arrange', { name: m.title })">
             <v-btn icon size="x-small" variant="text" :disabled="busy || m.position === 1" :aria-label="$t('collections.earlier', { name: m.title })" @click="move(m, -1)">
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path :d="mdiArrowLeftBold" fill="currentColor" /></svg>
+              <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiArrowLeftBold" fill="currentColor" /></svg>
             </v-btn>
             <v-btn icon size="x-small" variant="text" :disabled="busy || m.position === detail.members.length" :aria-label="$t('collections.later', { name: m.title })" @click="move(m, 1)">
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path :d="mdiArrowRightBold" fill="currentColor" /></svg>
+              <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiArrowRightBold" fill="currentColor" /></svg>
             </v-btn>
             <v-btn icon size="x-small" variant="text" :disabled="busy" :aria-label="$t('collections.removeFrom', { name: m.title })" @click="removeMember(m)">
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path :d="mdiClose" fill="currentColor" /></svg>
+              <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiClose" fill="currentColor" /></svg>
             </v-btn>
           </div>
-          <v-btn v-else-if="editable && m.titleKey" size="x-small" variant="text" :disabled="busy" @click="removeMember(m)">{{ $t('collections.remove') }}</v-btn>
+          <v-btn v-else-if="editable && m.titleKey" size="small" variant="text" :disabled="busy" @click="removeMember(m)">{{ $t('collections.remove') }}</v-btn>
         </li>
       </ol>
     </template>
 
-    <v-dialog v-model="renaming" max-width="440" aria-labelledby="rename-title">
+    <v-dialog v-model="renaming" max-width="28rem" aria-labelledby="rename-title">
       <v-card class="pa-2" tag="form" @submit.prevent="rename">
         <v-card-title id="rename-title" class="th-display">{{ $t('collections.rename') }}</v-card-title>
         <v-card-text>
@@ -227,7 +228,7 @@ const heroStyle = computed(() => {
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="deleting" max-width="460" aria-labelledby="delete-title">
+    <v-dialog v-model="deleting" max-width="29rem" aria-labelledby="delete-title">
       <v-card class="pa-2">
         <v-card-title id="delete-title" class="th-display">{{ $t('collections.deleteTitle', { name: summary?.name ?? '' }) }}</v-card-title>
         <v-card-text>{{ $t('collections.deleteBody') }}</v-card-text>
@@ -287,8 +288,8 @@ const heroStyle = computed(() => {
   margin: 32px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 28px 20px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--th-poster-min), 1fr));
+  gap: var(--th-poster-gap);
 }
 .member {
   position: relative;
@@ -329,19 +330,14 @@ const heroStyle = computed(() => {
   font-size: 0.8rem;
   margin-top: 2px;
 }
-@media (min-width: 1500px) {
-  .members {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  }
-}
-@media (max-width: 600px) {
-  .members {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 20px 14px;
-  }
-}
 .gone {
   text-align: center;
   padding: 64px 0;
+}
+/* A toggle with several long labels wraps instead of scrolling sideways. */
+.wrap-toggle.v-btn-toggle {
+  height: auto !important;
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 </style>

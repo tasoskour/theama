@@ -107,6 +107,7 @@ async function addExclusion(sourceId: number): Promise<void> {
             :items="TYPES.map((v) => ({ value: v, title: $t(`library.types.${v}`) }))"
             :label="$t('library.dialog.type')"
             density="compact"
+            hide-details
             class="type-select"
             @update:model-value="(v: LibraryType) => change(s, { libraryType: v })"
           />
@@ -156,7 +157,7 @@ async function addExclusion(sourceId: number): Promise<void> {
             <v-chip
               v-for="e in library.exclusions[s.id] ?? []"
               :key="e.id"
-              class="mt-3 mr-2 exclusion-chip"
+              class="mt-3 mr-2 exclusion-chip th-chip-fixed"
               closable
               :close-icon="mdiClose"
               :title="e.path"
@@ -171,7 +172,7 @@ async function addExclusion(sourceId: number): Promise<void> {
 
     <AddSourceDialog :flow="flow" @added="snackbar = $t('library.added')" />
 
-    <v-dialog v-model="removeOpen" max-width="480" aria-labelledby="remove-source-title">
+    <v-dialog v-model="removeOpen" max-width="30rem" aria-labelledby="remove-source-title">
       <v-card class="pa-2">
         <v-card-title id="remove-source-title" class="th-display">{{ $t('library.removeTitle') }}</v-card-title>
         <v-card-text>
@@ -229,12 +230,16 @@ async function addExclusion(sourceId: number): Promise<void> {
 }
 .source__main {
   min-width: 0;
-  flex: 1 1 320px;
+  flex: 1 1 20rem;
 }
+/* The full path matters on narrow windows and touch screens, where there is no tooltip. */
 .source__path {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   margin-bottom: 8px;
 }
 .source__meta {
@@ -264,13 +269,22 @@ async function addExclusion(sourceId: number): Promise<void> {
   flex-wrap: wrap;
 }
 .exclusion-path {
-  flex: 1 1 280px;
+  flex: 1 1 17rem;
+  min-width: 0;
 }
 .exclusion-chip {
-  max-width: min(100%, 640px);
+  max-width: min(100%, 40rem);
+  height: auto;
+  min-height: var(--v-chip-height);
+}
+.exclusion-chip :deep(.v-chip__content) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .type-select {
-  min-width: 170px;
+  min-width: 10.5rem;
 }
 .empty {
   padding: 32px 0;

@@ -10,7 +10,7 @@ defineEmits<{ addFolder: [] }>()
 
 <template>
   <section class="empty" aria-live="polite">
-    <v-icon :icon="icon" size="56" color="primary" class="empty__icon" />
+    <v-icon :icon="icon" size="3.5em" color="primary" class="empty__icon" />
     <h2 class="th-display empty__title">{{ $t(titleKey) }}</h2>
     <p class="th-muted empty__body">{{ $t(bodyKey) }}</p>
     <slot />
@@ -29,8 +29,8 @@ defineEmits<{ addFolder: [] }>()
   align-items: center;
   text-align: center;
   gap: 12px;
-  padding: 72px 16px;
-  max-width: 560px;
+  padding: clamp(2rem, 8vh, 4.5rem) 1rem;
+  max-width: min(35rem, 100%);
   margin-inline: auto;
 }
 .empty__icon {

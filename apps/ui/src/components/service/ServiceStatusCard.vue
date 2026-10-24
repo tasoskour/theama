@@ -48,7 +48,7 @@ const STATE_COLOR: Record<ServiceState, string> = {
 }
 .grid {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: 8px 24px;
   margin: 0;
 }
@@ -57,5 +57,6 @@ dt {
 }
 dd {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 </style>

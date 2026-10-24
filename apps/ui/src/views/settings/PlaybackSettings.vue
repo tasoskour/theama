@@ -74,7 +74,7 @@ async function addLanguage(code: string | null): Promise<void> {
             <v-chip v-if="!p.available" size="x-small" label variant="outlined" color="warning">{{ $t('playback.notFound') }}</v-chip>
             <v-chip v-else-if="p.tracksPosition" size="x-small" label variant="tonal" color="success" :title="$t('playback.trackedHint')" data-test="tracks-position">{{ $t('playback.tracked') }}</v-chip>
             <v-chip v-if="p.available && !p.externalSubtitle && p.kind !== 'system'" size="x-small" label variant="outlined" :title="$t('playback.noSubtitleHint')">{{ $t('playback.noSubtitle') }}</v-chip>
-            <v-btn v-if="p.removable" size="x-small" variant="text" color="error" @click="players.remove(p.id)">{{ $t('playback.remove') }}</v-btn>
+            <v-btn v-if="p.removable" size="small" variant="text" color="error" @click="players.remove(p.id)">{{ $t('playback.remove') }}</v-btn>
           </div>
         </v-radio-group>
         <div class="row">
@@ -93,13 +93,13 @@ async function addLanguage(code: string | null): Promise<void> {
           <span class="lang__rank th-muted">{{ i + 1 }}</span>
           <span class="lang__name">{{ nameOf(code) }}</span>
           <v-btn icon size="x-small" variant="text" :disabled="i === 0 || !connection.isConnected" :aria-label="$t('playback.moveUp', { name: nameOf(code) })" @click="move(i, -1)">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path :d="mdiArrowUp" fill="currentColor" /></svg>
+            <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiArrowUp" fill="currentColor" /></svg>
           </v-btn>
           <v-btn icon size="x-small" variant="text" :disabled="i === chosen.length - 1 || !connection.isConnected" :aria-label="$t('playback.moveDown', { name: nameOf(code) })" @click="move(i, 1)">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path :d="mdiArrowDown" fill="currentColor" /></svg>
+            <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiArrowDown" fill="currentColor" /></svg>
           </v-btn>
           <v-btn icon size="x-small" variant="text" :disabled="!connection.isConnected" :aria-label="$t('playback.removeLanguage', { name: nameOf(code) })" @click="removeLanguage(code)">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path :d="mdiClose" fill="currentColor" /></svg>
+            <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiClose" fill="currentColor" /></svg>
           </v-btn>
         </li>
       </ol>
@@ -110,7 +110,7 @@ async function addLanguage(code: string | null): Promise<void> {
         :items="addable"
         :label="$t('playback.addLanguage')"
         :disabled="!connection.isConnected"
-        style="max-width: 280px"
+        style="min-width: 10rem; max-width: min(100%, 18rem)"
         hide-details
         @update:model-value="addLanguage"
       />
@@ -136,7 +136,7 @@ async function addLanguage(code: string | null): Promise<void> {
         :items="countdownItems"
         :label="$t('playback.autoNextCountdown')"
         :disabled="!connection.isConnected || !settings.settings.autoPlayNext"
-        style="max-width: 280px"
+        style="min-width: 10rem; max-width: min(100%, 18rem)"
         hide-details
         data-test="auto-next-seconds"
         @update:model-value="(v: number) => saveAutoNext({ nextEpisodeCountdownSeconds: v })"
@@ -193,7 +193,8 @@ async function addLanguage(code: string | null): Promise<void> {
 }
 .row {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 .langs {
   list-style: none;
@@ -201,7 +202,7 @@ async function addLanguage(code: string | null): Promise<void> {
   padding: 0;
   display: grid;
   gap: 4px;
-  max-width: 420px;
+  max-width: 26rem;
 }
 .lang {
   display: flex;
@@ -214,5 +215,7 @@ async function addLanguage(code: string | null): Promise<void> {
 }
 .lang__name {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 </style>

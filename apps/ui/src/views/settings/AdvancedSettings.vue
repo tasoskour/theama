@@ -10,7 +10,7 @@ const TABS = [
 <template>
   <section>
     <h2 class="th-display section-title">{{ $t('settings.sections.advanced') }}</h2>
-    <v-tabs color="primary" class="mb-6" :aria-label="$t('settings.sections.advanced')">
+    <v-tabs color="primary" show-arrows class="mb-6" :aria-label="$t('settings.sections.advanced')">
       <v-tab v-for="tab in TABS" :key="tab.key" :to="tab.to" :value="tab.to">{{ $t(`settings.advancedTabs.${tab.key}`) }}</v-tab>
     </v-tabs>
     <router-view v-slot="{ Component, route }">

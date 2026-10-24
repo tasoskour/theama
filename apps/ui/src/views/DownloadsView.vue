@@ -242,7 +242,7 @@ function changeKind(): void {
   <div class="th-page th-page--wide">
     <header class="th-page-header head">
       <h1 class="th-display th-page-title">{{ $t('downloads.title') }}</h1>
-      <v-tabs v-model="tab" density="compact" color="primary" class="head__tabs">
+      <v-tabs v-model="tab" density="compact" color="primary" show-arrows class="head__tabs">
         <v-tab value="find" data-test="tab-find">{{ $t('downloads.find.tab') }}</v-tab>
         <v-tab value="favorites" data-test="tab-favorites">{{ $t('downloads.favorites.tab') }}</v-tab>
         <v-tab value="active" data-test="tab-active">
@@ -266,20 +266,24 @@ function changeKind(): void {
 
     <section v-show="tab === 'find'" class="find">
       <form class="find__row" role="search" @submit.prevent="search">
-        <v-btn-toggle v-model="kind" mandatory divided variant="outlined" density="compact" color="primary" class="find__kind" :aria-label="$t('downloads.suggestions.filter')" data-test="suggestion-filter" @update:model-value="changeKind">
+        <v-btn-toggle v-model="kind" mandatory divided variant="outlined" density="compact" color="primary" class="find__kind th-toggle-control" :aria-label="$t('downloads.suggestions.filter')" data-test="suggestion-filter" @update:model-value="changeKind">
           <v-btn v-for="filter in (['all', 'series', 'movie'] as const)" :key="filter" :value="filter" :aria-pressed="kind === filter" :data-test="`suggestion-filter-${filter}`">
             {{ $t(`downloads.suggestions.filters.${filter}`) }}
           </v-btn>
         </v-btn-toggle>
         <v-text-field
           v-model="text"
-          :label="$t('downloads.find.label')"
+          :placeholder="$t('downloads.find.label')"
+          :aria-label="$t('downloads.find.label')"
           density="compact"
+          variant="solo-filled"
+          flat
+          bg-color="surface-bright"
           hide-details
           clearable
           :clear-icon="mdiClose"
           :clear-label="$t('downloads.find.clear')"
-          class="find__text"
+          class="find__text th-search-control"
           data-test="find-title"
           @click:clear="text = ''"
         />
@@ -295,17 +299,21 @@ function changeKind(): void {
           v-if="kind === 'movie'"
           v-model="year"
           :items="years"
-          :label="$t('downloads.find.year')"
+          :placeholder="$t('downloads.find.year')"
+          :aria-label="$t('downloads.find.year')"
           density="compact"
+          variant="solo-filled"
+          flat
+          bg-color="surface-bright"
           hide-details
           clearable
           auto-select-first
-          class="find__year"
+          class="find__year th-search-control"
           data-test="find-year"
         />
         <div v-else-if="kind === 'series'" class="find__episodes">
-          <v-text-field v-model="season" :label="$t('downloads.find.season')" inputmode="numeric" density="compact" hide-details class="find__small" data-test="find-season" />
-          <v-text-field v-model="episode" :label="$t('downloads.find.episode')" inputmode="numeric" density="compact" :disabled="num(season) === undefined" hide-details class="find__small" data-test="find-episode" />
+          <v-text-field v-model="season" :placeholder="$t('downloads.find.season')" :aria-label="$t('downloads.find.season')" inputmode="numeric" density="compact" variant="solo-filled" flat bg-color="surface-bright" hide-details class="find__small th-search-control" data-test="find-season" />
+          <v-text-field v-model="episode" :placeholder="$t('downloads.find.episode')" :aria-label="$t('downloads.find.episode')" inputmode="numeric" density="compact" variant="solo-filled" flat bg-color="surface-bright" :disabled="num(season) === undefined" hide-details class="find__small th-search-control" data-test="find-episode" />
         </div>
         <v-btn type="submit" color="primary" :loading="searching" :disabled="!text.trim()" data-test="find-search">{{ $t('downloads.find.search') }}</v-btn>
       </form>
@@ -327,7 +335,7 @@ function changeKind(): void {
         <template v-else-if="matches">
           <p v-if="shownMatches.length === 0" class="th-muted">{{ $t('downloads.find.noMatches') }}</p>
           <SuggestionGrid v-else :items="shownMatches" data-test="match-list" @preview="openPreview" />
-          <v-btn variant="text" size="small" class="mt-2" data-test="match-direct" @click="openReleases(text)">{{ $t('downloads.find.direct', { title: text.trim() }) }}</v-btn>
+          <v-btn variant="text" size="small" class="mt-2 text-wrap" data-test="match-direct" @click="openReleases(text)">{{ $t('downloads.find.direct', { title: text.trim() }) }}</v-btn>
         </template>
 
         <template v-else>
@@ -394,37 +402,45 @@ function changeKind(): void {
   gap: 4px 24px;
 }
 .head__tabs {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 .find__row {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  align-items: center;
+  align-items: flex-start;
 }
 .find__text {
-  flex: 1 1 140px;
+  flex: 1 1 14rem;
   min-width: 0;
 }
-.find__kind {
+.find__kind.v-btn-toggle {
   flex: 0 0 auto;
 }
 .find__genre {
-  flex: 0 1 320px;
-  min-width: 300px;
+  flex: 1 1 24rem;
+  min-width: min(100%, 18rem);
 }
 .find__episodes {
   display: flex;
-  flex: 0 1 230px;
+  flex: 0 1 15rem;
   gap: 10px;
   min-width: 0;
 }
 .find__small {
-  flex: 0 1 110px;
+  flex: 1 1 7rem;
   min-width: 0;
 }
 .find__year {
-  flex: 0 1 120px;
+  flex: 0 1 9rem;
+  min-width: 7rem;
+}
+/* Match the height of the fields next to it. */
+.find__row > .v-btn[type='submit'] {
+  align-self: flex-start;
+  min-height: var(--th-control-h);
 }
 .find__body {
   margin-top: 16px;
@@ -432,25 +448,28 @@ function changeKind(): void {
 .find__releases + .find__releases {
   margin-top: 24px;
 }
-@media (min-width: 701px) and (max-width: 1200px) {
-  .find__episodes {
-    order: 1;
-    flex-basis: 100%;
-  }
-}
 @media (max-width: 700px) {
-  .find__row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
   .find__kind,
   .find__text,
   .find__genre,
   .find__episodes {
-    grid-column: 1 / -1;
+    flex-basis: 100%;
+  }
+  .head__tabs {
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .find__row {
+    flex-direction: column;
+    align-items: stretch;
   }
   .find__row > * {
+    flex-basis: auto;
     min-width: 0;
+  }
+  .find__year {
+    flex: none;
   }
 }
 </style>

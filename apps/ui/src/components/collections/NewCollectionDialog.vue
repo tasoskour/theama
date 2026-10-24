@@ -37,7 +37,7 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="440" aria-labelledby="new-collection-title">
+  <v-dialog v-model="open" max-width="28rem" aria-labelledby="new-collection-title">
     <v-card class="pa-2" tag="form" @submit.prevent="submit">
       <v-card-title id="new-collection-title" class="th-display">{{ $t('collections.new.title') }}</v-card-title>
       <v-card-text>

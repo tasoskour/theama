@@ -151,9 +151,14 @@ const fileName = (p: string): string => p.slice(p.lastIndexOf('\\') + 1)
 }
 .tpl {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   align-items: flex-start;
-  max-width: 760px;
+  max-width: 48rem;
+}
+.tpl :deep(.v-input) {
+  flex: 1 1 16rem;
+  min-width: 0;
 }
 .batches {
   list-style: none;
@@ -161,7 +166,7 @@ const fileName = (p: string): string => p.slice(p.lastIndexOf('\\') + 1)
   padding: 0;
   display: grid;
   gap: 8px;
-  max-width: 760px;
+  max-width: 48rem;
 }
 .batch {
   border: 1px solid rgb(var(--v-theme-hairline));
@@ -170,13 +175,16 @@ const fileName = (p: string): string => p.slice(p.lastIndexOf('\\') + 1)
 }
 .batch__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
 }
 .batch__toggle {
-  flex: 1;
+  flex: 1 1 14rem;
+  min-width: 0;
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 4px 16px;
   text-align: left;
   background: transparent;
   border: 0;
@@ -185,7 +193,7 @@ const fileName = (p: string): string => p.slice(p.lastIndexOf('\\') + 1)
   padding: 4px 0;
 }
 .batch__when {
-  min-width: 11em;
+  min-width: 0;
   opacity: 0.8;
 }
 .batch__warn {

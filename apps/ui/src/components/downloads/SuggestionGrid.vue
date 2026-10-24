@@ -31,7 +31,7 @@ const favorites = useFavoritesStore()
         <span class="card__meta th-muted">
           <span><span v-if="c.year">{{ c.year }} · </span>{{ $t(`downloads.suggestions.${c.kind}`) }}</span>
           <span v-if="c.rating != null" class="card__rating" :aria-label="$t('downloads.suggestions.rating', { value: c.rating.toFixed(1) })" data-test="suggestion-rating">
-            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path :d="mdiStar" fill="currentColor" /></svg>{{ c.rating.toFixed(1) }}
+            <svg viewBox="0 0 24 24" class="th-icon" aria-hidden="true"><path :d="mdiStar" fill="currentColor" /></svg>{{ c.rating.toFixed(1) }}
           </span>
         </span>
         <span v-if="c.genres?.length" class="card__genres th-muted" data-test="suggestion-genres">{{ c.genres.join(' · ') }}</span>
@@ -58,8 +58,8 @@ const favorites = useFavoritesStore()
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
-  gap: 24px 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--th-poster-min), 100%), 1fr));
+  gap: var(--th-poster-gap);
 }
 .item {
   min-width: 0;
@@ -67,10 +67,10 @@ const favorites = useFavoritesStore()
 }
 .item__favorite {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  min-width: 44px;
-  min-height: 44px;
+  top: 0.25rem;
+  right: 0.25rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
 }
 .card__added {
   position: absolute;
@@ -78,6 +78,10 @@ const favorites = useFavoritesStore()
   left: 6px;
   right: 6px;
   width: fit-content;
+  max-width: calc(100% - 12px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 4px 8px;
   border-radius: var(--th-radius);
   background: rgb(var(--v-theme-surface));

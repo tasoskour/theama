@@ -18,7 +18,7 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="560" aria-labelledby="add-source-title">
+  <v-dialog v-model="open" max-width="35rem" aria-labelledby="add-source-title">
     <v-card class="pa-2" tag="form" @submit.prevent="submit">
       <v-card-title id="add-source-title" class="th-display">{{ $t('library.dialog.title') }}</v-card-title>
       <v-card-text>
@@ -62,8 +62,13 @@ async function submit(): Promise<void> {
 <style scoped>
 .path-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: flex-start;
+}
+.path-row > .v-input {
+  flex: 1 1 14rem;
+  min-width: 0;
 }
 .type {
   border: 0;

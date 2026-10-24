@@ -45,7 +45,7 @@ async function add(c: CollectionSummary): Promise<void> {
     <template #activator="{ props: menuProps }">
       <v-btn v-bind="menuProps" variant="outlined" class="th-btn-quiet" :prepend-icon="mdiPlaylistPlus" data-test="add-to-collection">{{ $t('collections.addTo') }}</v-btn>
     </template>
-    <v-list density="compact" min-width="240">
+    <v-list density="compact" min-width="15rem">
       <v-list-item v-for="c in mine" :key="c.id" :title="c.name" :disabled="isIn(c.id)" :subtitle="isIn(c.id) ? $t('collections.alreadyIn') : undefined" @click="add(c)" />
       <v-list-item v-if="mine.length === 0" :title="$t('collections.noneYet')" disabled />
       <v-divider />

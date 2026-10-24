@@ -78,7 +78,7 @@ async function download(resultId: string, entryId?: string): Promise<void> {
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="880" :persistent="busy" aria-labelledby="find-subtitles-title">
+  <v-dialog v-model="open" max-width="55rem" :persistent="busy" aria-labelledby="find-subtitles-title">
     <v-card>
       <v-card-title id="find-subtitles-title">{{ $t('subtitles.find') }}</v-card-title>
       <v-card-text class="content">
@@ -136,12 +136,13 @@ async function download(resultId: string, entryId?: string): Promise<void> {
 
 <style scoped>
 .content { display: grid; gap: 16px; }
-.search { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center; }
+.search { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 12px; align-items: center; }
+.search > .v-btn { grid-column: 1 / -1; }
 .filename { overflow-wrap: anywhere; }
 h3 { font-size: 1rem; margin-bottom: 8px; }
 p { margin: 0; }
 .results { padding: 0; margin: 0; list-style: none; }
-.result { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
+.result { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; padding: 12px 0; border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
+.result > :first-child { flex: 1 1 14rem; min-width: 0; }
 .metadata { font-size: .85rem; margin-block: 4px; }
-@media (max-width: 550px) { .search { grid-template-columns: 1fr; } }
 </style>

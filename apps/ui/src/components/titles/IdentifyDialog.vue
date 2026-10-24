@@ -100,7 +100,7 @@ function problem(code: string, fallback: string): string {
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="820" scrollable aria-labelledby="identify-title">
+  <v-dialog v-model="open" max-width="51rem" scrollable aria-labelledby="identify-title">
     <v-card class="identify-card">
       <v-card-title id="identify-title" class="th-display">{{ $t('match.dialog.title') }}</v-card-title>
       <v-card-subtitle class="subtitle">{{ $t('match.dialog.subtitle', { name: initialQuery }) }}</v-card-subtitle>
@@ -171,6 +171,7 @@ function problem(code: string, fallback: string): string {
   background: rgb(var(--v-theme-surface));
 }
 .candidates {
+  container: cands / inline-size;
   list-style: none;
   margin: 16px 0 0;
   padding: 0;
@@ -179,7 +180,7 @@ function problem(code: string, fallback: string): string {
 }
 .cand {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
   min-width: 0;
@@ -195,9 +196,9 @@ function problem(code: string, fallback: string): string {
   background: rgba(var(--v-theme-primary), 0.06);
 }
 .cand__art {
-  width: 72px;
+  width: 4.5rem;
   min-width: 0;
-  max-width: 72px;
+  max-width: 4.5rem;
   overflow: hidden;
   border-radius: var(--th-radius);
 }
@@ -231,21 +232,26 @@ function problem(code: string, fallback: string): string {
   .identify-card {
     border-radius: 0 !important;
   }
+  /* Keep the explanation visible on small screens: it takes its own line above the buttons. */
+  .note {
+    flex: 1 1 100%;
+    margin: 0 4px 4px;
+  }
+}
+/* Measured on the list itself (so the text size counts), not on the window. */
+@container cands (max-width: 34rem) {
   .cand {
-    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-columns: 4rem minmax(0, 1fr);
     align-items: start;
   }
   .cand__art {
-    width: 64px;
-    max-width: 64px;
+    width: 4rem;
+    max-width: 4rem;
     grid-row: 1;
   }
   .cand > .v-btn {
     grid-column: 2;
     justify-self: start;
-  }
-  .note {
-    display: none;
   }
 }
 </style>

@@ -40,7 +40,7 @@ const loading = computed(() => !recent.loaded.value && recent.error.value === nu
 <template>
   <SectionPage section-key="home" :icon="mdiHomeOutline" title-key="nav.home" :has-content="hasContent" :loading="loading">
     <MetadataNudge />
-    <PosterRail v-if="resumeTitles.length" :heading="$t('home.continue')" :titles="resumeTitles" :captions="resumeCaptions" data-test="continue-rail" />
+    <PosterRail v-if="resumeTitles.length" :heading="$t('home.continue')" :titles="resumeTitles" :captions="resumeCaptions" continue-list data-test="continue-rail" />
     <PosterRail v-if="recent.items.value.length" :heading="$t('home.recent')" :titles="recent.items.value" />
     <PosterRail
       v-if="movies.total.value > 0"

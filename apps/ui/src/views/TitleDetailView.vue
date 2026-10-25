@@ -16,6 +16,7 @@ import TrailerDialog from '@/components/titles/TrailerDialog.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { imdbLinkFor, openExternal as openLink, trailerInApp } from '@/composables/useExternalLinks'
 import { useSceneHint } from '@/composables/useSceneHint'
+import { useLatestRequest, useRefresh } from '@/composables/useRefresh'
 import { useConnectionStore } from '@/stores/connection'
 import { useDownloadsStore } from '@/stores/downloads'
 import { useMetadataStore } from '@/stores/metadata'
@@ -44,18 +45,22 @@ const canFindDownload = computed(() => {
   return (client !== null && client.state !== 'not_configured') || (indexer !== null && indexer.state !== 'not_configured')
 })
 
+const latest = useLatestRequest()
+const refresh = useRefresh(load)
+
 async function load(): Promise<void> {
-  if (!connection.client || !key.value) return
-  try {
-    detail.value = await connection.client.get('/library/title', TitleDetail, { key: key.value })
+  const client = connection.client
+  if (!client || !key.value) return
+  await latest(signal => client.get('/library/title', TitleDetail, { key: key.value }, { signal }), result => {
+    detail.value = result
     missing.value = false
     error.value = null
-  } catch (err) {
+  }, err => {
     if (err instanceof ApiRequestError && err.code === 'not_found') {
       detail.value = null
       missing.value = true
     } else error.value = err instanceof Error ? err.message : String(err)
-  }
+  })
 }
 
 async function onFileHidden(): Promise<void> {
@@ -65,7 +70,7 @@ async function onFileHidden(): Promise<void> {
 
 watch([() => connection.phase, key], () => connection.phase === 'connected' && void load().then(() => nextTick(() => heading.value?.focus())), { immediate: true })
 const off = connection.onEvent((e) => {
-  if (e.type === 'library.changed' || e.type === 'scan.finished') void load()
+  if (e.type === 'library.changed' || e.type === 'scan.finished') refresh.schedule()
 })
 onScopeDispose(off)
 
@@ -251,9 +256,21 @@ const seasons = computed<SeasonGroup[]>(() => {
   if (cov) {
     const byId = new Map(files.value.map((f) => [f.id, f]))
     const strays = new Set(cov.unmatchedFileIds)
+    const episodesBySeason = new Map<number, EpisodeInfo[]>()
+    const filesBySeason = new Map<number | null, MediaFile[]>()
+    for (const info of detail.value?.episodes ?? []) {
+      const group = episodesBySeason.get(info.season) ?? []
+      group.push(info)
+      episodesBySeason.set(info.season, group)
+    }
+    for (const file of files.value) {
+      const group = filesBySeason.get(file.season) ?? []
+      group.push(file)
+      filesBySeason.set(file.season, group)
+    }
     for (const s of cov.seasons) {
       const rows: EpisodeRow[] = []
-      for (const info of (detail.value?.episodes ?? []).filter((e) => e.season === s.season)) {
+      for (const info of (episodesBySeason.get(s.season) ?? [])) {
         if (info.fileIds.length === 0) {
           rows.push({ id: `g${info.season}-${info.episode}`, file: null, info, gap: info.status as Gap, stray: false, copies: 0, code: episodeCode(info.season, info.episode, null), sort: info.episode })
           continue
@@ -265,7 +282,7 @@ const seasons = computed<SeasonGroup[]>(() => {
           rows.push(fileRow(f, info, false, info.fileIds.length))
         }
       }
-      for (const f of files.value) {
+      for (const f of filesBySeason.get(s.season) ?? []) {
         if (f.season === s.season && strays.has(f.id) && !placed.has(f.id)) {
           placed.add(f.id)
           rows.push(fileRow(f, null, true, 1))
@@ -284,7 +301,11 @@ const seasons = computed<SeasonGroup[]>(() => {
   }
 
   const bySeason = new Map<number | null, MediaFile[]>()
-  for (const f of files.value) bySeason.set(f.season, [...(bySeason.get(f.season) ?? []), f])
+  for (const f of files.value) {
+    const group = bySeason.get(f.season) ?? []
+    group.push(f)
+    bySeason.set(f.season, group)
+  }
   for (const n of [...bySeason.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b)) {
     const list = bySeason.get(n)!
     groups.push({ id: String(n), label: label(n), rows: list.map((f) => fileRow(f, null, false, 1)), local: list.length, missing: 0, summary: null })

@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, renameSync, writeFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
+import { rename, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ResilientHttp } from './http'
 import type { ImageSize } from './provider'
@@ -33,6 +34,7 @@ function looksLikeImage(b: Buffer): boolean {
 
 /** Downloads provider images once and keeps them in the cache folder, so artwork works offline. */
 export class ArtworkCache {
+  private readonly pending = new Map<string, Promise<string | null>>()
   constructor(
     private readonly dir: string,
     private readonly http: ResilientHttp,
@@ -56,15 +58,23 @@ export class ArtworkCache {
     if (!file) return null
     const target = join(this.dir, file)
     if (existsSync(target)) return file
+    const known = this.pending.get(file)
+    if (known) return known
+    const result = this.download(path, size, file, target).finally(() => this.pending.delete(file))
+    this.pending.set(file, result)
+    return result
+  }
+
+  private async download(path: string, size: ImageSize, file: string, target: string): Promise<string | null> {
     try {
       const { bytes, contentType } = await this.http.getBytes(new URL(this.urlFor(path, size)), MAX_IMAGE_BYTES)
       if (!contentType.toLowerCase().startsWith('image/') || !looksLikeImage(bytes)) return null
       const tmp = `${target}.${process.pid}.tmp`
-      writeFileSync(tmp, bytes)
+      await writeFile(tmp, bytes)
       try {
-        renameSync(tmp, target)
+        await rename(tmp, target)
       } catch (err) {
-        rmSync(tmp, { force: true })
+        await rm(tmp, { force: true })
         throw err
       }
       return file

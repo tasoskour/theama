@@ -17,7 +17,7 @@ describe('download favorites', () => {
       for (const sql of MIGRATIONS.slice(0, 12)) raw.exec(sql)
       raw.pragma('user_version = 12')
       raw.prepare("INSERT INTO library_source (path, library_type, created_at) VALUES ('D:\\Movies', 'movies', 'now')").run()
-      expect(migrate(raw)).toEqual([13])
+      expect(migrate(raw)).toEqual(MIGRATIONS.slice(12).map((_sql, index) => index + 13))
       expect(raw.prepare('SELECT path FROM library_source').get()).toEqual({ path: 'D:\\Movies' })
       expect(new FavoritesRepo(raw).list()).toEqual([])
     } finally { raw.close() }

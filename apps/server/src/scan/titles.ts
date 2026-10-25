@@ -132,6 +132,8 @@ function fillMissingEpisodes(raw: Database.Database, rows: GroupRow[]): void {
 }
 
 export class TitleRepo {
+  private readonly pages = new Map<string, TitlePage>()
+  private pageRevision = ''
   constructor(
     private readonly raw: Database.Database,
     private readonly metadata?: MetadataRepo,
@@ -243,6 +245,29 @@ export class TitleRepo {
   }
 
   list(query: TitleQuery): TitlePage {
+    // Repeated Home rails and returning to a library page need no repeated grouping/sorting.
+    // Track both this connection's writes and other connections; events alone miss some writes.
+    if (this.raw.inTransaction) {
+      this.pageRevision = ''
+      return this.readPage(query)
+    }
+    const changes = (this.raw.prepare('SELECT total_changes() AS n').get() as { n: number }).n
+    const revision = `${changes}:${this.raw.pragma('data_version', { simple: true })}:${new Date().toISOString().slice(0, 10)}`
+    if (revision !== this.pageRevision) { this.pages.clear(); this.pageRevision = revision }
+    const key = JSON.stringify(query)
+    const known = this.pages.get(key)
+    if (known) {
+      this.pages.delete(key)
+      this.pages.set(key, known)
+      return structuredClone(known)
+    }
+    const page = this.readPage(query)
+    this.pages.set(key, structuredClone(page))
+    if (this.pages.size > 128) this.pages.delete(this.pages.keys().next().value!)
+    return page
+  }
+
+  private readPage(query: TitleQuery): TitlePage {
     const limit = Math.min(Math.max(Number(query.limit ?? 60), 1), 200)
     const sort: TitleSort = (query.sort as TitleSort | undefined) ?? 'title'
     const where: string[] = []

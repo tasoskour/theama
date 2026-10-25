@@ -35,17 +35,30 @@ export const useDownloadsStore = defineStore('downloads', () => {
   }
   const notConnected: Failure = { ok: false, code: 'unreachable', message: 'Not connected' }
 
-  async function load(): Promise<void> {
+  let pendingLoad: Promise<void> | null = null
+  let settingsRevision = 0
+  let listRevision = 0
+  function load(): Promise<void> {
+    if (pendingLoad) return pendingLoad
+    pendingLoad = loadStatus().finally(() => { pendingLoad = null })
+    return pendingLoad
+  }
+
+  async function loadStatus(): Promise<void> {
     if (!connection.client) return
+    const api = connection.client
+    const revision = settingsRevision
+    const listAtStart = listRevision
     try {
       const [c, i, l] = await Promise.all([
-        connection.client.get('/downloads/status', DownloadClientStatus),
-        connection.client.get('/downloads/indexer', IndexerStatus),
-        connection.client.get('/downloads', DownloadList),
+        api.get('/downloads/status', DownloadClientStatus),
+        api.get('/downloads/indexer', IndexerStatus),
+        api.get('/downloads', DownloadList),
       ])
+      if (connection.client !== api || revision !== settingsRevision) return
       client.value = c
       indexer.value = i
-      list.value = l
+      if (listAtStart === listRevision) list.value = l
     } catch {
       // The settings page shows "unknown" until the service answers.
     }
@@ -55,7 +68,9 @@ export const useDownloadsStore = defineStore('downloads', () => {
   async function saveClient(next: { url: string; username: string; password: string } | null): Promise<DownloadResult> {
     if (!connection.client) return notConnected
     try {
-      client.value = await connection.client.put('/downloads/client', { qbittorrent: next }, DownloadClientStatus)
+      const result = await connection.client.put('/downloads/client', { qbittorrent: next }, DownloadClientStatus)
+      settingsRevision++
+      client.value = result
       return { ok: true }
     } catch (err) {
       return failure(err)
@@ -65,18 +80,20 @@ export const useDownloadsStore = defineStore('downloads', () => {
   async function saveIndexer(next: { url: string; apiKey: string } | null): Promise<DownloadResult> {
     if (!connection.client) return notConnected
     try {
-      indexer.value = await connection.client.put('/downloads/indexer', { prowlarr: next }, IndexerStatus)
+      const result = await connection.client.put('/downloads/indexer', { prowlarr: next }, IndexerStatus)
+      settingsRevision++
+      indexer.value = result
       return { ok: true }
     } catch (err) {
       return failure(err)
     }
   }
 
-  async function findReleases(q: ReleaseSearch): Promise<ReleasesResult> {
+  async function findReleases(q: ReleaseSearch, signal?: AbortSignal): Promise<ReleasesResult> {
     if (!connection.client) return notConnected
     try {
       const { kind, title, year, season, episode, source } = q
-      return { ok: true, value: await connection.client.get('/downloads/releases', ReleaseList, { kind, title, year, season, episode, source }) }
+      return { ok: true, value: await connection.client.get('/downloads/releases', ReleaseList, { kind, title, year, season, episode, source }, signal ? { signal } : undefined) }
     } catch (err) {
       return failure(err)
     }
@@ -141,7 +158,7 @@ export const useDownloadsStore = defineStore('downloads', () => {
   )
 
   connection.onEvent((e) => {
-    if (e.type === 'downloads.changed') list.value = e.list
+    if (e.type === 'downloads.changed') { listRevision++; list.value = e.list }
   })
 
   return { client, indexer, list, setPaused, files, selectFiles, remove, load, saveClient, saveIndexer, findReleases, download }

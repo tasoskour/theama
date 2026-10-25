@@ -315,6 +315,13 @@ export const MIGRATIONS: readonly string[] = [
     PRIMARY KEY (provider, kind, external_id)
   );
   `,
+  /* 14 — titles the person removed from "continue watching" (they return when played again) */
+  `
+  CREATE TABLE continue_dismissal (
+    title_key    TEXT PRIMARY KEY,
+    dismissed_at TEXT NOT NULL
+  );
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

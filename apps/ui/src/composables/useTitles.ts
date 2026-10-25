@@ -1,8 +1,9 @@
-import { nextTick, onScopeDispose, ref, watch, type Ref } from 'vue'
+import { nextTick, onScopeDispose, ref, shallowRef, watch, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { GENRE_SEPARATOR, TitlePage, type GenreMode, TitleKind, type TitleSort, type TitleSummary } from '@theama/contracts'
 import { useConnectionStore } from '@/stores/connection'
 import { navState } from '@/utils/navState'
+import { useRefresh } from './useRefresh'
 
 const PAGE_SIZE = 60
 
@@ -48,7 +49,7 @@ export function useTitles(options: UseTitlesOptions) {
   const routeKey = route.fullPath
   const snap = options.remember ? snapshots.get(routeKey) : undefined
 
-  const items = ref<TitleSummary[]>(snap?.items ?? [])
+  const items = shallowRef<TitleSummary[]>(snap?.items ?? [])
   const total = ref(snap?.total ?? 0)
   const nextCursor = ref<string | null>(snap?.nextCursor ?? null)
   const loading = ref(false)
@@ -61,6 +62,15 @@ export function useTitles(options: UseTitlesOptions) {
   const hideUnavailable = ref(snap?.hideUnavailable ?? false)
 
   let generation = 0 // drops responses that belong to an older query
+  let controller: AbortController | undefined
+  let disposed = false
+  const refresh = useRefresh(reload)
+
+  function invalidate(): void {
+    generation++
+    controller?.abort()
+    loading.value = false
+  }
 
   async function fetchPage(cursor?: string): Promise<TitlePage | null> {
     const kind = options.kind()
@@ -74,11 +84,14 @@ export function useTitles(options: UseTitlesOptions) {
       hideUnavailable: hideUnavailable.value,
       limit: options.limit ?? PAGE_SIZE,
       cursor,
-    })
+    }, { signal: controller!.signal })
   }
 
   /** Replaces the list with a fresh first page. The old list stays visible meanwhile (no flicker). */
   async function reload(): Promise<void> {
+    if (disposed) return
+    controller?.abort()
+    controller = new AbortController()
     const mine = ++generation
     if (options.kind() === null) {
       // A page with nothing to list (e.g. Search with an empty box) shows an empty list, never stale results.
@@ -98,7 +111,7 @@ export function useTitles(options: UseTitlesOptions) {
       loaded.value = true
       error.value = null
     } catch (err) {
-      if (mine === generation) error.value = err instanceof Error ? err.message : String(err)
+      if (mine === generation && !controller.signal.aborted) error.value = err instanceof Error ? err.message : String(err)
     } finally {
       if (mine === generation) loading.value = false
     }
@@ -107,6 +120,8 @@ export function useTitles(options: UseTitlesOptions) {
   async function loadMore(): Promise<void> {
     if (loading.value || !nextCursor.value || options.limit !== undefined) return
     const mine = generation
+    const request = new AbortController()
+    controller = request
     loading.value = true
     try {
       const page = await fetchPage(nextCursor.value)
@@ -114,9 +129,9 @@ export function useTitles(options: UseTitlesOptions) {
       items.value = [...items.value, ...page.items]
       nextCursor.value = page.nextCursor
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err)
+      if (mine === generation && !request.signal.aborted) error.value = err instanceof Error ? err.message : String(err)
     } finally {
-      loading.value = false
+      if (mine === generation) loading.value = false
     }
   }
 
@@ -133,6 +148,8 @@ export function useTitles(options: UseTitlesOptions) {
             items: items.value, total: total.value, nextCursor: nextCursor.value, q: q.value, sort: sort.value, genres: genres.value, genreMode: genreMode.value,
             hideUnavailable: hideUnavailable.value, scrollY: window.scrollY, focusKey: focusedKey(),
           })
+          // Query strings can create arbitrarily many route keys during a long session.
+          if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value!)
         }
         return true
       })
@@ -144,8 +161,10 @@ export function useTitles(options: UseTitlesOptions) {
     restored = true
     void nextTick(() =>
       requestAnimationFrame(() => {
+        if (disposed) return
         window.scrollTo({ top: snap.scrollY })
         if (snap.focusKey) {
+          document.dispatchEvent(new CustomEvent('theama:restore-title-focus', { detail: snap.focusKey }))
           document.querySelector<HTMLElement>(`[data-title-key="${CSS.escape(snap.focusKey)}"]`)?.focus({ preventScroll: true })
         }
       }),
@@ -156,6 +175,7 @@ export function useTitles(options: UseTitlesOptions) {
   // --- reacting to changes -------------------------------------------------------------------
   let debounce: ReturnType<typeof setTimeout> | undefined
   watch([q, sort, genres, genreMode, hideUnavailable], () => {
+    invalidate()
     clearTimeout(debounce)
     debounce = setTimeout(() => void reload(), 250)
   })
@@ -170,9 +190,11 @@ export function useTitles(options: UseTitlesOptions) {
     { immediate: true },
   )
   const off = connection.onEvent((e) => {
-    if (e.type === 'library.changed' || e.type === 'scan.finished') void reload()
+    if (e.type === 'library.changed' || e.type === 'scan.finished') refresh.schedule()
   })
   onScopeDispose(() => {
+    disposed = true
+    invalidate()
     off()
     offBeforeEach?.()
     clearTimeout(debounce)

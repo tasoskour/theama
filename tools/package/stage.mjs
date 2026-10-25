@@ -63,6 +63,7 @@ cpSync(need(join(root, 'apps', 'ui', 'dist'), 'Run "yarn build" first.'), join(r
 
 mkdirSync(join(res, 'server'), { recursive: true })
 cpSync(need(join(root, 'apps', 'server', 'dist', 'server.cjs'), 'Run "yarn build" first.'), join(res, 'server', 'server.cjs'))
+cpSync(need(join(root, 'apps', 'server', 'dist', 'background-worker.cjs'), 'Run "yarn build" first.'), join(res, 'server', 'background-worker.cjs'))
 // better-sqlite3 is the one thing the bundle loads from disk: its JavaScript and the Windows x64 prebuilt binary.
 const sqlite = join(res, 'server', 'node_modules', 'better-sqlite3')
 const sqliteSrc = need(join(root, 'node_modules', 'better-sqlite3'), 'Run "yarn install".')

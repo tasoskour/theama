@@ -66,7 +66,7 @@ A synthetic library of 4,800 identifiable titles / 20,000 files (3,800 films, 1,
 | service start to listening | 426 ms | | 2,000 ms |
 | scan of 10,000 files (no FFprobe) | 5.2 s | | |
 
-The first run found two real problems (the missing-episode count and collections were quadratic); `apps/server/src/scan/titles-scale.test.ts` now fails if listing a ~5,000-file library takes more than 1.5 s, which those bugs missed by orders of magnitude. Not measured: the UI's scroll frame rate and memory at this size (the grid pages 60 titles at a time with `content-visibility`), and FFprobe's effect on scan time.
+The first run found two real problems (the missing-episode count and collections were quadratic); `apps/server/src/scan/titles-scale.test.ts` now fails if listing a ~5,000-file library takes more than 1.5 s, which those bugs missed by orders of magnitude. That first pass did not measure renderer memory/frame timing or FFprobe's effect on scan time. The [2026-10-25 performance follow-up](12-performance.md) adds a virtualized-grid renderer test and API responsiveness checks during large log searches. FFprobe and real-artwork workloads still need representative hardware runs.
 
 ### The packaged app (`yarn test:packaged`)
 Builds the unpacked app and drives the shipped `Theama.exe` with Playwright: window and interface from `resources/ui`, the bundled Node running the bundled backend with its native SQLite module, FFprobe found, a Greek-named folder scanned, the service and backup pages, a backup then restore then service restart onto the restored library, and the notices present. It runs the backend as a plain child (`THEAMA_CONTROLLER=process`) because a Windows service needs an administrator's approval.

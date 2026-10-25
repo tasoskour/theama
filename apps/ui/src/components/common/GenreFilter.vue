@@ -3,13 +3,14 @@ import type { GenreMode } from '@theama/contracts'
 
 // Multi-select of genres with an Any/All switch ("comedy or crime" vs "comedy and crime").
 // Shared by the library pages, global search and the downloads finder.
-defineProps<{ items: string[] }>()
+// `flush` drops the field and switch chrome and keeps both on one line, for use inside a toolbar that already has a border.
+defineProps<{ items: string[]; flush?: boolean }>()
 const model = defineModel<string[]>({ required: true })
 const mode = defineModel<GenreMode>('mode', { default: 'any' })
 </script>
 
 <template>
-  <div class="genre-filter">
+  <div class="genre-filter" :class="{ 'genre-filter--flush': flush }">
     <!-- A placeholder (not a floating label) so chips never collide with the label at any text size. -->
     <v-select
       v-model="model"
@@ -102,5 +103,29 @@ const mode = defineModel<GenreMode>('mode', { default: 'any' })
   color: rgb(var(--v-theme-primary)) !important;
   font-weight: 600;
   box-shadow: 0 0 0 1px rgba(var(--v-theme-hairline), 0.9);
+}
+
+/* Flush: sits inside a bordered toolbar, so no box of its own and never wraps. */
+.genre-filter--flush {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+.genre-filter--flush .genre-filter__select {
+  flex: 1 1 8rem;
+  min-width: 8rem;
+}
+.genre-filter--flush .genre-filter__mode.v-btn-toggle {
+  height: calc(var(--th-control-h) - 8px) !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent;
+}
+.genre-filter--flush .genre-filter__mode :deep(.v-btn) {
+  min-width: 2.75rem;
+  padding-inline: 0.65rem;
+}
+.genre-filter--flush .genre-filter__mode :deep(.v-btn--active) {
+  background: rgba(var(--v-theme-primary), 0.14) !important;
+  box-shadow: none;
 }
 </style>

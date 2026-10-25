@@ -44,7 +44,7 @@ const favorites = useFavoritesStore()
         :aria-pressed="favorites.isFavorite(c)"
         :loading="favorites.isPending(c)"
         :disabled="!favorites.loaded || favorites.isPending(c)"
-        size="small"
+        size="x-small"
         data-test="suggestion-favorite"
         @click="favorites.toggle(c)"
       />
@@ -69,8 +69,8 @@ const favorites = useFavoritesStore()
   position: absolute;
   top: 0.25rem;
   right: 0.25rem;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
+  min-width: 2rem;
+  min-height: 2rem;
 }
 .card__added {
   position: absolute;

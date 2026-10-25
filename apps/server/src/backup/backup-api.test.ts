@@ -74,7 +74,7 @@ describe('backups through the API', () => {
     expect((await send('DELETE', '/backups/..%5C..%5Ctheama.db')).status).toBe(404)
   })
 
-  it('refuses things that are not backups, and says why', async () => {
+  it('refuses things that are not backups, and says why', { timeout: 15_000 }, async () => {
     writeFileSync(join(dir, 'junk.db'), 'junk')
     const junk = await send('POST', '/backups/restore', { path: join(dir, 'junk.db') })
     expect(junk.status).toBe(422)

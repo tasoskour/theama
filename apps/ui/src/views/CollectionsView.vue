@@ -5,6 +5,7 @@ import { mdiFolderMultipleOutline, mdiPlus } from '@mdi/js'
 import { CollectionList, type CollectionDetail, type CollectionKind, type CollectionSummary } from '@theama/contracts'
 import CollectionCard from '@/components/collections/CollectionCard.vue'
 import NewCollectionDialog from '@/components/collections/NewCollectionDialog.vue'
+import { useLatestRequest, useRefresh } from '@/composables/useRefresh'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
 import { moveBetweenCards } from '@/utils/gridNav'
@@ -19,21 +20,23 @@ const error = ref<string | null>(null)
 const filter = ref<CollectionKind | 'all'>('all')
 const creating = ref(false)
 
+const latest = useLatestRequest()
+const refresh = useRefresh(load)
+
 async function load(): Promise<void> {
-  if (!connection.client) return
-  try {
-    items.value = (await connection.client.get('/collections', CollectionList)).items
+  const client = connection.client
+  if (!client) return
+  await latest(signal => client.get('/collections', CollectionList, undefined, { signal }), result => {
+    items.value = result.items
     error.value = null
     loaded.value = true
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err)
-  }
+  }, err => { error.value = err instanceof Error ? err.message : String(err) })
 }
 
 watch(() => connection.phase, (p) => p === 'connected' && void load(), { immediate: true })
 onScopeDispose(
   connection.onEvent((e) => {
-    if (e.type === 'library.changed') void load()
+    if (e.type === 'library.changed') refresh.schedule()
   }),
 )
 

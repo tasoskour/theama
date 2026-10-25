@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { mdiArrowLeft } from '@mdi/js'
 import type { Release, ReleaseKind, ReleaseSource, Resolution } from '@theama/contracts'
@@ -22,17 +22,21 @@ const adding = ref<string | null>(null)
 const sent = ref(new Set<string>())
 const snackbar = ref('')
 let generation = 0
+let controller: AbortController | undefined
+onBeforeUnmount(() => { generation++; controller?.abort() })
 
 const resolutions = computed(() => (['2160p', '1080p', '720p', '480p'] as const).filter((r) => items.value.some((i) => i.resolution === r)))
 const shown = computed(() => (resolution.value ? items.value.filter((i) => i.resolution === resolution.value) : items.value))
 
 async function run(): Promise<void> {
   const mine = ++generation
+  controller?.abort()
+  controller = new AbortController()
   loading.value = true
   error.value = null
   items.value = []
   resolution.value = null
-  const res = await downloads.findReleases(props.query)
+  const res = await downloads.findReleases(props.query, controller.signal)
   if (mine !== generation) return
   loading.value = false
   if (res.ok) {

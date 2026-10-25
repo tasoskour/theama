@@ -7,8 +7,8 @@ import {
   MetadataStatus,
   MetadataSuggestionDetails,
   MetadataSuggestionsResult,
-  type MatchCandidate,
   type MatchKind,
+  type Suggestion,
   type GenreMode,
   type SuggestionSection,
 } from '@theama/contracts'
@@ -58,10 +58,10 @@ export const useMetadataStore = defineStore('metadata', () => {
     }
   }
 
-  async function search(kind: MatchKind, q: string, year?: number): Promise<{ ok: true; items: MatchCandidate[] } | { ok: false; code: string; message: string }> {
+  async function search(kind: MatchKind, q: string, year?: number, signal?: AbortSignal): Promise<{ ok: true; items: Suggestion[] } | { ok: false; code: string; message: string }> {
     if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
     try {
-      const res = await connection.client.get('/metadata/search', MetadataSearchResult, { kind, q, year })
+      const res = await connection.client.get('/metadata/search', MetadataSearchResult, { kind, q, year }, signal ? { signal } : undefined)
       return { ok: true, items: res.items }
     } catch (err) {
       return failure(err) as { ok: false; code: string; message: string }
@@ -84,12 +84,13 @@ export const useMetadataStore = defineStore('metadata', () => {
     page: number,
     genres: string[] = [],
     genreMode: GenreMode = 'any',
+    signal?: AbortSignal,
   ): Promise<({ ok: true } & MetadataSuggestionsResult) | { ok: false; code: string; message: string }> {
     if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
     try {
       const res = await connection.client.get('/metadata/suggestions', MetadataSuggestionsResult, {
         section, year, page, genres: genres.join(GENRE_SEPARATOR) || undefined, genreMode: genres.length > 1 ? genreMode : undefined,
-      })
+      }, signal ? { signal } : undefined)
       return { ok: true, ...res }
     } catch (err) {
       return failure(err) as { ok: false; code: string; message: string }
@@ -97,16 +98,23 @@ export const useMetadataStore = defineStore('metadata', () => {
   }
 
   /** The IMDb id and trailer of a suggestion, looked up the first time they are wanted. */
-  const details = new Map<string, MetadataSuggestionDetails>()
+  const details = new Map<string, { value: MetadataSuggestionDetails; until: number }>()
 
   async function suggestionDetails(kind: MatchKind, externalId: string): Promise<({ ok: true } & MetadataSuggestionDetails) | { ok: false; code: string; message: string }> {
     const key = `${kind}:${externalId}`
+    const now = Date.now()
+    for (const [id, entry] of details) if (entry.until <= now) details.delete(id)
     const known = details.get(key)
-    if (known) return { ok: true, ...known }
+    if (known) {
+      details.delete(key)
+      details.set(key, known)
+      return { ok: true, ...known.value }
+    }
     if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
     try {
       const res = await connection.client.get('/metadata/suggestions/details', MetadataSuggestionDetails, { kind, externalId })
-      details.set(key, res)
+      details.set(key, { value: res, until: Date.now() + 3_600_000 })
+      if (details.size > 256) details.delete(details.keys().next().value!)
       return { ok: true, ...res }
     } catch (err) {
       return failure(err) as { ok: false; code: string; message: string }

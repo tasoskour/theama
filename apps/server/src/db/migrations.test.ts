@@ -36,7 +36,7 @@ describe('SettingsRepo', () => {
   it('returns defaults, persists patches and ignores corrupt values', () => {
     const { db, raw } = openDatabase(':memory:')
     const repo = new SettingsRepo(db)
-    expect(repo.get()).toEqual({ language: 'en', theme: 'system', visualMode: 'standard', graphicsQuality: 'medium', backdropScene: 'classic', backdropByGenre: true, backdropByKind: true, logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], autoPlayNext: true, nextEpisodeCountdownSeconds: 5, renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}', downloadMovieSourceId: null, downloadSeriesSourceId: null, downloadsShowAll: false })
+    expect(repo.get()).toEqual({ language: 'en', theme: 'system', textSize: 'default', visualMode: 'standard', graphicsQuality: 'medium', backdropScene: 'classic', backdropByGenre: true, backdropByKind: true, logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], autoPlayNext: true, nextEpisodeCountdownSeconds: 5, renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}', downloadMovieSourceId: null, downloadSeriesSourceId: null, downloadsShowAll: false })
     expect(repo.update({ language: 'el', theme: 'dark' })).toMatchObject({ language: 'el', theme: 'dark' })
     raw.prepare("UPDATE application_setting SET value = '\"klingon\"' WHERE key = 'language'").run()
     expect(repo.get()).toMatchObject({ language: 'en', theme: 'dark' })

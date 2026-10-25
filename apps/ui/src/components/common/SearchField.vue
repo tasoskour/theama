@@ -29,5 +29,9 @@ defineExpose({
     spellcheck="false"
     data-gramm="false"
     class="th-search-control"
-  />
+  >
+    <template #loader="{ color, isActive }">
+      <v-progress-linear :color="color" :active="isActive" height="2" indeterminate :aria-label="$t('common.loading')" />
+    </template>
+  </v-text-field>
 </template>

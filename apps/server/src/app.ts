@@ -83,7 +83,8 @@ import {
   type SystemInfo,
   WATCHED_FRACTION,
 } from '@theama/contracts'
-import { pruneLogs, readAppLogs, readServiceOutput } from '@theama/logs'
+import { pruneLogs, readServiceOutput } from '@theama/logs'
+import { BackgroundReader } from './background/runner'
 import { z } from 'zod'
 import type { ServerConfig } from './config'
 import type { LogHub } from './log/hub'
@@ -155,6 +156,7 @@ function apiError(code: string, message: string, details?: unknown): ApiError {
 }
 
 export async function buildApp(deps: AppDeps) {
+  const logReader = new BackgroundReader()
   const { config, logger, logHub, settings, serviceEvents, library, exclusions, files, titles, collections, playback, renamer, journal, backups, ffprobeFound, jobs, scans, auto, metadata, credentials, provider, downloads, downloadMonitor, artwork, events, token, startedAt } = deps
   const app = Fastify({
     loggerInstance: logger,
@@ -744,6 +746,13 @@ export async function buildApp(deps: AppDeps) {
     return { items: playback.continueWatching(limit) }
   })
 
+  app.delete(`${API_PREFIX}/playback/continue/:key`, async (req) => {
+    const { key } = z.object({ key: z.string().min(1).max(1000) }).parse(req.params)
+    if (!playback.dismissContinue(key, nowIso())) throw new ApiProblem('not_found', 'No such title', 404)
+    events.broadcast({ type: 'library.changed' })
+    return { ok: true }
+  })
+
   /** The desktop shell asks for this just before starting a player; it never takes a path from the UI. */
   app.get(`${API_PREFIX}/playback/files/:id/launch`, async (req): Promise<LaunchInfo> => {
     const { id } = IdParams.parse(req.params)
@@ -840,9 +849,9 @@ export async function buildApp(deps: AppDeps) {
 
   // --- backups ------------------------------------------------------------
 
-  function backupCall<T>(fn: () => T): T {
+  async function backupCall<T>(fn: () => T): Promise<Awaited<T>> {
     try {
-      return fn()
+      return await fn()
     } catch (err) {
       if (err instanceof BackupProblem) {
         const status = { not_found: 404, invalid_backup: 422, newer_version: 422, bad_path: 400 }[err.code]
@@ -851,27 +860,27 @@ export async function buildApp(deps: AppDeps) {
       throw err
     }
   }
-  const backupList = (): BackupList => ({ items: backups.list(), pending: backups.pending(), directory: config.backupsDir })
+  const backupList = async (): Promise<BackupList> => ({ items: backups.list(), pending: await backups.pending(), directory: config.backupsDir })
 
   app.get(`${API_PREFIX}/backups`, async (): Promise<BackupList> => backupList())
 
-  app.post(`${API_PREFIX}/backups`, async (_req, reply): Promise<BackupInfo> => reply.code(201).send(backupCall(() => backups.create('manual'))))
+  app.post(`${API_PREFIX}/backups`, async (_req, reply): Promise<BackupInfo> => reply.code(201).send(await backupCall(() => backups.create('manual'))))
 
   app.delete(`${API_PREFIX}/backups/:name`, async (req) => {
     const { name } = z.object({ name: z.string().min(1).max(200) }).parse(req.params)
-    backupCall(() => backups.remove(name))
+    await backupCall(() => backups.remove(name))
     return { deleted: true }
   })
 
   /** Sets a restore aside. It takes effect at the next start of the service (the database is open now). */
   app.post(`${API_PREFIX}/backups/restore`, async (req): Promise<BackupList> => {
     const body = RestoreRequest.parse(req.body ?? {})
-    backupCall(() => backups.stage(body.name !== undefined ? { name: body.name } : { path: body.path! }))
+    await backupCall(() => backups.stage(body.name !== undefined ? { name: body.name } : { path: body.path! }))
     return backupList()
   })
 
   app.delete(`${API_PREFIX}/backups/restore`, async (): Promise<BackupList> => {
-    backups.cancelPending()
+    await backups.cancelPending()
     return backupList()
   })
 
@@ -919,7 +928,7 @@ export async function buildApp(deps: AppDeps) {
     if (query.source === 'service-stdout' || query.source === 'service-stderr') {
       return { items: readServiceOutput(config.logsDir, query.source, query), nextCursor: null }
     }
-    return readAppLogs(config.logsDir, query)
+    return logReader.logs(config.logsDir, query)
   })
 
   app.get(`${API_PREFIX}/service/events`, async (): Promise<ServiceEventList> => ({
@@ -933,6 +942,7 @@ export async function buildApp(deps: AppDeps) {
 
   logHub.subscribe((entry) => events.broadcast({ type: 'log.appended', entry }))
 
+  app.addHook('onClose', () => logReader.close())
   return { app, events }
 }
 

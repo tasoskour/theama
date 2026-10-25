@@ -240,6 +240,8 @@ describe('manual identification', () => {
     expect(res.items.every((c) => c.posterUrl?.startsWith('/api/v1/artwork/thumb-'))).toBe(true)
     expect(res.items.every((c) => typeof c.score === 'number')).toBe(true)
     expect(res.items.every((c) => c.genres?.includes('Sci-Fi & Fantasy'))).toBe(true)
+    expect(res.items.every((c) => c.rating === null || typeof c.rating === 'number')).toBe(true)
+    expect(res.items.some((c) => typeof c.rating === 'number')).toBe(true)
   })
 
   it('suggests a year\'s popular movies and series together, rated, with thumbnails', async () => {

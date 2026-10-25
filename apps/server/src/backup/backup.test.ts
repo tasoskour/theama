@@ -38,7 +38,7 @@ function oldDatabase(file: string, version: number): void {
 }
 
 describe('inspectDatabase', () => {
-  it('describes a good backup', () => {
+  it('describes a good backup', async () => {
     const dir = fresh()
     const h = openDatabase(join(dir, 'a.db'))
     library(h, ['Alpha', 'Beta'])
@@ -46,7 +46,7 @@ describe('inspectDatabase', () => {
     expect(inspectDatabase(join(dir, 'a.db'))).toEqual({ schemaVersion: LATEST_SCHEMA_VERSION, files: 2, titles: 2, collections: 0 })
   })
 
-  it('refuses files that are not Theama backups, with a reason', () => {
+  it('refuses files that are not Theama backups, with a reason', async () => {
     const dir = fresh()
     writeFileSync(join(dir, 'text.db'), 'this is not a database at all')
     expect(() => inspectDatabase(join(dir, 'text.db'))).toThrow(/not a Theama backup/)
@@ -63,7 +63,7 @@ describe('inspectDatabase', () => {
     expect(() => inspectDatabase(dir)).toThrow(BackupProblem)
   })
 
-  it('refuses a backup from a newer Theama, so it is never half-understood', () => {
+  it('refuses a backup from a newer Theama, so it is never half-understood', async () => {
     const dir = fresh()
     const h = openDatabase(join(dir, 'newer.db'))
     h.raw.pragma(`user_version = ${LATEST_SCHEMA_VERSION + 1}`)
@@ -72,7 +72,7 @@ describe('inspectDatabase', () => {
   })
 })
 
-describe('BackupService', () => {
+describe('BackupService', { timeout: 15_000 }, () => {
   let handle: DbHandle
   let dir: string
   let clock: Date
@@ -84,14 +84,14 @@ describe('BackupService', () => {
     library(handle, ['Alpha'])
     clock = new Date('2025-03-01T10:00:00.000Z')
     service = new BackupService({ raw: handle.raw, dir: join(dir, 'backups'), restoreDir: join(dir, 'restore'), logger: log, now: () => clock })
-    return () => {
-      service.stop()
+    return async () => {
+      await service.stop()
       handle.close()
     }
   })
 
-  it('makes a consistent copy of a database that is in use, and lists it', () => {
-    const made = service.create('manual')
+  it('makes a consistent copy of a database that is in use, and lists it', async () => {
+    const made = await service.create('manual')
     expect(made).toMatchObject({ kind: 'manual', createdAt: '2025-03-01T10:00:00.000Z', schemaVersion: LATEST_SCHEMA_VERSION })
     expect(made.name).toBe(`theama-manual-20250301-100000-v${LATEST_SCHEMA_VERSION}.db`)
     expect(made.size).toBeGreaterThan(1000)
@@ -100,70 +100,81 @@ describe('BackupService', () => {
     expect(readdirSync(join(dir, 'backups'))).toEqual([made.name]) // no partial files left behind
   })
 
-  it('lists newest first and ignores files that are not backups', () => {
-    service.create('manual')
+  it('lists newest first and ignores files that are not backups', async () => {
+    await service.create('manual')
     clock = new Date('2025-03-02T10:00:00.000Z')
-    service.create('daily')
+    await service.create('daily')
     writeFileSync(join(dir, 'backups', 'notes.txt'), 'x')
     writeFileSync(join(dir, 'backups', 'theama-manual-garbage.db'), 'x')
     expect(service.list().map((b) => b.kind)).toEqual(['daily', 'manual'])
   })
 
-  it('makes a daily backup only when none is recent, and keeps only the last seven', () => {
-    expect(service.ensureDaily()).not.toBeNull()
+  it('makes a daily backup only when none is recent, and keeps only the last seven', async () => {
+    expect(await service.ensureDaily()).not.toBeNull()
     clock = new Date(clock.getTime() + 60 * 60 * 1000)
-    expect(service.ensureDaily()).toBeNull() // an hour later: nothing new
+    expect(await service.ensureDaily()).toBeNull() // an hour later: nothing new
     for (let day = 1; day <= 10; day++) {
       clock = new Date(clock.getTime() + 25 * 60 * 60 * 1000)
-      expect(service.ensureDaily()).not.toBeNull()
+      expect(await service.ensureDaily()).not.toBeNull()
     }
     expect(service.list().filter((b) => b.kind === 'daily')).toHaveLength(7)
   })
 
-  it('never deletes manual backups on its own, and a manual one counts as a recent backup', () => {
+  it('never deletes manual backups on its own, and a manual one counts as a recent backup', async () => {
     for (let i = 0; i < 12; i++) {
       clock = new Date(clock.getTime() + 1000)
-      service.create('manual')
+      await service.create('manual')
     }
     expect(service.list().filter((b) => b.kind === 'manual')).toHaveLength(12)
-    expect(service.ensureDaily()).toBeNull()
+    expect(await service.ensureDaily()).toBeNull()
   })
 
-  it('removes a named backup, and only a real one', () => {
-    const b = service.create('manual')
-    service.remove(b.name)
+  it('removes a named backup, and only a real one', async () => {
+    const b = await service.create('manual')
+    await service.remove(b.name)
     expect(service.list()).toEqual([])
-    expect(() => service.remove(b.name)).toThrow(BackupProblem)
-    expect(() => service.remove('..\\..\\theama.db')).toThrow(BackupProblem)
+    await expect(service.remove(b.name)).rejects.toThrow(BackupProblem)
+    await expect(service.remove('..\\..\\theama.db')).rejects.toThrow(BackupProblem)
   })
 
-  it('stages a restore from a listed backup or an outside file, without touching the running database', () => {
-    const b = service.create('manual')
+  it('stages a restore from a listed backup or an outside file, without touching the running database', async () => {
+    const b = await service.create('manual')
     handle.raw.prepare("UPDATE media_file SET guessed_title = 'Changed'").run()
-    const staged = service.stage({ name: b.name })
+    const staged = await service.stage({ name: b.name })
     expect(staged).toMatchObject({ source: b.name, schemaVersion: LATEST_SCHEMA_VERSION, summary: { files: 1, titles: 1 } })
-    expect(service.pending()?.source).toBe(b.name)
+    expect((await service.pending())?.source).toBe(b.name)
     expect((handle.raw.prepare('SELECT guessed_title AS t FROM media_file').get() as { t: string }).t).toBe('Changed')
 
-    service.cancelPending()
-    expect(service.pending()).toBeNull()
-    expect(service.stage({ path: join(dir, 'backups', b.name) }).source).toBe(b.name)
-    expect(() => service.stage({ name: 'nope.db' })).toThrow(/No such backup/)
+    await service.cancelPending()
+    expect(await service.pending()).toBeNull()
+    expect((await service.stage({ path: join(dir, 'backups', b.name) })).source).toBe(b.name)
+    await expect(service.stage({ name: 'nope.db' })).rejects.toThrow(/No such backup/)
     writeFileSync(join(dir, 'junk.db'), 'junk')
-    expect(() => service.stage({ path: join(dir, 'junk.db') })).toThrow(/not a Theama backup/)
+    await expect(service.stage({ path: join(dir, 'junk.db') })).rejects.toThrow(/not a Theama backup/)
+  })
+
+  it('includes committed WAL pages when staging an open database', async () => {
+    handle.raw.prepare("UPDATE media_file SET guessed_title = 'Latest committed title'").run()
+    await service.stage({ path: join(dir, 'theama.db') })
+    const staged = new Database(join(dir, 'restore', 'pending.db'), { readonly: true })
+    try {
+      expect(staged.prepare('SELECT guessed_title FROM media_file').get()).toEqual({ guessed_title: 'Latest committed title' })
+    } finally { staged.close() }
+    expect(readdirSync(join(dir, 'restore')).sort()).toEqual(['pending.db', 'pending.json'])
   })
 })
 
-describe('restoring at start-up', () => {
-  it('replaces the database from the staged backup, keeping the old one as a pre-restore backup', () => {
+describe('restoring at start-up', { timeout: 15_000 }, () => {
+  it('replaces the database from the staged backup, keeping the old one as a pre-restore backup', async () => {
     const dir = fresh()
     const paths = { databaseFile: join(dir, 'data', 'theama.db'), backupsDir: join(dir, 'backups'), restoreDir: join(dir, 'restore') }
     const h = openDatabase(paths.databaseFile)
     library(h, ['Original'])
     const service = new BackupService({ raw: h.raw, dir: paths.backupsDir, restoreDir: paths.restoreDir, logger: log })
-    const backup = service.create('manual')
+    const backup = await service.create('manual')
     h.raw.prepare("UPDATE media_file SET guessed_title = 'Newer'").run()
-    service.stage({ name: backup.name })
+    await service.stage({ name: backup.name })
+    await service.stop()
     h.close()
 
     expect(applyPendingRestore(paths, log, new Date('2025-04-01T00:00:00.000Z'))).toBe(true)
@@ -180,7 +191,7 @@ describe('restoring at start-up', () => {
     expect(applyPendingRestore(paths, log)).toBe(false) // nothing left to apply
   })
 
-  it('drops a staged file that stopped being a valid backup, and leaves the current database alone', () => {
+  it('drops a staged file that stopped being a valid backup, and leaves the current database alone', async () => {
     const dir = fresh()
     const paths = { databaseFile: join(dir, 'data', 'theama.db'), backupsDir: join(dir, 'backups'), restoreDir: join(dir, 'restore') }
     const h = openDatabase(paths.databaseFile)
@@ -195,7 +206,7 @@ describe('restoring at start-up', () => {
     still.close()
   })
 
-  it('restores onto a fresh install (no database yet)', () => {
+  it('restores onto a fresh install (no database yet)', async () => {
     const dir = fresh()
     const src = openDatabase(join(dir, 'src.db'))
     library(src, ['Imported'])
@@ -204,7 +215,8 @@ describe('restoring at start-up', () => {
     mkdirSync(paths.restoreDir, { recursive: true })
     const h = openDatabase(join(dir, 'tmp.db'))
     const service = new BackupService({ raw: h.raw, dir: join(dir, 'b'), restoreDir: paths.restoreDir, logger: log })
-    service.stage({ path: join(dir, 'src.db') })
+    await service.stage({ path: join(dir, 'src.db') })
+    await service.stop()
     h.close()
     mkdirSync(join(dir, 'data'), { recursive: true })
     expect(applyPendingRestore(paths, log)).toBe(true)
@@ -213,14 +225,16 @@ describe('restoring at start-up', () => {
     back.close()
   })
 
-  it('an older backup is migrated forward when it is opened', () => {
+  it('an older backup is migrated forward when it is opened', async () => {
     const dir = fresh()
     const old = join(dir, 'old.db')
     oldDatabase(old, 3)
     const paths = { databaseFile: join(dir, 'data', 'theama.db'), backupsDir: join(dir, 'backups'), restoreDir: join(dir, 'restore') }
     mkdirSync(paths.restoreDir, { recursive: true })
     const h = openDatabase(join(dir, 'tmp.db'))
-    new BackupService({ raw: h.raw, dir: join(dir, 'b'), restoreDir: paths.restoreDir, logger: log }).stage({ path: old })
+    const service = new BackupService({ raw: h.raw, dir: join(dir, 'b'), restoreDir: paths.restoreDir, logger: log })
+    await service.stage({ path: old })
+    await service.stop()
     h.close()
     expect(applyPendingRestore(paths, log)).toBe(true)
     const back = openDatabase(paths.databaseFile)
@@ -230,7 +244,7 @@ describe('restoring at start-up', () => {
 })
 
 describe('backing up before an upgrade', () => {
-  it('copies a database that is about to be migrated, and does nothing for a current or new one', () => {
+  it('copies a database that is about to be migrated, and does nothing for a current or new one', async () => {
     const dir = fresh()
     const file = join(dir, 'data', 'theama.db')
     mkdirSync(join(dir, 'data'))

@@ -238,6 +238,7 @@ test('one type filter shares the search row and genres filter suggestions and mi
   await expect(card('Interstellar')).toHaveCount(0)
   await genre.getByRole('button', { name: /clear/i }).click()
   await expect(page.locator('[data-test="match-list"] [data-test="suggestion-item"]')).toHaveCount(2)
+  await expect(page.locator('[data-test="match-list"] [data-test="suggestion-rating"]').first()).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('search-toolbar.png') })
   await page.locator('[data-test="match-direct"]').click()
   await expect.poll(() => releaseRequests.length).toBe(2)
@@ -347,12 +348,15 @@ for (const staleOutcome of ['results', 'error'] as const) {
     await genre.locator('.v-select .v-field').click()
     await page.getByRole('option', { name: 'Drama', exact: true }).click()
     await expect.poll(() => suggestionRequests.some((url) => url.searchParams.get('section') === 'new' && url.searchParams.get('genres') === 'Drama')).toBe(true)
+    const cancelled = page.waitForEvent('requestfailed', request => {
+      const params = new URL(request.url()).searchParams
+      return params.get('genres') === 'Drama' && params.get('section') === 'new'
+    })
     await page.getByRole('option', { name: 'Adventure', exact: true }).click()
     await page.keyboard.press('Escape')
     await expect(card('Interstellar')).toBeVisible()
-    const late = page.waitForResponse((response) => new URL(response.url()).searchParams.get('genres') === 'Drama' && new URL(response.url()).searchParams.get('section') === 'new')
+    expect((await cancelled).failure()?.errorText).toContain('ERR_ABORTED')
     finish()
-    await late
     await expect(page.locator('[data-test="suggestion-item"]')).toHaveCount(1)
     await expect(page.locator('[data-test="suggestion-error"]')).toHaveCount(0)
     await expect(page.getByText('Stale provider error')).toHaveCount(0)
@@ -416,7 +420,7 @@ test('release searches require the explicit action for suggestions and search re
   await expect(page.locator('[data-test="match-list"]')).toBeVisible()
   await card('Interstellar').click()
   await expect(dialog()).toBeVisible()
-  await expect(page.locator('[data-test="suggestion-detail-rating"]')).toHaveCount(0)
+  await expect(page.locator('[data-test="suggestion-detail-rating"]')).toContainText('8.4')
   expect(releaseRequests).toHaveLength(1)
   await page.locator('[data-test="suggestion-releases"]').click()
   await expect.poll(() => releaseRequests.length).toBe(2)
@@ -508,7 +512,9 @@ for (const [theme, language] of [['dark', 'en'], ['light', 'en'], ['dark', 'el']
       })
       expect(violations).toEqual([])
     }
-    await expect(page.locator('.details__poster')).not.toBeVisible()
+    // The mobile layout keeps a compact poster beside the synopsis.
+    await expect(page.locator('.details__poster')).toBeVisible()
+    expect((await page.locator('.details__poster').boundingBox())!.width).toBeLessThan(120)
     await page.keyboard.press('Escape')
     await expect(dialog()).not.toBeVisible()
     await page.emulateMedia({ reducedMotion: 'no-preference' })

@@ -1,14 +1,16 @@
 import { build } from 'esbuild'
 
-// Single-file CommonJS bundle. The only runtime dependency left outside the
-// bundle is the native module better-sqlite3, which ships next to it.
+// CommonJS server and background-reader bundles. The only runtime dependency
+// outside the bundles is the native module better-sqlite3, which ships next to them.
 await build({
-  entryPoints: ['src/main.ts'],
-  outfile: 'dist/server.cjs',
+  entryPoints: { server: 'src/main.ts', 'background-worker': 'src/background/worker.ts' },
+  outdir: 'dist',
+  outExtension: { '.js': '.cjs' },
   bundle: true,
   platform: 'node',
   format: 'cjs',
   target: 'node22',
+  define: { 'import.meta.dirname': '__dirname' },
   sourcemap: true,
   external: ['better-sqlite3', 'bufferutil', 'utf-8-validate'],
   logLevel: 'info',

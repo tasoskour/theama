@@ -279,6 +279,12 @@ export const playbackState = sqliteTable(
   (t) => [index('idx_playback_last').on(t.lastPlayedAt)],
 )
 
+/** Titles taken off the "continue watching" rail; they reappear once played after this time. */
+export const continueDismissal = sqliteTable('continue_dismissal', {
+  titleKey: text('title_key').primaryKey(),
+  dismissedAt: text('dismissed_at').notNull(),
+})
+
 /** The journal of file renames: written before a rename happens, updated after, kept for undo. */
 export const fileOperation = sqliteTable(
   'file_operation',

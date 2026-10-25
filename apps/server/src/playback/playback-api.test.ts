@@ -125,6 +125,26 @@ describe('watched state', () => {
     expect((await byTitle('Film')).watchState).toBe('all')
     expect(ContinueList.parse(await get('/playback/continue')).items).toEqual([])
   })
+
+  it('a title can be removed from "continue", keeps its history, and returns when played again', async () => {
+    const film = await byTitle('Film')
+    const fileId = (await detail(film.key)).files[0]!.id
+    const continued = async () => ContinueList.parse(await get('/playback/continue')).items.map((i) => i.summary.title)
+    await send('PUT', `/playback/files/${fileId}`, { watched: false })
+    await send('POST', `/playback/files/${fileId}/launched`)
+    expect(await continued()).toEqual(['Film'])
+
+    expect((await send('DELETE', `/playback/continue/${encodeURIComponent(film.key)}`)).status).toBe(200)
+    expect(await continued()).toEqual([])
+    expect((await detail(film.key)).playback.lastPlayedAt).not.toBeNull()
+
+    await new Promise((r) => setTimeout(r, 5))
+    await send('POST', `/playback/files/${fileId}/launched`)
+    expect(await continued()).toEqual(['Film'])
+
+    expect((await send('DELETE', '/playback/continue/movie:nothing')).status).toBe(404)
+    await send('PUT', `/playback/files/${fileId}`, { watched: true })
+  })
 })
 
 describe('where playback stopped', () => {

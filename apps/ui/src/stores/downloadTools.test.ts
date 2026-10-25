@@ -18,9 +18,27 @@ beforeEach(() => {
   bridge.status.mockImplementation(async () => verified())
   bridge.open.mockResolvedValue({ ok: true, code: null })
 })
-afterEach(() => { vi.clearAllTimers(); vi.useRealTimers() })
+afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('download tools polling', () => {
+  it('pauses while hidden and refreshes immediately on return', async () => {
+    const document = Object.assign(new EventTarget(), { hidden: false })
+    vi.stubGlobal('document', document)
+    const store = useDownloadToolsStore()
+    store.start()
+    await store.refresh()
+    document.hidden = true
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(bridge.status).toHaveBeenCalledOnce()
+    document.hidden = false
+    document.dispatchEvent(new Event('visibilitychange'))
+    await store.refresh()
+    expect(bridge.status).toHaveBeenCalledTimes(2)
+    store.stop()
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(bridge.status).toHaveBeenCalledTimes(2)
+  })
   it('refreshes immediately and every ten seconds, and stops when leaving the screen', async () => {
     const store = useDownloadToolsStore()
     store.start()

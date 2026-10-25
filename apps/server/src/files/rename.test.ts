@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import pino from 'pino'
 import type { MediaKind } from '@theama/contracts'
 import { openDatabase, type DbHandle } from '../db/client'
@@ -68,6 +68,17 @@ afterEach(() => handle.close())
 const approveOk = (items: { status: string; from: string; to: string }[]) => items.filter((i) => i.status === 'ok').map((i) => ({ from: i.from, to: i.to }))
 
 describe('which subtitles travel with a video', () => {
+  it('reads a shared directory once per preview and refreshes it for the next preview', async () => {
+    const a = addFile('D:\\M\\Alpha.2001.mkv', 'movie', 'Alpha', 2001)
+    const b = addFile('D:\\M\\Beta.2002.mkv', 'movie', 'Beta', 2002)
+    const listing = vi.spyOn(disk, 'listDir')
+    await service.preview({ keys: [a.key, b.key] }, TEMPLATES)
+    expect(listing).toHaveBeenCalledOnce()
+    disk.add('D:\\M\\Alpha.2001.srt')
+    const next = await service.preview({ keys: [a.key] }, TEMPLATES)
+    expect(listing).toHaveBeenCalledTimes(2)
+    expect(next.items.some(item => item.kind === 'subtitle')).toBe(true)
+  })
   it('leaves the subtitles of a longer-named neighbour with that neighbour', async () => {
     const dune = addFile('D:\\M\\Dune.2021.mkv', 'movie', 'Dune', 2021)
     addFile('D:\\M\\Dune Part Two.2024.mkv', 'movie', 'Dune Part Two', 2024)

@@ -2,6 +2,7 @@ import type { Logger } from 'pino'
 import type {
   MatchCandidate,
   MatchKind,
+  Suggestion,
   MetadataLanguage,
   MetadataState,
   MetadataStatus,
@@ -18,6 +19,8 @@ import type { MediaFileRepo } from '../scan/store'
 import { ArtworkCache, artworkUrl } from './artwork'
 import type { CredentialStore } from './credentials'
 import { decide, rank, type Decision, type ScoredCandidate } from './matcher'
+import { AsyncCache } from './cache'
+import { runPool } from '../scan/probe'
 import { ProviderError, type MetadataProvider, type ProviderCandidate, type ProviderEpisode } from './provider'
 import { MetadataRepo, type PendingTitle } from './store'
 
@@ -74,8 +77,8 @@ export class MetadataManager {
   private idle: Promise<void> = Promise.resolve()
   /** Collections already read in the current pass, so three films of one set cost one request. */
   private readonly collectionsThisPass = new Set<string>()
-  private readonly suggestionCache = new Map<string, { result: MetadataSuggestionsResult; until: number }>()
-  private readonly suggestionDetailsCache = new Map<string, { details: MetadataSuggestionDetails; until: number }>()
+  private readonly suggestionCache = new AsyncCache<MetadataSuggestionsResult>(128, SUGGESTION_FRESH_MS, () => this.now().getTime())
+  private readonly suggestionDetailsCache = new AsyncCache<MetadataSuggestionDetails>(256, SUGGESTION_FRESH_MS, () => this.now().getTime())
 
   constructor(private readonly d: ManagerDeps) {}
 
@@ -155,6 +158,8 @@ export class MetadataManager {
 
   /** The key was added, replaced or removed. */
   credentialsChanged(): void {
+    this.suggestionCache.clear()
+    this.suggestionDetailsCache.clear()
     this.d.resetProvider?.()
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.state = this.d.credentials.has() ? 'idle' : 'no_key'
@@ -436,11 +441,13 @@ export class MetadataManager {
   }
 
   /** Free-text search for the "identify" dialog. */
-  async search(kind: MatchKind, query: string, year?: number): Promise<MatchCandidate[]> {
+  async search(kind: MatchKind, query: string, year?: number): Promise<Suggestion[]> {
     this.requireKey()
     try {
       const results = await this.d.provider.search({ kind, title: query, year, language: this.tag() })
-      return await this.candidatesWithPosters(rank({ kind, title: query, year: year ?? null }, results), 10)
+      const ranked = rank({ kind, title: query, year: year ?? null }, results).slice(0, 10)
+      const candidates = await this.candidatesWithPosters(ranked, 10)
+      return candidates.map((c, i) => ({ ...c, rating: ranked[i]!.candidate.rating }))
     } catch (err) {
       return this.translate(err)
     }
@@ -465,21 +472,17 @@ export class MetadataManager {
     const genres = [...new Set((q.genres ?? '').split(GENRE_SEPARATOR).map((genre) => genre.trim()).filter(Boolean))].sort()
     const genreMode = genres.length > 1 ? q.genreMode ?? 'any' : 'any'
     const cacheKey = JSON.stringify([q.section, q.year, q.page, language, today, genres, genreMode])
-    const cached = this.suggestionCache.get(cacheKey)
-    if (cached && cached.until > this.now().getTime()) return cached.result
-    try {
-      const page = await this.d.provider.suggestions({ section: q.section, year: q.year, page: q.page, genres, genreMode, language, today })
-      const items: MetadataSuggestionsResult['items'] = []
-      for (const c of page.items) {
-        const file = await this.d.artwork.ensure(c.posterPath, 'thumb')
-        items.push({ ...this.toCandidate(c, null, file), rating: c.rating })
-      }
-      const result = { items, hasMore: page.hasMore }
-      this.suggestionCache.set(cacheKey, { result, until: this.now().getTime() + SUGGESTION_FRESH_MS })
-      return result
-    } catch (err) {
-      return this.translate(err)
-    }
+    return this.suggestionCache.get(cacheKey, async () => {
+      try {
+        const page = await this.d.provider.suggestions({ section: q.section, year: q.year, page: q.page, genres, genreMode, language, today })
+        const items: MetadataSuggestionsResult['items'] = new Array(page.items.length)
+        await runPool(page.items.map((candidate, index) => ({ candidate, index })), 4, async ({ candidate, index }) => {
+          const file = await this.d.artwork.ensure(candidate.posterPath, 'thumb')
+          items[index] = { ...this.toCandidate(candidate, null, file), rating: candidate.rating }
+        })
+        return { items, hasMore: page.hasMore }
+      } catch (err) { return this.translate(err) }
+    })
   }
 
   /** The IMDb id and trailer of one suggestion. Asked for when the user wants them, since each is a call of its own. */
@@ -487,16 +490,12 @@ export class MetadataManager {
     this.requireKey()
     const language = this.tag()
     const cacheKey = `${kind}:${externalId}:${language}`
-    const cached = this.suggestionDetailsCache.get(cacheKey)
-    if (cached && cached.until > this.now().getTime()) return cached.details
-    try {
-      const title = await this.d.provider.fetchTitle(kind, externalId, language)
-      const details = { imdbId: title.imdbId, trailer: title.trailer }
-      this.suggestionDetailsCache.set(cacheKey, { details, until: this.now().getTime() + SUGGESTION_FRESH_MS })
-      return details
-    } catch (err) {
-      return this.translate(err)
-    }
+    return this.suggestionDetailsCache.get(cacheKey, async () => {
+      try {
+        const title = await this.d.provider.fetchTitle(kind, externalId, language)
+        return { imdbId: title.imdbId, trailer: title.trailer }
+      } catch (err) { return this.translate(err) }
+    })
   }
 
   /** The user says what a title is. The match is locked, so rescans and refreshes never undo it. */

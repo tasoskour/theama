@@ -1,4 +1,6 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { BackgroundReader } from '../background/runner'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import Database from 'better-sqlite3'
 import type { Logger } from 'pino'
@@ -95,6 +97,24 @@ export interface BackupDeps {
  */
 export class BackupService {
   private timer: NodeJS.Timeout | null = null
+  private operations: Promise<unknown> = Promise.resolve()
+  private readonly reader = new BackgroundReader()
+  private closing = false
+
+  private exclusive<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.closing) return Promise.reject(new Error('Backups are stopping'))
+    const result = this.operations.then(operation)
+    this.operations = result.catch(() => undefined)
+    return result
+  }
+
+  private async inspect(file: string): Promise<BackupSummary> {
+    try { return await this.reader.inspect(file) } catch (err) {
+      const error = err as Error & { code?: BackupProblem['code'] }
+      if (error.code) throw new BackupProblem(error.code, error.message)
+      throw err
+    }
+  }
 
   constructor(private readonly d: BackupDeps) {
     mkdirSync(d.dir, { recursive: true })
@@ -104,9 +124,23 @@ export class BackupService {
     return this.d.now?.() ?? new Date()
   }
 
-  create(kind: BackupKind): BackupInfo {
+  create(kind: BackupKind): Promise<BackupInfo> {
+    return this.exclusive(() => this.make(kind))
+  }
+
+  private async make(kind: BackupKind): Promise<BackupInfo> {
     const name = `theama-${kind}-${stamp(this.now())}-v${LATEST_SCHEMA_VERSION}.db`
-    copyDatabase(this.d.raw, join(this.d.dir, name))
+    const target = join(this.d.dir, name)
+    const temporary = `${target}.partial`
+    try {
+      await rm(temporary, { force: true })
+      // Copy bounded groups of pages, yielding between groups so API requests keep running.
+      await this.d.raw.backup(temporary, { progress: () => 128 })
+      // Only the header needs updating here; the page copy above has already finished.
+      const snapshot = new Database(temporary, { fileMustExist: true })
+      try { snapshot.pragma('journal_mode = DELETE') } finally { snapshot.close() }
+      await rename(temporary, target)
+    } finally { await rm(temporary, { force: true }) }
     this.prune()
     this.d.logger.info({ name, kind }, 'Backup made')
     return this.info(name)!
@@ -142,36 +176,34 @@ export class BackupService {
     }
   }
 
-  remove(name: string): void {
-    if (!this.info(name)) throw new BackupProblem('not_found', 'No such backup')
-    rmSync(join(this.d.dir, name), { force: true })
+  remove(name: string): Promise<void> {
+    return this.exclusive(async () => {
+      if (!this.info(name)) throw new BackupProblem('not_found', 'No such backup')
+      await rm(join(this.d.dir, name), { force: true })
+    })
   }
 
   /** Makes a daily backup if there is no backup from the last 24 hours. Cheap to call often. */
-  ensureDaily(): BackupInfo | null {
-    const newest = this.list().find((b) => b.kind === 'daily' || b.kind === 'manual')
-    if (newest && this.now().getTime() - new Date(newest.createdAt).getTime() < DAY_MS) return null
-    return this.create('daily')
+  ensureDaily(): Promise<BackupInfo | null> {
+    return this.exclusive(async () => {
+      const newest = this.list().find(b => b.kind === 'daily' || b.kind === 'manual')
+      if (newest && this.now().getTime() - new Date(newest.createdAt).getTime() < DAY_MS) return null
+      return this.make('daily')
+    })
   }
 
-  start(): void {
-    try {
-      this.ensureDaily()
-    } catch (err) {
-      this.d.logger.error({ err }, 'The daily backup failed')
-    }
-    this.timer = setInterval(() => {
-      try {
-        this.ensureDaily()
-      } catch (err) {
-        this.d.logger.error({ err }, 'The daily backup failed')
-      }
-    }, 6 * 60 * 60 * 1000)
+  async start(): Promise<void> {
+    const daily = (): void => { void this.ensureDaily().catch(err => this.d.logger.error({ err }, 'The daily backup failed')) }
+    await this.ensureDaily().catch(err => this.d.logger.error({ err }, 'The daily backup failed'))
+    this.timer = setInterval(daily, 6 * 60 * 60 * 1000)
     this.timer.unref()
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
+    this.closing = true
     if (this.timer) clearInterval(this.timer)
+    await this.operations
+    await this.reader.close()
   }
 
   // --- restoring -----------------------------------------------------------------
@@ -183,11 +215,11 @@ export class BackupService {
     return join(this.d.restoreDir, 'pending.json')
   }
 
-  pending(): PendingRestore | null {
+  async pending(): Promise<PendingRestore | null> {
     try {
       if (!existsSync(this.pendingFile)) return null
-      const meta = JSON.parse(readFileSync(this.metaFile, 'utf8')) as PendingMeta
-      const s = inspectDatabase(this.pendingFile)
+      const meta = JSON.parse(await readFile(this.metaFile, 'utf8')) as PendingMeta
+      const s = await this.inspect(this.pendingFile)
       return { source: meta.source, schemaVersion: s.schemaVersion, stagedAt: meta.stagedAt, summary: { files: s.files, titles: s.titles, collections: s.collections } }
     } catch {
       return null
@@ -198,29 +230,43 @@ export class BackupService {
    * Prepares a restore: checks the file and sets it aside. Nothing in the running database changes; the swap
    * happens when the service next starts (see applyPendingRestore), because the database is open now.
    */
-  stage(source: { name: string } | { path: string }): PendingRestore {
-    let file: string
-    let label: string
-    if ('name' in source) {
-      if (!this.info(source.name)) throw new BackupProblem('not_found', 'No such backup')
-      file = join(this.d.dir, source.name)
-      label = source.name
-    } else {
-      file = source.path
-      label = basename(source.path)
-    }
-    inspectDatabase(file) // throws with a reason fit to show
-    mkdirSync(this.d.restoreDir, { recursive: true })
-    rmSync(this.pendingFile, { force: true })
-    copyFileSync(file, this.pendingFile)
-    writeFileSync(this.metaFile, JSON.stringify({ source: label, stagedAt: this.now().toISOString() } satisfies PendingMeta))
-    this.d.logger.info({ source: label }, 'Restore staged; it takes effect when the service restarts')
-    return this.pending()!
+  stage(source: { name: string } | { path: string }): Promise<PendingRestore> {
+    return this.exclusive(async () => {
+      let file: string
+      let label: string
+      if ('name' in source) {
+        if (!this.info(source.name)) throw new BackupProblem('not_found', 'No such backup')
+        file = join(this.d.dir, source.name)
+        label = source.name
+      } else { file = source.path; label = basename(source.path) }
+      await this.inspect(file)
+      await mkdir(this.d.restoreDir, { recursive: true })
+      const temporary = `${this.pendingFile}.partial`
+      const metaTemporary = `${this.metaFile}.partial`
+      try {
+        await rm(temporary, { force: true })
+        await this.reader.snapshot(file, temporary)
+        await this.reader.prepareBackup(temporary)
+        // Validate the copied file as well: a source may have changed during the copy.
+        const summary = await this.inspect(temporary)
+        const stagedAt = this.now().toISOString()
+        await writeFile(metaTemporary, JSON.stringify({ source: label, stagedAt } satisfies PendingMeta))
+        await rename(temporary, this.pendingFile)
+        await rename(metaTemporary, this.metaFile)
+        this.d.logger.info({ source: label }, 'Restore staged; it takes effect when the service restarts')
+        return { source: label, schemaVersion: summary.schemaVersion, stagedAt, summary: { files: summary.files, titles: summary.titles, collections: summary.collections } }
+      } finally {
+        await rm(temporary, { force: true })
+        await rm(metaTemporary, { force: true })
+      }
+    })
   }
 
-  cancelPending(): void {
-    rmSync(this.pendingFile, { force: true })
-    rmSync(this.metaFile, { force: true })
+  cancelPending(): Promise<void> {
+    return this.exclusive(async () => {
+      await rm(this.pendingFile, { force: true })
+      await rm(this.metaFile, { force: true })
+    })
   }
 }
 

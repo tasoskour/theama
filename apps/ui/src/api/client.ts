@@ -26,8 +26,8 @@ export class ApiClient {
     private readonly token?: string,
   ) {}
 
-  get<S extends z.ZodType>(path: string, schema: S, query?: Query): Promise<z.output<S>> {
-    return this.request('GET', path, schema, undefined, query)
+  get<S extends z.ZodType>(path: string, schema: S, query?: Query, options?: { signal?: AbortSignal }): Promise<z.output<S>> {
+    return this.request('GET', path, schema, undefined, query, options?.signal)
   }
 
   /** A plain-text endpoint (the diagnostics report). */
@@ -61,6 +61,7 @@ export class ApiClient {
     schema: S,
     body?: unknown,
     query?: Query,
+    signal?: AbortSignal,
   ): Promise<z.output<S>> {
     const url = new URL(`${this.base}${API_PREFIX}${path}`)
     for (const [k, v] of Object.entries(query ?? {})) {
@@ -72,11 +73,15 @@ export class ApiClient {
 
     let res: Response
     try {
-      res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+      res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), ...(signal ? { signal } : {}) })
     } catch (err) {
+      if (signal?.aborted) throw err
       throw new ApiRequestError(err instanceof Error ? err.message : 'Network error', 0, 'network')
     }
-    const json: unknown = await res.json().catch(() => null)
+    const json: unknown = await res.json().catch((err: unknown) => {
+      if (signal?.aborted) throw err
+      return null
+    })
     if (!res.ok) {
       const parsed = ApiError.safeParse(json)
       throw new ApiRequestError(

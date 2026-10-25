@@ -53,6 +53,10 @@ export const SetTitleWatchedRequest = z.object({
 })
 export type SetTitleWatchedRequest = z.infer<typeof SetTitleWatchedRequest>
 
+/** Result of taking a title off the "continue watching" rail. */
+export const DismissContinueResult = z.object({ ok: z.literal(true) })
+export type DismissContinueResult = z.infer<typeof DismissContinueResult>
+
 /**
  * What a player reports while it plays, forwarded by the desktop shell. The server decides what it means:
  * unfinished playback below `MIN_TRACKED_SECONDS` is not kept, and near the end the file counts as watched.

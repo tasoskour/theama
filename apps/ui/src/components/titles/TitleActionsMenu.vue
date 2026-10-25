@@ -3,10 +3,10 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   mdiChevronRight, mdiDeleteOutline, mdiDotsVertical, mdiEyeOffOutline, mdiFolderOpenOutline,
-  mdiMovieOpenOutline, mdiRestore, mdiTelevisionClassic, mdiVideoOutline,
+  mdiMovieOpenOutline, mdiPlayCircleOutline, mdiRestore, mdiTelevisionClassic, mdiVideoOutline,
 } from '@mdi/js'
 import {
-  ReclassifyTitleResult, RemoveTitleResult, TitleDetail,
+  DismissContinueResult, ReclassifyTitleResult, RemoveTitleResult, TitleDetail,
   type MediaFile, type TitleKind, type TitleSummary,
 } from '@theama/contracts'
 import { getBridge } from '@/api/bridge'
@@ -14,7 +14,7 @@ import { useConnectionStore } from '@/stores/connection'
 import { useLibraryStore } from '@/stores/library'
 import { useTitleActionsStore } from '@/stores/titleActions'
 
-const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number }>(), { tabindex: -1 })
+const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number; inContinue?: boolean }>(), { tabindex: -1, inContinue: false })
 const { t } = useI18n()
 const connection = useConnectionStore()
 const library = useLibraryStore()
@@ -83,6 +83,21 @@ async function hide(): Promise<void> {
   busy.value = false
 }
 
+/** Takes the title off the "continue watching" rail; the rail refreshes on the server's library.changed event. */
+async function dismissContinue(): Promise<void> {
+  if (!connection.client || busy.value) return
+  open.value = false
+  busy.value = true
+  try {
+    await connection.client.delete(`/playback/continue/${encodeURIComponent(props.title.key)}`, DismissContinueResult)
+    notices.notify(t('titles.actions.continueRemoved', { title: props.title.title }))
+  } catch (error) {
+    notices.notify(error instanceof Error ? error.message : String(error), true)
+  } finally {
+    busy.value = false
+  }
+}
+
 function askReclassify(kind: TitleKind | null): void {
   open.value = false
   confirmKind.value = kind
@@ -139,6 +154,10 @@ async function remove(): Promise<void> {
     <v-list class="actions-list" density="compact" nav @click.stop>
       <v-list-subheader>{{ title.title }}</v-list-subheader>
       <v-progress-linear v-if="loadingDetail" indeterminate color="primary" />
+      <template v-if="inContinue">
+        <v-list-item :prepend-icon="mdiPlayCircleOutline" :title="$t('titles.actions.removeFromContinue')" :subtitle="$t('titles.actions.removeFromContinueHint')" data-test="remove-from-continue" @click="dismissContinue" />
+        <v-divider />
+      </template>
       <template v-if="files.length === 1">
         <v-list-item
           :prepend-icon="mdiFolderOpenOutline"

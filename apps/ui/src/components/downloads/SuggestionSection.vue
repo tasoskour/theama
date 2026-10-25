@@ -17,6 +17,7 @@ const loading = ref(false)
 const loaded = ref(false)
 const problem = ref<string | null>(null)
 let active = true
+const controller = new AbortController()
 const shown = computed(() => items.value.filter((c) =>
   !props.kind || props.kind === 'all' || c.kind === props.kind,
 ))
@@ -26,7 +27,7 @@ async function loadNext(): Promise<void> {
   if (!active || loading.value) return
   loading.value = true
   problem.value = null
-  const res = await metadata.suggestions(props.section, props.year, page.value + 1, props.genres, props.genreMode)
+  const res = await metadata.suggestions(props.section, props.year, page.value + 1, props.genres, props.genreMode, controller.signal)
   // Filter changes remount this section. An old response must not update the new results or errors.
   if (!active) return
   loading.value = false
@@ -62,6 +63,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   active = false
+  controller.abort()
   observer?.disconnect()
 })
 </script>

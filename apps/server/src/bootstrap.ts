@@ -214,7 +214,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   auto.start()
   downloadMonitor.start()
   metadata.start()
-  backups.start()
+  await backups.start()
   void renamer.recover().catch((err: unknown) => logger.error({ err }, 'Could not settle interrupted renames'))
   writeRuntimeFile(config, {
     port,
@@ -237,9 +237,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       logger.info({ reason }, 'Shutting down')
       auto.stop()
       downloadMonitor.stop()
-      backups.stop()
-      await metadata.stop()
-      await scans.close()
+      await Promise.all([backups.stop(), metadata.stop(), scans.close()])
       events.stop()
       await app.close()
       serviceEvents.record('stop', { reason, pid: process.pid, version: APP_VERSION })

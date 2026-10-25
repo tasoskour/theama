@@ -163,6 +163,21 @@ export class PlaybackRepo {
     return next ? { next, title: r.title } : null
   }
 
+  /**
+   * Takes a title off the "continue watching" rail without touching what was watched. It comes back
+   * when something of it is played or marked after now. Returns false for a title with no files.
+   */
+  dismissContinue(key: string, now: string): boolean {
+    if (!this.raw.prepare('SELECT 1 FROM media_file WHERE title_key = ? LIMIT 1').get(key)) return false
+    this.raw
+      .prepare(
+        `INSERT INTO continue_dismissal (title_key, dismissed_at) VALUES (?, ?)
+         ON CONFLICT(title_key) DO UPDATE SET dismissed_at = excluded.dismissed_at`,
+      )
+      .run(key, now)
+    return true
+  }
+
   /** The "continue watching" rail: series with a next episode, and films started but not marked watched. */
   continueWatching(limit: number): ContinueItem[] {
     const candidates = this.raw
@@ -170,8 +185,10 @@ export class PlaybackRepo {
         `SELECT f.title_key AS key, f.kind AS kind,
                 MAX(max(coalesce(p.last_played_at, ''), coalesce(p.watched_at, ''))) AS activity
            FROM playback_state p JOIN media_file f ON f.id = p.file_id
+           LEFT JOIN continue_dismissal d ON d.title_key = f.title_key
           WHERE f.kind IN ('movie', 'episode', 'video') AND f.title_key IS NOT NULL AND (p.last_played_at IS NOT NULL OR p.watched = 1)
-          GROUP BY f.title_key ORDER BY activity DESC, f.title_key LIMIT ?`,
+          GROUP BY f.title_key HAVING d.dismissed_at IS NULL OR activity > d.dismissed_at
+          ORDER BY activity DESC, f.title_key LIMIT ?`,
       )
       .all(limit * 3) as { key: string; kind: MediaKind; activity: string }[]
 

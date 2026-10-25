@@ -22,22 +22,25 @@ const searching = ref(false)
 const choosing = ref<string | null>(null)
 const error = ref<{ code: string; message: string } | null>(null)
 let searchGeneration = 0
+let controller: AbortController | undefined
 let debounce: ReturnType<typeof setTimeout> | undefined
 let skipNextDebounce = false
 
 async function search(): Promise<void> {
   const q = query.value.trim()
   clearTimeout(debounce)
+  controller?.abort()
+  const mine = ++searchGeneration
   if (!q) {
     results.value = null
     error.value = null
     searching.value = false
     return
   }
-  const mine = ++searchGeneration
+  controller = new AbortController()
   searching.value = true
   error.value = null
-  const res = await metadata.search(props.kind, q)
+  const res = await metadata.search(props.kind, q, undefined, controller.signal)
   if (mine !== searchGeneration) return
   searching.value = false
   if (res.ok) results.value = res.items
@@ -66,6 +69,7 @@ async function choose(c: MatchCandidate): Promise<void> {
 watch(open, (isOpen) => {
   clearTimeout(debounce)
   searchGeneration++
+  controller?.abort()
   if (!isOpen) return
   skipNextDebounce = query.value !== props.initialQuery
   query.value = props.initialQuery
@@ -81,9 +85,11 @@ watch(query, () => {
     return
   }
   clearTimeout(debounce)
+  searchGeneration++
+  controller?.abort()
+  searching.value = false
   const q = query.value.trim()
   if (!q) {
-    searchGeneration++
     results.value = null
     error.value = null
     searching.value = false
@@ -92,7 +98,7 @@ watch(query, () => {
   debounce = setTimeout(() => void search(), 275)
 })
 
-onScopeDispose(() => clearTimeout(debounce))
+onScopeDispose(() => { clearTimeout(debounce); searchGeneration++; controller?.abort() })
 
 function problem(code: string, fallback: string): string {
   return ['no_key', 'invalid_key', 'provider_unavailable'].includes(code) ? t(`match.errors.${code}`) : fallback

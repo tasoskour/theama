@@ -168,7 +168,7 @@ export type MetadataSuggestionDetailsQuery = z.input<typeof MetadataSuggestionDe
 export const MetadataSuggestionDetails = z.object({ imdbId: z.string().nullable(), trailer: ExternalVideo.nullable() })
 export type MetadataSuggestionDetails = z.infer<typeof MetadataSuggestionDetails>
 
-export const MetadataSearchResult = z.object({ items: z.array(MatchCandidate) })
+export const MetadataSearchResult = z.object({ items: z.array(Suggestion) })
 export type MetadataSearchResult = z.infer<typeof MetadataSearchResult>
 
 export const IdentifyRequest = z.object({

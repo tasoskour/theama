@@ -70,7 +70,10 @@ async function openFolder(): Promise<void> {
       <span v-if="logs.live && !logs.liveActive" class="th-muted text-caption">{{ $t('logs.livePaused') }}</span>
       <v-spacer />
       <span class="th-muted text-body-2" aria-live="polite">{{ $t('logs.count', logs.items.length) }}</span>
-      <v-btn variant="text" :prepend-icon="mdiRefresh" :loading="logs.loading" @click="logs.load()">{{ $t('common.refresh') }}</v-btn>
+      <v-btn variant="text" :prepend-icon="mdiRefresh" :loading="logs.loading" @click="logs.load()">
+        {{ $t('common.refresh') }}
+        <template #loader><v-progress-circular indeterminate size="20" width="2" :aria-label="$t('common.loading')" /></template>
+      </v-btn>
       <v-btn variant="text" :prepend-icon="mdiContentCopy" :disabled="logs.items.length === 0" @click="copy">
         {{ copied ? $t('common.copied') : $t('logs.export') }}
       </v-btn>
@@ -84,7 +87,10 @@ async function openFolder(): Promise<void> {
     <LogList v-else :items="logs.items" height="max(16rem, calc(100dvh - 28rem))" class="list" />
 
     <div v-if="logs.items.length > 0" class="more">
-      <v-btn v-if="logs.hasMore" variant="tonal" :loading="logs.loading" @click="logs.load(true)">{{ $t('logs.loadMore') }}</v-btn>
+      <v-btn v-if="logs.hasMore" variant="tonal" :loading="logs.loading" @click="logs.load(true)">
+        {{ $t('logs.loadMore') }}
+        <template #loader><v-progress-circular indeterminate size="20" width="2" :aria-label="$t('common.loading')" /></template>
+      </v-btn>
       <span v-else class="th-muted text-caption">{{ $t('logs.end') }}</span>
     </div>
   </section>

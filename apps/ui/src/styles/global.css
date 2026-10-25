@@ -302,6 +302,61 @@ body {
   display: none;
 }
 
+/* Menus (select, autocomplete, action menus): a flat hairline panel whose rows nest inside it.
+   The row radius is the panel radius minus its padding, so a selected row never pokes into the corner. */
+.v-menu > .v-overlay__content {
+  border: var(--th-border);
+  border-radius: calc(var(--th-radius) + 2px);
+  overflow: hidden;
+  background: rgb(var(--v-theme-surface-bright));
+}
+.v-menu > .v-overlay__content > .v-list,
+.v-menu > .v-overlay__content > .v-card,
+.v-menu > .v-overlay__content > .v-sheet {
+  padding: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+.v-menu .v-list-item {
+  border-radius: var(--th-radius);
+  min-height: 2.25rem;
+  margin-block: 1px;
+  transition: background-color var(--th-motion), color var(--th-motion);
+}
+/* One highlight model: a soft tint for hover, a stronger accent tint for the selected row.
+   Vuetify's square overlay is replaced by the background so it follows the rounded row. */
+.v-menu .v-list-item .v-list-item__overlay {
+  display: none;
+}
+.v-menu .v-list-item:hover:not(.v-list-item--disabled) {
+  background: rgba(var(--v-theme-on-surface), 0.06);
+}
+.v-menu .v-list-item--active,
+.v-menu .v-list-item--active:hover {
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+}
+.v-menu .v-list-item--active .v-list-item-title {
+  font-weight: 600;
+}
+/* Keyboard focus: a thin ring that follows the row's own radius instead of a floating outline. */
+.v-menu .v-list-item:focus-visible {
+  outline: none;
+}
+.v-menu .v-list-item::after {
+  border: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(var(--v-theme-primary), 0.7);
+}
+.v-menu .v-list-item:focus-visible::after,
+.v-menu .v-list-item--focus-visible::after {
+  opacity: 1;
+}
+/* Multi-select checkboxes in the Genres list pick up the accent. */
+.v-menu .v-list-item .v-checkbox-btn {
+  color: rgb(var(--v-theme-primary));
+}
+
 /* A segmented toggle that lines up with the text fields next to it, whatever the text size. */
 .v-btn-toggle.th-toggle-control {
   box-sizing: border-box;

@@ -146,6 +146,7 @@ export class RenameService {
 
   private async plan(keys: readonly string[], movieTemplate: string, episodeTemplate: string): Promise<PlanEntry[]> {
     const entries: PlanEntry[] = []
+    const directories = new Map<string, Promise<string[]>>()
     for (const key of keys) {
       const detail = this.d.titles.detail(key)
       if (!detail) throw new RenameProblem('not_found', 'No such title')
@@ -165,7 +166,7 @@ export class RenameService {
         const to = win32.join(dir, base + ext)
         const status = await this.statusOf(f.path, to)
         const videoIndex = entries.push(make({ to, status })) - 1
-        if (status === 'ok') entries.push(...(await this.companions(f, dir, base, key, videoIndex)))
+        if (status === 'ok') entries.push(...(await this.companions(f, dir, base, key, videoIndex, directories)))
       }
     }
     // Two files that want the same name: neither gets it.
@@ -182,10 +183,13 @@ export class RenameService {
   }
 
   /** Subtitle files beside the video whose names start with the video's name. */
-  private async companions(f: MediaFile, dir: string, newBase: string, key: string, parent: number): Promise<PlanEntry[]> {
+  private async companions(f: MediaFile, dir: string, newBase: string, key: string, parent: number, directories: Map<string, Promise<string[]>>): Promise<PlanEntry[]> {
     let names: string[]
     try {
-      names = await this.fs.listDir(dir)
+      const directoryKey = dir.toLowerCase()
+      let listing = directories.get(directoryKey)
+      if (!listing) { listing = this.fs.listDir(dir); directories.set(directoryKey, listing) }
+      names = await listing
     } catch {
       return []
     }

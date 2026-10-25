@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { mdiHistory } from '@mdi/js'
 import type { GenreMode, TitleKind, TitleSummary } from '@theama/contracts'
 import PosterGrid from '@/components/titles/PosterGrid.vue'
@@ -68,6 +68,8 @@ watch([text, total, loaded], () => {
     writeRecent(recent.value)
   }, 1500)
 })
+
+onScopeDispose(() => clearTimeout(remember))
 
 function clearRecent(): void {
   recent.value = []

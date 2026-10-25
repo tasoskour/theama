@@ -8,9 +8,10 @@ import { useConnectionStore } from '@/stores/connection'
 import PosterArt from './PosterArt.vue'
 import TitleActionsMenu from './TitleActionsMenu.vue'
 
-const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number; caption?: string }>(), {
+const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number; caption?: string; inContinue?: boolean }>(), {
   tabindex: 0,
   caption: undefined,
+  inContinue: false,
 })
 const { t } = useI18n()
 const connection = useConnectionStore()
@@ -79,7 +80,7 @@ const label = computed(() =>
         <span class="card__title">{{ title.title }}</span>{{ ' ' }}<span v-if="caption ?? detail" class="card__detail th-muted">{{ caption ?? detail }}</span>
       </div>
     </router-link>
-    <TitleActionsMenu :title="title" :tabindex="tabindex === 0 ? 0 : -1" />
+    <TitleActionsMenu :title="title" :tabindex="tabindex === 0 ? 0 : -1" :in-continue="inContinue" />
   </article>
 </template>
 

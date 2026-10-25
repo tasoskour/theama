@@ -52,18 +52,25 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
+  let controller: AbortController | undefined
+  let generation = 0
   async function load(append = false): Promise<void> {
-    if (!connection.client || loading.value) return
+    if (!connection.client || (append && loading.value)) return
+    controller?.abort()
+    const current = new AbortController()
+    controller = current
+    const mine = ++generation
     loading.value = true
     try {
-      const page = await connection.client.get('/logs', LogPage, query(append ? (nextCursor.value ?? undefined) : undefined))
+      const page = await connection.client.get('/logs', LogPage, query(append ? (nextCursor.value ?? undefined) : undefined), { signal: current.signal })
+      if (mine !== generation) return
       items.value = append ? [...items.value, ...page.items] : page.items
       nextCursor.value = page.nextCursor
       error.value = null
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err)
+      if (mine === generation && !current.signal.aborted) error.value = err instanceof Error ? err.message : String(err)
     } finally {
-      loading.value = false
+      if (mine === generation) loading.value = false
     }
   }
 
@@ -92,12 +99,19 @@ export const useLogsStore = defineStore('logs', () => {
 
   /** Subscribes to pushed log lines for the caller's lifetime. */
   function watchLive(): void {
-    const off = connection.onEvent((e) => {
+    let pending: LogEntry[] = []
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const off = connection.onEvent(e => {
       if (e.type !== 'log.appended' || !liveActive.value || !matchesFilters(e.entry)) return
-      const next = [e.entry, ...items.value]
-      items.value = next.length > MAX_ITEMS ? next.slice(0, MAX_ITEMS) : next
+      pending.push(e.entry)
+      if (!timer) timer = setTimeout(() => {
+        timer = undefined
+        const fresh = liveActive.value ? pending.filter(matchesFilters).reverse() : []
+        items.value = [...fresh, ...items.value].slice(0, MAX_ITEMS)
+        pending = []
+      }, 50)
     })
-    onScopeDispose(off)
+    onScopeDispose(() => { off(); clearTimeout(timer) })
   }
 
   function exportText(): string {
@@ -108,11 +122,16 @@ export const useLogsStore = defineStore('logs', () => {
   watch(
     filters,
     () => {
+      generation++
+      controller?.abort()
+      loading.value = false
       clearTimeout(debounce)
       debounce = setTimeout(() => void load(), 250)
     },
     { deep: true },
   )
+
+  onScopeDispose(() => { generation++; controller?.abort(); clearTimeout(debounce) })
 
   return { items, nextCursor, loading, error, live, filters, liveActive, hasMore, load, loadLocal, watchLive, exportText }
 })

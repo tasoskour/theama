@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { mdiClose } from '@mdi/js'
+import { mdiClose, mdiMagnify } from '@mdi/js'
 import { useI18n } from 'vue-i18n'
-import type { GenreMode, MatchCandidate, ReleaseKind } from '@theama/contracts'
+import type { GenreMode, MatchCandidate, ReleaseKind, Suggestion } from '@theama/contracts'
 import GenreFilter from '@/components/common/GenreFilter.vue'
 import ActiveDownloads from '@/components/downloads/ActiveDownloads.vue'
 import DownloadToolsPanel from '@/components/downloads/DownloadToolsPanel.vue'
@@ -48,7 +48,7 @@ const lastYear = new Date().getFullYear() + 1
 const years = Array.from({ length: lastYear - FIRST_YEAR + 1 }, (_, i) => lastYear - i)
 
 const searching = ref(false)
-const matches = ref<MatchCandidate[] | null>(null)
+const matches = ref<Suggestion[] | null>(null)
 const problem = ref<string | null>(null)
 const query = ref<Query[] | null>(null)
 const shownMatches = computed(() => matches.value?.filter((c) => genres.value.length === 0 || (
@@ -60,7 +60,8 @@ const genreItems = computed(() => [...new Set([
 ])].sort((a, b) => a.localeCompare(b)))
 
 let searchGeneration = 0
-onBeforeUnmount(() => { searchGeneration += 1 })
+let searchController: AbortController | undefined
+onBeforeUnmount(() => { searchGeneration += 1; searchController?.abort() })
 
 const setUp = computed(() => downloads.client?.state !== 'not_configured' || downloads.indexer?.state !== 'not_configured')
 const hasKey = computed(() => metadata.status?.configured === true)
@@ -167,6 +168,7 @@ const showImdb = (c: MatchCandidate): Promise<void> =>
 watch(text, (v) => {
   if (v.trim()) return
   searchGeneration += 1
+  searchController?.abort()
   searching.value = false
   matches.value = null
   query.value = null
@@ -212,8 +214,10 @@ async function search(): Promise<void> {
   }
   searching.value = true
   const mine = ++searchGeneration
+  searchController?.abort()
+  searchController = new AbortController()
   const kinds: ReleaseKind[] = kind.value === 'all' ? ['movie', 'series'] : [kind.value]
-  const results = await Promise.all(kinds.map((k) => metadata.search(k, q, k === 'movie' ? (year.value ?? undefined) : undefined)))
+  const results = await Promise.all(kinds.map((k) => metadata.search(k, q, k === 'movie' ? (year.value ?? undefined) : undefined, searchController!.signal)))
   if (mine !== searchGeneration) return
   searching.value = false
   const successful = results.filter((res) => res.ok)
@@ -231,6 +235,7 @@ const pick = (c: MatchCandidate): void => {
 
 function changeKind(): void {
   searchGeneration += 1
+  searchController?.abort()
   searching.value = false
   matches.value = null
   query.value = null
@@ -281,6 +286,7 @@ function changeKind(): void {
           bg-color="surface-bright"
           hide-details
           clearable
+          :prepend-inner-icon="mdiMagnify"
           :clear-icon="mdiClose"
           :clear-label="$t('downloads.find.clear')"
           class="find__text th-search-control"
@@ -292,6 +298,7 @@ function changeKind(): void {
           v-model="genres"
           v-model:mode="genreMode"
           :items="genreItems"
+          flush
           class="find__genre"
           data-test="find-genre"
         />
@@ -406,41 +413,78 @@ function changeKind(): void {
   min-width: 0;
   max-width: 100%;
 }
+/* One bordered toolbar: borderless controls separated by short dividers, Search is the only filled element. */
 .find__row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  align-items: flex-start;
+  gap: 6px;
+  align-items: center;
+  padding: 4px;
+  border: var(--th-border);
+  border-radius: calc(var(--th-radius) + 4px);
+  background: rgba(var(--v-theme-surface), 0.84);
+  transition: border-color var(--th-motion);
 }
-.find__text {
-  flex: 1 1 14rem;
-  min-width: 0;
+.find__row:focus-within {
+  border-color: rgba(var(--v-theme-primary), 0.5);
 }
 .find__kind.v-btn-toggle {
   flex: 0 0 auto;
+  padding: 0 7px 0 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: linear-gradient(rgba(var(--v-theme-hairline), 0.9), rgba(var(--v-theme-hairline), 0.9)) right center / 1px 55% no-repeat;
+}
+.find__kind :deep(.v-btn) {
+  min-width: 0;
+  padding-inline: 0.7rem;
+  border-radius: var(--th-radius) !important;
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+.find__text {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+.find__genre,
+.find__year,
+.find__episodes {
+  padding-inline-start: 7px;
+  background: linear-gradient(rgba(var(--v-theme-hairline), 0.9), rgba(var(--v-theme-hairline), 0.9)) left center / 1px 55% no-repeat;
 }
 .find__genre {
-  flex: 1 1 24rem;
-  min-width: min(100%, 18rem);
+  flex: 0 1 18rem;
+  min-width: min(100%, 14rem);
 }
 .find__episodes {
   display: flex;
-  flex: 0 1 15rem;
-  gap: 10px;
+  flex: 0 1 11rem;
+  gap: 4px;
   min-width: 0;
 }
 .find__small {
-  flex: 1 1 7rem;
+  flex: 1 1 5.5rem;
   min-width: 0;
 }
 .find__year {
-  flex: 0 1 9rem;
-  min-width: 7rem;
+  flex: 0 1 8rem;
+  min-width: 6.5rem;
+}
+/* The toolbar draws the border; fields inside only show a soft fill on hover and focus. */
+.find__row :deep(.th-search-control .v-field) {
+  background: transparent !important;
+  box-shadow: none;
+  border-radius: var(--th-radius);
+}
+.find__row :deep(.th-search-control .v-field:hover),
+.find__row :deep(.th-search-control:focus-within .v-field) {
+  background: rgb(var(--v-theme-surface-light)) !important;
+  box-shadow: none;
 }
 /* Match the height of the fields next to it. */
 .find__row > .v-btn[type='submit'] {
-  align-self: flex-start;
+  flex: 0 0 auto;
   min-height: var(--th-control-h);
+  border-radius: var(--th-radius);
 }
 .find__body {
   margin-top: 16px;
@@ -448,13 +492,25 @@ function changeKind(): void {
 .find__releases + .find__releases {
   margin-top: 24px;
 }
-@media (max-width: 700px) {
-  .find__kind,
-  .find__text,
-  .find__genre,
-  .find__episodes {
+@media (max-width: 62rem) {
+  .find__row {
+    row-gap: 4px;
+  }
+  .find__kind.v-btn-toggle {
+    padding: 0 !important;
+    background: none;
+  }
+  .find__text {
     flex-basis: 100%;
   }
+  .find__genre,
+  .find__year,
+  .find__episodes {
+    padding-inline-start: 0;
+    background: none;
+  }
+}
+@media (max-width: 700px) {
   .head__tabs {
     flex-basis: 100%;
   }
@@ -467,6 +523,17 @@ function changeKind(): void {
   .find__row > * {
     flex-basis: auto;
     min-width: 0;
+  }
+  .find__kind.v-btn-toggle {
+    max-width: 100%;
+  }
+  .find__genre.genre-filter--flush {
+    flex-wrap: wrap;
+  }
+  .find__kind :deep(.v-btn) {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 0.3rem;
   }
   .find__year {
     flex: none;

@@ -1,5 +1,6 @@
 import { onScopeDispose, ref, watch } from 'vue'
 import { GenreList, type TitleKind } from '@theama/contracts'
+import { useLatestRequest } from './useRefresh'
 import { useConnectionStore } from '@/stores/connection'
 
 /** The genres present in the library (for one kind of title, or all), refreshed when the library or its metadata changes. */
@@ -7,13 +8,11 @@ export function useGenres(kind: () => TitleKind | undefined) {
   const connection = useConnectionStore()
   const genres = ref<string[]>([])
 
+  const latest = useLatestRequest()
   async function load(): Promise<void> {
-    if (!connection.client) return
-    try {
-      genres.value = (await connection.client.get('/library/genres', GenreList, { kind: kind() })).genres
-    } catch {
-      // The filter is optional; without the list the page works as before.
-    }
+    const client = connection.client
+    if (!client) return
+    await latest(signal => client.get('/library/genres', GenreList, { kind: kind() }, { signal }), result => { genres.value = result.genres })
   }
 
   // Metadata status changes arrive in bursts while titles are being identified.

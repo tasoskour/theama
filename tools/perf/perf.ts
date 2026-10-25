@@ -55,7 +55,11 @@ async function main(): Promise<void> {
     const startup = performance.now() - started
     const base = `http://127.0.0.1:${server.port}/api/v1`
     const headers = { Authorization: `Bearer ${server.token}` }
-    const get = async (path: string): Promise<unknown> => (await fetch(`${base}${path}`, { headers })).json()
+    const get = async (path: string): Promise<unknown> => {
+      const response = await fetch(`${base}${path}`, { headers })
+      if (!response.ok) throw new Error(`GET ${path}: HTTP ${response.status}`)
+      return response.json()
+    }
 
     await get('/health') // warm the connection
     const RUNS = small ? 20 : 60
@@ -108,6 +112,27 @@ async function main(): Promise<void> {
     const scanSeconds = (performance.now() - scanStart) / 1000
     const sorted = [...during].sort((a, b) => a - b)
     stats.push({ name: `API while scanning ${SCAN_FILES} files`, p50: pct(sorted, 0.5), p95: pct(sorted, 0.95), max: sorted.at(-1)!, budget: 50 })
+
+    // A miss has to search every rotated file. It must not block unrelated library requests.
+    const logLine = JSON.stringify({ level: 30, time: '2026-10-24T09:00:00.000Z', msg: 'Synthetic scan result ' + '.'.repeat(100) }) + '\n'
+    const logBytes = (small ? 1 : 10) * 1024 * 1024
+    const logContents = logLine.repeat(Math.floor(logBytes / Buffer.byteLength(logLine)))
+    for (let i = 1; i <= 4; i++) writeFileSync(join(dataDir, 'logs', `theama-2026-10-24-00${i}.ndjson`), logContents)
+    await get('/logs?limit=1') // warm the worker before measuring steady-state latency
+    const alongsideLogs: number[] = []
+    for (let i = 0; i < 3; i++) {
+      let finished = false
+      const search = get('/logs?limit=100&q=absent-perf-search').finally(() => { finished = true })
+      while (!finished) {
+        const begin = performance.now()
+        await get('/library/titles?limit=60&q=sil')
+        alongsideLogs.push(performance.now() - begin)
+        await new Promise(resolve => setTimeout(resolve, 10))
+      }
+      await search
+    }
+    alongsideLogs.sort((a, b) => a - b)
+    stats.push({ name: `API during ${small ? 4 : 40} MB log searches`, p50: pct(alongsideLogs, 0.5), p95: pct(alongsideLogs, 0.95), max: alongsideLogs.at(-1)!, budget: 50 })
 
     // --- report -----------------------------------------------------------------------------------
     const line = (s: Stat): string => `${s.name.padEnd(42)} p50 ${s.p50.toFixed(1).padStart(7)} ms   p95 ${s.p95.toFixed(1).padStart(7)} ms   max ${s.max.toFixed(1).padStart(7)} ms   ${s.budget === undefined ? '' : s.p95 <= s.budget ? `ok (budget ${s.budget} ms)` : `OVER BUDGET (${s.budget} ms)`}`

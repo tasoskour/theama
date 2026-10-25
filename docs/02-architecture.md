@@ -80,6 +80,7 @@ Interactive actions (launch VLC, open Explorer, folder picker) are done by the *
 resources/app.asar          the desktop shell (main + preload bundles; no node_modules)
 resources/ui/               the built interface (served over app://theama)
 resources/server/server.cjs the backend bundle + server/node_modules/better-sqlite3 (JS + the win32-x64 prebuilt binary)
+resources/server/background-worker.cjs log searching and backup validation, off the API thread
 resources/node/node.exe     the Node.js that runs the service (the one the build ran with; VERSION.txt records it)
 resources/nssm/             nssm.exe, service-admin.ps1 (install/repair/uninstall), installer-helper.ps1 (stop/start for upgrades)
 resources/ffprobe/          ffprobe.exe + FFmpeg's licence and readme

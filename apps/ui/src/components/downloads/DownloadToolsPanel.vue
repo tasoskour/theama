@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { mdiDownloadCircleOutline, mdiRadar, mdiRefresh, mdiShieldLockOutline } from '@mdi/js'
 import { DownloadTool } from '@theama/contracts'
 import { useDownloadToolsStore, isLocalDownloadAddress } from '@/stores/downloadTools'
 import { useDownloadsStore } from '@/stores/downloads'
@@ -12,6 +13,11 @@ const state = computed(() => remote.value ? 'unknown' : tools.vpnState)
 const warning = computed(() => state.value !== 'connected' && (remote.value || tools.qbRunning !== false))
 const reason = computed(() => remote.value ? 'remote' : tools.vpnReason)
 const color = computed(() => warning.value ? 'warning' : state.value === 'connected' ? 'success' : 'info')
+const toolIcons: Record<DownloadTool, string> = {
+  nordvpn: mdiShieldLockOutline,
+  qbittorrent: mdiDownloadCircleOutline,
+  prowlarr: mdiRadar
+}
 
 function visibility(): void {
   if (document.visibilityState === 'hidden') tools.stop()
@@ -50,12 +56,13 @@ onBeforeUnmount(() => {
           :key="tool"
           variant="tonal"
           size="small"
+          :prepend-icon="toolIcons[tool]"
           :loading="tools.opening[tool] === true"
           :disabled="tools.opening[tool] === true"
           :data-test="`open-${tool}`"
           @click="open(tool)"
         >{{ $t(`downloads.tools.open.${tool}`) }}</v-btn>
-        <v-btn variant="text" size="small" :loading="tools.checking" :disabled="tools.checking" data-test="vpn-refresh" @click="tools.refresh()">{{ $t('downloads.tools.refresh') }}</v-btn>
+        <v-btn variant="text" size="small" :prepend-icon="mdiRefresh" :loading="tools.checking" :disabled="tools.checking" data-test="vpn-refresh" @click="tools.refresh()">{{ $t('downloads.tools.refresh') }}</v-btn>
       </div>
       <p v-if="tools.problem" role="alert" class="mt-2" data-test="tool-error">{{ $t(`downloads.tools.error.${tools.problem}`) }}</p>
       <p v-if="settings" class="th-muted mt-2">{{ $t('downloads.tools.splitTunneling') }}</p>

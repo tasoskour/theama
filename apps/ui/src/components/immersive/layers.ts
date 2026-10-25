@@ -75,6 +75,8 @@ export class TextureBank {
   private readonly loader = new THREE.TextureLoader()
   private readonly artwork = new Map<string, THREE.Texture>()
   private readonly failed = new Set<string>()
+  private readonly pending = new Map<string, symbol>()
+  private disposed = false
   private readonly standIns = new Map<string, THREE.Texture>()
   private posters: readonly PosterSource[] = []
   /** Called when artwork finishes loading. */
@@ -86,6 +88,14 @@ export class TextureBank {
 
   setPosters(posters: readonly PosterSource[]): void {
     this.posters = posters
+    // Refresh materials before releasing the textures they used to reference.
+    this.onChange()
+    const urls = new Set(this.sources.flatMap(p => p.url ? [p.url] : []))
+    const seeds = new Set(this.sources.map(p => p.seed))
+    for (const [url, texture] of this.artwork) if (!urls.has(url)) { texture.dispose(); this.artwork.delete(url) }
+    for (const [seed, texture] of this.standIns) if (!seeds.has(seed)) { texture.dispose(); this.standIns.delete(seed) }
+    for (const url of this.failed) if (!urls.has(url)) this.failed.delete(url)
+    for (const url of this.pending.keys()) if (!urls.has(url)) this.pending.delete(url)
   }
 
   private get sources(): readonly PosterSource[] {
@@ -98,15 +108,24 @@ export class TextureBank {
     const cached = this.artwork.get(src.url)
     if (cached) return cached
     const url = src.url
+    if (this.pending.has(url)) return this.standIn(src)
+    const token = Symbol(url)
+    this.pending.set(url, token)
     this.loader.load(
       url,
       (t) => {
+        if (this.disposed || this.pending.get(url) !== token) { t.dispose(); return }
+        this.pending.delete(url)
         t.colorSpace = THREE.SRGBColorSpace
         this.artwork.set(url, t)
         this.onChange()
       },
       undefined,
-      () => this.failed.add(url),
+      () => {
+        if (this.disposed || this.pending.get(url) !== token) return
+        this.pending.delete(url)
+        this.failed.add(url)
+      },
     )
     return this.standIn(src)
   }
@@ -121,6 +140,10 @@ export class TextureBank {
   }
 
   dispose(): void {
+    this.disposed = true
+    this.pending.clear()
+    this.failed.clear()
+    this.onChange = () => undefined
     for (const t of this.artwork.values()) t.dispose()
     for (const t of this.standIns.values()) t.dispose()
     this.artwork.clear()

@@ -7,6 +7,7 @@ import { CollectionDetail, type CollectionMember, type CollectionOrder } from '@
 import { ApiRequestError } from '@/api/client'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import PosterCard from '@/components/titles/PosterCard.vue'
+import { useLatestRequest, useRefresh } from '@/composables/useRefresh'
 import { useConnectionStore } from '@/stores/connection'
 import { moveBetweenCards } from '@/utils/gridNav'
 
@@ -25,24 +26,28 @@ const editable = computed(() => detail.value?.summary.kind === 'user')
 /** Moving things around only makes sense in the person's own order. */
 const arranging = computed(() => editable.value && detail.value?.order === 'custom')
 
+const latest = useLatestRequest()
+const refresh = useRefresh(load)
+
 async function load(): Promise<void> {
-  if (!connection.client || !Number.isInteger(id.value)) return
-  try {
-    detail.value = await connection.client.get(`/collections/${id.value}`, CollectionDetail, { order: order.value })
+  const client = connection.client
+  if (!client) return
+  await latest(signal => client.get(`/collections/${id.value}`, CollectionDetail, { order: order.value }, { signal }), result => {
+    detail.value = result
     missing.value = false
     error.value = null
-  } catch (err) {
+  }, err => {
     if (err instanceof ApiRequestError && err.code === 'not_found') {
       detail.value = null
       missing.value = true
     } else error.value = err instanceof Error ? err.message : String(err)
-  }
+  })
 }
 
 watch([() => connection.phase, id], () => connection.phase === 'connected' && void load().then(() => nextTick(() => heading.value?.focus())), { immediate: true })
 onScopeDispose(
   connection.onEvent((e) => {
-    if (e.type === 'library.changed') void load()
+    if (e.type === 'library.changed') refresh.schedule()
   }),
 )
 

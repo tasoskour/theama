@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { GenreList, GroupTitlesResult, LibraryStatus, MetadataSearchResult, MetadataStatus, MetadataSuggestionDetails, MetadataSuggestionsResult, TitleDetail, TitlePage, type TitleSummary } from '@theama/contracts'
+import { GenreList, GroupTitlesResult, LibraryStatus, MetadataPersonTitlesResult, MetadataSearchResult, MetadataStatus, MetadataSuggestionDetails, MetadataSuggestionsResult, TitleDetail, TitlePage, type TitleSummary } from '@theama/contracts'
 import { GOOD_KEY, startFakeTmdb, type FakeTmdb } from '../../../../tools/fake-tmdb/server.mjs'
 import { startServer, type RunningServer } from '../bootstrap'
 import { loadConfig } from '../config'
@@ -104,6 +104,7 @@ describe('without a key', () => {
     expect(((await suggestions.json()) as { error: { code: string } }).error.code).toBe('no_key')
     expect((await send('GET', '/metadata/suggestions/details?kind=movie&externalId=157336')).status).toBe(409)
     expect((await send('GET', '/metadata/genres')).status).toBe(409)
+    expect((await send('GET', '/metadata/person/titles?externalId=42&category=actor')).status).toBe(409)
   })
 })
 
@@ -293,6 +294,22 @@ describe('manual identification', () => {
     })
     expect(MetadataSuggestionDetails.parse(await get('/metadata/suggestions/details?kind=movie&externalId=700001'))).toEqual({ imdbId: null, trailer: null })
     expect((await send('GET', '/metadata/suggestions/details?kind=movie&externalId=abc')).status).toBe(400)
+  })
+
+  it('provides person titles with local artwork, caches lookups, and validates requests', async () => {
+    const d = await detail((await byTitle('Interstellar')).key)
+    for (const credit of [d.credits.find((c) => c.category === 'actor')!, d.credits.find((c) => c.category === 'director')!]) {
+      const path = `/metadata/person/titles?externalId=${credit.externalId}&category=${credit.category}`
+      const first = MetadataPersonTitlesResult.parse(await get(path))
+      expect(first.items[0]).toMatchObject({ title: 'Interstellar', kind: 'movie', year: 2014, rating: 8.4, posterUrl: expect.stringMatching(/^\/api\/v1\/artwork\//) })
+      const calls = fake.requests.length
+      expect(MetadataPersonTitlesResult.parse(await get(path))).toEqual(first)
+      expect(fake.requests).toHaveLength(calls)
+    }
+    expect((await send('GET', '/metadata/person/titles?externalId=abc&category=actor')).status).toBe(400)
+    expect((await send('GET', '/metadata/person/titles?externalId=42&category=producer')).status).toBe(400)
+    expect((await send('GET', '/metadata/person/titles?externalId=42')).status).toBe(400)
+    expect(MetadataPersonTitlesResult.parse(await get('/metadata/person/titles?externalId=0&category=actor'))).toEqual({ items: [] })
   })
 
   it('offers the candidates for an ambiguous title, then locks the user choice', async () => {

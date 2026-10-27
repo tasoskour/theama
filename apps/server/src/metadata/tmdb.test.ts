@@ -20,6 +20,36 @@ const provider = (key: string | null = GOOD_KEY, http = fast()) =>
   new TmdbProvider({ credential: () => key, apiBase: fake.url, imageBase: fake.imageUrl, http })
 
 describe('TmdbProvider', () => {
+  it('returns only the selected person’s credits in the selected role', async () => {
+    const p = provider()
+    const movie = await p.fetchTitle('movie', '157336', 'en-US')
+    const series = await p.fetchTitle('series', '95396', 'en-US')
+    const movieActor = movie.cast[0]!.externalId
+    const seriesActor = series.cast[0]!.externalId
+    const director = movie.directors[0]!.externalId
+    expect((await p.personTitles(movieActor, 'actor', 'en-US')).map((c) => c.title)).toEqual(['Interstellar'])
+    expect((await p.personTitles(seriesActor, 'actor', 'en-US')).map((c) => c.title)).toEqual(['Severance'])
+    expect((await p.personTitles(director, 'director', 'en-US')).map((c) => c.title)).toEqual(['Interstellar'])
+    expect(await p.personTitles(director, 'actor', 'en-US')).toEqual([])
+    expect(await p.personTitles(movieActor, 'director', 'en-US')).toEqual([])
+    expect(fake.requests.filter((r) => r.path.startsWith('/discover/'))).toEqual([])
+    p.close()
+  })
+
+  it.each(['actor', 'director'] as const)('gets the top movies and series for a %s, filtering invalid and duplicate credits', async (category) => {
+    const p = provider()
+    const items = await p.personTitles('42', category, 'en-US')
+    expect(items).toHaveLength(20)
+    expect(items.filter((c) => c.kind === 'movie').map((c) => c.externalId)).toEqual(Array.from({ length: 10 }, (_, i) => String(8000 + i)))
+    expect(items.filter((c) => c.kind === 'series').map((c) => c.externalId)).toEqual(Array.from({ length: 10 }, (_, i) => String(9000 + i)))
+    expect(items[0]).toMatchObject({ title: 'Movie 0', year: 2020, rating: 7.5, posterPath: null })
+    expect(items[10]).toMatchObject({ title: 'Series 0', year: 2021, rating: null })
+    expect((await p.personTitles('42', category, 'el-GR'))[0]?.title).toBe('Ταινία 0')
+    expect(fake.requests[0]).toMatchObject({ path: '/person/42/combined_credits', query: { language: 'en-US' } })
+    expect(await p.personTitles('0', category, 'en-US')).toEqual([])
+    p.close()
+  })
+
   it('searches movies and series with year filters', async () => {
     const p = provider()
     const dunes = await p.search({ kind: 'movie', title: 'dune', language: 'en-US' })

@@ -59,6 +59,13 @@ const SearchResponse = z.object({
     .transform((v) => v ?? 1),
 })
 
+const PersonCredit = SearchResult.extend({
+  media_type: z.string(),
+  adult: z.boolean().nullish(),
+  job: z.string().nullish(),
+})
+const PersonCredits = z.object({ cast: z.array(PersonCredit), crew: z.array(PersonCredit) })
+
 /** Each page of suggestions holds this many movies and this many series, alternating. */
 const SUGGESTIONS_PER_KIND = 10
 /** "New" looks back this far. */
@@ -245,6 +252,25 @@ export class TmdbProvider implements MetadataProvider {
   async genres(language: string): Promise<string[]> {
     const lists = await Promise.all([this.genreList('movie', language), this.genreList('series', language)])
     return [...new Set(lists.flatMap((list) => [...list.values()]))].sort((a, b) => a.localeCompare(b))
+  }
+
+  async personTitles(externalId: string, category: 'actor' | 'director', language: string): Promise<ProviderCandidate[]> {
+    const data = parse(PersonCredits, await this.call(`/person/${externalId}/combined_credits`, { language }))
+    const credits = (category === 'actor' ? data.cast : data.crew.filter((c) => c.job === 'Director'))
+      .filter((c) => !c.adult && (c.media_type === 'movie' ? c.title : c.media_type === 'tv' ? c.name : null))
+      .sort((a, b) => b.popularity - a.popularity || a.id - b.id)
+    const seen = new Set<string>()
+    const unique = credits.filter((c) => {
+      const key = `${c.media_type}:${c.id}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    const groups = await Promise.all((['movie', 'series'] as const).map((kind) => this.candidates(kind, {
+      results: unique.filter((c) => c.media_type === (kind === 'movie' ? 'movie' : 'tv')).slice(0, 10),
+      total_pages: 1,
+    }, language)))
+    return groups.flat()
   }
 
   async search(q: SearchQuery): Promise<ProviderCandidate[]> {

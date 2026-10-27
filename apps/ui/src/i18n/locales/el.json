@@ -317,6 +317,15 @@
     "collections": "Συλλογές"
   },
   "detail": {
+    "personTitles": "Ταινίες και σειρές με {name}",
+    "actorSuggestions": "Ταινίες και σειρές με τον/την {name}",
+    "directorSuggestions": "Ταινίες και σειρές σε σκηνοθεσία {name}",
+    "loadingPersonTitles": "Φόρτωση κορυφαίων τίτλων…",
+    "topMovies": "Κορυφαίες ταινίες",
+    "topSeries": "Κορυφαίες σειρές",
+    "noPersonTitles": "Δεν βρέθηκαν τίτλοι για αυτό το πρόσωπο σε αυτή την κατηγορία.",
+    "personRating": "Βαθμολογία TMDB {value}/10",
+    "findPersonReleases": "Εύρεση κυκλοφοριών για {title}",
     "back": "Πίσω",
     "kind": {
       "movie": "Ταινία",

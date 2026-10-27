@@ -4,6 +4,7 @@ import {
   GENRE_SEPARATOR,
   GenreList,
   MetadataSearchResult,
+  MetadataPersonTitlesResult,
   MetadataStatus,
   MetadataSuggestionDetails,
   MetadataSuggestionsResult,
@@ -77,6 +78,14 @@ export const useMetadataStore = defineStore('metadata', () => {
     }
   }
 
+  async function personTitles(externalId: string, category: 'actor' | 'director', signal?: AbortSignal): Promise<({ ok: true } & MetadataPersonTitlesResult) | { ok: false; code: string; message: string }> {
+    if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
+    try {
+      const res = await connection.client.get('/metadata/person/titles', MetadataPersonTitlesResult, { externalId, category }, signal ? { signal } : undefined)
+      return { ok: true, ...res }
+    } catch (err) { return failure(err) as { ok: false; code: string; message: string } }
+  }
+
   /** One page of a suggestions section (what is new, or a year's most popular). The server remembers pages, so asking again is cheap. */
   async function suggestions(
     section: SuggestionSection,
@@ -132,5 +141,5 @@ export const useMetadataStore = defineStore('metadata', () => {
     if (e.type === 'metadata.status') status.value = e.status
   })
 
-  return { status, error, load, saveKey, retry, search, genres, suggestions, suggestionDetails }
+  return { status, error, load, saveKey, retry, search, genres, personTitles, suggestions, suggestionDetails }
 })

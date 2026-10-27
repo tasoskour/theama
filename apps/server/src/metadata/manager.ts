@@ -8,6 +8,7 @@ import type {
   MetadataStatus,
   MetadataSuggestionDetails,
   MetadataSuggestionsResult,
+  MetadataPersonTitlesResult,
   GenreList,
   GenreMode,
   ServerEvent,
@@ -79,6 +80,7 @@ export class MetadataManager {
   private readonly collectionsThisPass = new Set<string>()
   private readonly suggestionCache = new AsyncCache<MetadataSuggestionsResult>(128, SUGGESTION_FRESH_MS, () => this.now().getTime())
   private readonly suggestionDetailsCache = new AsyncCache<MetadataSuggestionDetails>(256, SUGGESTION_FRESH_MS, () => this.now().getTime())
+  private readonly personTitlesCache = new AsyncCache<MetadataPersonTitlesResult>(128, SUGGESTION_FRESH_MS, () => this.now().getTime())
 
   constructor(private readonly d: ManagerDeps) {}
 
@@ -160,6 +162,7 @@ export class MetadataManager {
   credentialsChanged(): void {
     this.suggestionCache.clear()
     this.suggestionDetailsCache.clear()
+    this.personTitlesCache.clear()
     this.d.resetProvider?.()
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.state = this.d.credentials.has() ? 'idle' : 'no_key'
@@ -481,6 +484,23 @@ export class MetadataManager {
           items[index] = { ...this.toCandidate(candidate, null, file), rating: candidate.rating }
         })
         return { items, hasMore: page.hasMore }
+      } catch (err) { return this.translate(err) }
+    })
+  }
+
+  /** Popular movies and series for one actor or director, with locally cached artwork. */
+  async personTitles(externalId: string, category: 'actor' | 'director'): Promise<MetadataPersonTitlesResult> {
+    this.requireKey()
+    const language = this.tag()
+    return this.personTitlesCache.get(`${externalId}:${category}:${language}`, async () => {
+      try {
+        const candidates = await this.d.provider.personTitles(externalId, category, language)
+        const items: Suggestion[] = new Array(candidates.length)
+        await runPool(candidates.map((candidate, index) => ({ candidate, index })), 4, async ({ candidate, index }) => {
+          const file = await this.d.artwork.ensure(candidate.posterPath, 'thumb')
+          items[index] = { ...this.toCandidate(candidate, null, file), rating: candidate.rating }
+        })
+        return { items }
       } catch (err) { return this.translate(err) }
     })
   }

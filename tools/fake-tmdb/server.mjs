@@ -104,6 +104,36 @@ export async function startFakeTmdb(options = {}) {
     }
 
     const PAGE_SIZE = 20
+    const person = path.match(/^\/person\/(\d+)\/combined_credits$/)
+    if (person) {
+      const cast = []
+      const crew = []
+      for (const [list, media_type] of [[MOVIES, 'movie'], [SHOWS, 'tv']]) {
+        for (const item of list) {
+          const credit = {
+            ...item,
+            title: media_type === 'movie' ? pick(item, 'title', item.title) : undefined,
+            name: media_type === 'tv' ? item.name : undefined,
+            genre_ids: genreList.filter((g) => item.genres.includes(g.name)).map((g) => g.id),
+            media_type,
+            adult: false,
+          }
+          if ((item.cast ?? []).some(([name]) => String(personId(name)) === person[1])) cast.push(credit)
+          if ((item.directors ?? []).some((name) => String(personId(name)) === person[1])) crew.push({ ...credit, job: 'Director' })
+        }
+      }
+      // A deliberately mixed filmography exercises role filtering, duplicates and section limits.
+      if (person[1] === '42') {
+        const movies = Array.from({ length: 13 }, (_, i) => ({ id: 8000 + i, title: `Movie ${i}`, media_type: 'movie', popularity: 100 - i, vote_average: 7.5, vote_count: 500, release_date: '2020-01-01' }))
+        const shows = Array.from({ length: 12 }, (_, i) => ({ id: 9000 + i, name: `Series ${i}`, media_type: 'tv', popularity: 100 - i, first_air_date: '2021-01-01' }))
+        movies[0].title = lang === 'el' ? 'Ταινία 0' : 'Movie 0'
+        movies[1].popularity = 100 // tie resolved by ID
+        const invalid = [{ id: 1, title: 'Adult', media_type: 'movie', adult: true, popularity: 999 }, { id: 2, title: ' ', media_type: 'movie', popularity: 999 }, { id: 3, media_type: 'movie' }, { id: 4, name: 'Person', media_type: 'person' }]
+        cast.push(...movies.toReversed(), ...shows, { ...movies[0], popularity: 1 }, ...invalid)
+        crew.push(...movies.map((c) => ({ ...c, job: 'Director' })), ...shows.map((c) => ({ ...c, job: 'Director' })), { id: 5, title: 'Producer only', media_type: 'movie', popularity: 999, job: 'Producer' }, { ...movies[0], job: 'Director' }, ...invalid.map((c) => ({ ...c, job: 'Director' })))
+      }
+      return json(200, { cast, crew })
+    }
     const results = (list, tv, page = 1) =>
       json(200, {
         page,

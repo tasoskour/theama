@@ -317,6 +317,15 @@
     "collections": "Collections"
   },
   "detail": {
+    "personTitles": "Movies and TV series with {name}",
+    "actorSuggestions": "Movies and TV series featuring {name}",
+    "directorSuggestions": "Movies and TV series directed by {name}",
+    "loadingPersonTitles": "Loading top titles…",
+    "topMovies": "Top movies",
+    "topSeries": "Top TV series",
+    "noPersonTitles": "No titles found for this person in this category.",
+    "personRating": "TMDB {value}/10",
+    "findPersonReleases": "Find releases for {title}",
     "back": "Back",
     "kind": {
       "movie": "Movie",

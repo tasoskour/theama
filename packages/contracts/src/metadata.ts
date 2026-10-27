@@ -171,6 +171,15 @@ export type MetadataSuggestionDetails = z.infer<typeof MetadataSuggestionDetails
 export const MetadataSearchResult = z.object({ items: z.array(Suggestion) })
 export type MetadataSearchResult = z.infer<typeof MetadataSearchResult>
 
+export const MetadataPersonTitlesQuery = z.object({
+  externalId: z.string().regex(/^\d{1,12}$/),
+  category: z.enum(['actor', 'director']),
+})
+export type MetadataPersonTitlesQuery = z.infer<typeof MetadataPersonTitlesQuery>
+
+export const MetadataPersonTitlesResult = z.object({ items: z.array(Suggestion) })
+export type MetadataPersonTitlesResult = z.infer<typeof MetadataPersonTitlesResult>
+
 export const IdentifyRequest = z.object({
   key: z.string().min(1).max(1000),
   externalId: z.string().min(1).max(40),

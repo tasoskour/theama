@@ -106,6 +106,7 @@ export interface MetadataProvider {
   /** All movie and TV genre names in the requested language. */
   genres(language: string): Promise<string[]>
   search(query: SearchQuery): Promise<ProviderCandidate[]>
+  personTitles(externalId: string, category: 'actor' | 'director', language: string): Promise<ProviderCandidate[]>
   /** One page of popular movies and series together, alternating, for a "new" or a "year" section. */
   suggestions(query: SuggestionsQuery): Promise<{ items: ProviderCandidate[]; hasMore: boolean }>
   fetchTitle(kind: MatchKind, externalId: string, language: string): Promise<ProviderTitle>

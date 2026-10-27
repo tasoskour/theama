@@ -4,11 +4,13 @@ import { useRoute } from 'vue-router'
 import { mdiClose, mdiMagnify } from '@mdi/js'
 import { useI18n } from 'vue-i18n'
 import type { GenreMode, MatchCandidate, ReleaseKind, Suggestion } from '@theama/contracts'
+import { MetadataPersonTitlesQuery } from '@theama/contracts'
 import GenreFilter from '@/components/common/GenreFilter.vue'
 import ActiveDownloads from '@/components/downloads/ActiveDownloads.vue'
 import DownloadToolsPanel from '@/components/downloads/DownloadToolsPanel.vue'
 import ReleaseList from '@/components/downloads/ReleaseList.vue'
 import SuggestionGrid from '@/components/downloads/SuggestionGrid.vue'
+import PersonSuggestions from '@/components/downloads/PersonSuggestions.vue'
 import SuggestionSection from '@/components/downloads/SuggestionSection.vue'
 import SuggestionDetailsDialog from '@/components/downloads/SuggestionDetailsDialog.vue'
 import type { SuggestionItem } from '@/components/downloads/suggestion'
@@ -25,6 +27,11 @@ const { t } = useI18n()
 const downloads = useDownloadsStore()
 const metadata = useMetadataStore()
 const favorites = useFavoritesStore()
+const person = computed(() => {
+  const parsed = MetadataPersonTitlesQuery.safeParse({ externalId: route.query.personId, category: route.query.personCategory })
+  if (!parsed.success) return null
+  return { ...parsed.data, name: typeof route.query.personName === 'string' ? route.query.personName : t(parsed.data.category === 'actor' ? 'detail.actor' : 'detail.director') }
+})
 
 const tab = ref<'find' | 'favorites' | 'active'>('find')
 const favoriteKind = ref<ReleaseKind | 'all'>('all')
@@ -200,7 +207,8 @@ onMounted(() => {
     text.value = title
     const fromTitle = typeof y === 'string' ? Number(y) : NaN
     if (k === 'movie' && years.includes(fromTitle)) year.value = fromTitle
-    void search()
+    if (route.query.releases === '1') openReleases(title, k === 'movie' && Number.isInteger(fromTitle) && fromTitle >= 1870 && fromTitle <= 2200 ? fromTitle : undefined, k)
+    else void search()
   }
 })
 
@@ -224,6 +232,7 @@ async function search(): Promise<void> {
   problem.value = null
   matches.value = null
   query.value = null
+  if (person.value) return
   if (!hasKey.value) {
     openReleases(q)
     return
@@ -256,6 +265,14 @@ function changeKind(): void {
   matches.value = null
   query.value = null
   problem.value = null
+}
+
+function backFromReleases(): void {
+  query.value = null
+  if (person.value) {
+    text.value = ''
+    year.value = null
+  }
 }
 </script>
 
@@ -352,9 +369,11 @@ function changeKind(): void {
         <template v-if="query">
           <div v-for="q in query" :key="q.kind" class="find__releases">
             <p v-if="query.length > 1" class="th-eyebrow">{{ $t(`downloads.suggestions.filters.${q.kind}`) }}</p>
-            <ReleaseList :query="q" @back="query = null" />
+            <ReleaseList :query="q" @back="backFromReleases" />
           </div>
         </template>
+
+        <PersonSuggestions v-else-if="person" v-bind="person" :kind="kind" :genres="genres" :genre-mode="genreMode" :query="text" :year="year" @preview="openPreview" />
 
         <template v-else-if="matches">
           <p v-if="shownMatches.length === 0" class="th-muted">{{ $t('downloads.find.noMatches') }}</p>

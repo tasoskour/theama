@@ -560,7 +560,7 @@ const metaChips = computed(() => {
 
       <!-- Series: season tabs and the episode list -->
       <section v-if="isSeries" class="episodes">
-        <v-tabs v-model="season" color="primary" height="4.5rem" hide-slider show-arrows class="season-nav" :aria-label="$t('detail.seasons')">
+        <v-tabs v-model="season" color="primary" height="4.5rem" hide-slider show-arrows center-active class="season-nav" :aria-label="$t('detail.seasons')">
           <template #prev>
             <v-btn icon="$prev" variant="text" size="small" class="season-nav__arrow" :aria-label="$t('series.previousSeasons')" />
           </template>
@@ -876,6 +876,7 @@ const metaChips = computed(() => {
 }
 .season-nav :deep(.season-nav__card) {
   flex: 0 0 auto;
+  justify-content: start;
   min-width: 9rem;
   max-width: none;
   padding-inline: 1rem;
@@ -933,6 +934,13 @@ const metaChips = computed(() => {
 .season-nav :deep(.v-slide-group__next) {
   min-width: 2.75rem;
   flex-basis: 2.75rem;
+}
+@container episodes (max-width: 22rem) {
+  .season-nav__meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+  }
 }
 .eplist {
   list-style: none;

@@ -29,6 +29,7 @@ import {
   CreateExclusionRequest,
   IdentifyRequest,
   MetadataSearchQuery,
+  MetadataPersonTitlesQuery,
   MetadataSuggestionsQuery,
   MetadataSuggestionDetailsQuery,
   SetCredentialsRequest,
@@ -68,6 +69,7 @@ import {
   type CollectionList,
   type LibraryStatus,
   type MetadataSearchResult,
+  type MetadataPersonTitlesResult,
   type MetadataSuggestionsResult,
   type MetadataSuggestionDetails,
   type MetadataStatus,
@@ -610,6 +612,13 @@ export async function buildApp(deps: AppDeps) {
     } catch (err) {
       return metadataFailure(err)
     }
+  })
+
+  app.get(`${API_PREFIX}/metadata/person/titles`, async (req): Promise<MetadataPersonTitlesResult> => {
+    const q = MetadataPersonTitlesQuery.parse(req.query)
+    try {
+      return await metadata.personTitles(q.externalId, q.category)
+    } catch (err) { return metadataFailure(err) }
   })
 
   app.get(`${API_PREFIX}/metadata/suggestions`, async (req): Promise<MetadataSuggestionsResult> => {

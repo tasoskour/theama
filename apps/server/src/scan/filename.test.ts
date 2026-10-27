@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { LibraryType } from '@theama/contracts'
-import { isVideoFileName, parseMediaPath, type ParsedMedia } from './filename'
+import { applyTitleOverride, isVideoFileName, parseMediaPath, type ParsedMedia } from './filename'
 
 const p = (path: string, type: LibraryType = 'auto'): ParsedMedia => parseMediaPath(path.split('/'), type)
 
@@ -62,10 +62,14 @@ describe('real-world series folder', () => {
     })
   })
 
-  it('Mushishi: anime absolute numbering with a bracketed tag, no season', () => {
+  it('Mushishi: anime absolute numbering with a bracketed tag counts as season 1', () => {
     expect(p('Mushishi 1080p [muxed with Niizk subs]/[BD] Mushishi 12 - One-Eyed Fish (1920x1080 x264 AAC 5.1ch).mkv', 'series')).toEqual({
-      kind: 'episode', title: 'Mushishi', year: null, season: null, episode: 12, episodeEnd: null, episodeTitle: 'One-Eyed Fish',
+      kind: 'episode', title: 'Mushishi', year: null, season: 1, episode: 12, episodeEnd: null, episodeTitle: 'One-Eyed Fish',
     })
+  })
+
+  it('an absolute number does not override a season the folders give', () => {
+    expect(p('Mushishi/Season 02/Mushishi 12 - One-Eyed Fish.mkv', 'series')).toMatchObject({ title: 'Mushishi', season: 2, episode: 12 })
   })
 
   it('The Outsider: year in parentheses, dashes around the numbering, quality in parentheses', () => {
@@ -163,5 +167,59 @@ describe('isVideoFileName', () => {
   it('accepts video containers regardless of case and rejects everything else', () => {
     for (const ok of ['a.mkv', 'A.MP4', 'x.m4v', 'c.TS', 'd.webm', 'e.mpeg']) expect(isVideoFileName(ok)).toBe(true)
     for (const no of ['a.srt', 'b.txt', 'c.jpg', 'd.nfo', '.ce4dfb618e59.parts', 'mkv', '.mkv']) expect(isVideoFileName(no)).toBe(false)
+  })
+})
+
+describe('downloaded episodes named "Show 007 <native title> 第7話 - <video id>"', () => {
+  const maruko = (file: string): ParsedMedia => p(`Videos/${file}`, 'series')
+
+  it.each([
+    ['Chibi Maruko-chan 007 ちびまる子ちゃん 第7話 (英語字幕付き) - mEQXU4ocJaI.mkv', 7],
+    ['Chibi Maruko-chan 008 ちびまる子ちゃん 第8話 (英語字幕付き)- zrrd2XAB8Eo.mkv', 8],
+    ['Chibi Maruko-chan 016 ちびまる子ちゃん 第16話 (英語字幕付き) -8GvG3TLRQFo.mkv', 16],
+    ['Chibi Maruko-chan 024 ちびまる子ちゃん 第24話 （英語字幕付き） - Mm5dUlBNUv0.mkv', 24],
+  ])('%s is episode %i of one series', (file, episode) => {
+    expect(maruko(file)).toMatchObject({ kind: 'episode', title: 'Chibi Maruko-chan', season: 1, episode, episodeTitle: 'ちびまる子ちゃん' })
+  })
+
+  it('every episode shares one title, so they group into a single card', () => {
+    const titles = new Set([7, 8, 9, 10].map((n) => maruko(`Chibi Maruko-chan 0${String(n).padStart(2, '0')} ちびまる子ちゃん 第${n}話 - abc12345678.mkv`).title))
+    expect([...titles]).toEqual(['Chibi Maruko-chan'])
+  })
+
+  it('without the 第N話 marker the bare number after the name is still the episode', () => {
+    expect(maruko('Chibi Maruko-chan 007 ちびまる子ちゃん - mEQXU4ocJaI.mkv')).toMatchObject({
+      title: 'Chibi Maruko-chan', season: 1, episode: 7, episodeTitle: 'ちびまる子ちゃん',
+    })
+    expect(maruko('Chibi Maruko-chan 012.mkv')).toMatchObject({ title: 'Chibi Maruko-chan', season: 1, episode: 12, episodeTitle: null })
+  })
+
+  it('"Episode 5" and "#5" markers are episodes', () => {
+    expect(p('Some Show Episode 5 The Return.mkv', 'series')).toMatchObject({ title: 'Some Show', season: 1, episode: 5, episodeTitle: 'The Return' })
+    expect(p('Some Show #5.mkv', 'series')).toMatchObject({ title: 'Some Show', episode: 5 })
+  })
+
+  it('a video id is only stripped when it looks like one', () => {
+    expect(p('Movie - Interstellar.mkv', 'auto').title).toBe('Movie - Interstellar')
+    expect(p('Title - mEQXU4ocJaI.mkv', 'series').title).toBe('Title')
+  })
+
+  it('a bare trailing number is not read as an episode for movies or personal videos', () => {
+    expect(p('Ocean\'s 11.mkv', 'movies')).toMatchObject({ kind: 'movie', title: 'Ocean\'s 11', episode: null })
+    expect(p('Holiday 2019.mkv', 'videos')).toMatchObject({ kind: 'video', episode: null })
+  })
+
+  it('a number in the folder title is not an episode', () => {
+    expect(p('Apollo 13/S01E02.mkv', 'series')).toMatchObject({ title: 'Apollo 13', season: 1, episode: 2 })
+  })
+})
+
+describe('series name override', () => {
+  it('replaces the title of an episode only', () => {
+    const episode = p('Videos/Chibi Maruko-chan 007 ちびまる子ちゃん 第7話 - mEQXU4ocJaI.mkv', 'series')
+    expect(applyTitleOverride(episode, 'ちびまる子ちゃん')).toMatchObject({ title: 'ちびまる子ちゃん', episode: 7 })
+    expect(applyTitleOverride(episode, null)).toBe(episode)
+    const movie = p('Interstellar.2014.mkv', 'movies')
+    expect(applyTitleOverride(movie, 'Other')).toBe(movie)
   })
 })

@@ -107,6 +107,8 @@ export const mediaFile = sqliteTable(
     kind: text('kind', { enum: ['movie', 'episode', 'video', 'extra'] }).notNull(),
     /** A person's category correction. Null means derive the category from the source folder. */
     kindOverride: text('kind_override', { enum: ['movie', 'episode', 'video'] }),
+    /** A person's series name; replaces the parsed show title of an episode. Null means use the file name. */
+    titleOverride: text('title_override'),
     guessedTitle: text('guessed_title').notNull(),
     guessedYear: integer('guessed_year'),
     season: integer('season'),

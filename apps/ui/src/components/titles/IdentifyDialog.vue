@@ -1,22 +1,27 @@
 <script setup lang="ts">
 import { onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { TitleDetail, type MatchCandidate, type MatchKind } from '@theama/contracts'
+import { GroupTitlesResult, TitleDetail, type MatchCandidate, type MatchKind } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
 import PosterArt from './PosterArt.vue'
 import SearchField from '@/components/common/SearchField.vue'
 
-const props = defineProps<{ titleKey: string; kind: MatchKind; initialQuery: string; initialYear: number | null }>()
+/**
+ * Identifies one title (`titleKey`), or, with `groupKeys`, first puts those cards into one series under a name
+ * the person can edit, and identifies that series when they pick a match.
+ */
+const props = defineProps<{ titleKey?: string; groupKeys?: string[]; kind: MatchKind; initialQuery: string; initialYear: number | null }>()
 const open = defineModel<boolean>({ required: true })
-const emit = defineEmits<{ identified: [detail: TitleDetail] }>()
+const emit = defineEmits<{ identified: [detail: TitleDetail]; grouped: [result: GroupTitlesResult, identifyRequested: boolean] }>()
 
 const { t } = useI18n()
 const connection = useConnectionStore()
 const metadata = useMetadataStore()
 
 const query = ref('')
+const groupName = ref('')
 const results = ref<MatchCandidate[] | null>(null)
 const searching = ref(false)
 const choosing = ref<string | null>(null)
@@ -49,14 +54,35 @@ async function search(): Promise<void> {
   }
 }
 
+const NO_MATCH = '' // `choosing` while grouping without picking a match
+
+async function group(externalId?: string): Promise<void> {
+  const name = groupName.value.trim()
+  if (!connection.client || !props.groupKeys || !name) return
+  const result = await connection.client.post('/library/titles/group', { keys: props.groupKeys, title: name, externalId }, GroupTitlesResult)
+  open.value = false
+  emit('grouped', result, externalId !== undefined)
+}
+
 async function choose(c: MatchCandidate): Promise<void> {
-  if (!connection.client || choosing.value) return
-  choosing.value = c.externalId
-  error.value = null
-  try {
-    const detail = await connection.client.post('/library/title/identify', { key: props.titleKey, kind: props.kind, externalId: c.externalId }, TitleDetail)
+  await run(c.externalId, async () => {
+    if (props.groupKeys) return group(c.externalId)
+    const detail = await connection.client!.post('/library/title/identify', { key: props.titleKey, kind: props.kind, externalId: c.externalId }, TitleDetail)
     open.value = false
     emit('identified', detail)
+  })
+}
+
+async function groupOnly(): Promise<void> {
+  await run(NO_MATCH, () => group())
+}
+
+async function run(id: string, action: () => Promise<void>): Promise<void> {
+  if (!connection.client || choosing.value !== null) return
+  choosing.value = id
+  error.value = null
+  try {
+    await action()
   } catch (err) {
     error.value =
       err instanceof ApiRequestError ? { code: err.code, message: err.message } : { code: 'unreachable', message: err instanceof Error ? err.message : String(err) }
@@ -73,6 +99,7 @@ watch(open, (isOpen) => {
   if (!isOpen) return
   skipNextDebounce = query.value !== props.initialQuery
   query.value = props.initialQuery
+  groupName.value = props.initialQuery
   results.value = null
   error.value = null
   void search()
@@ -108,9 +135,20 @@ function problem(code: string, fallback: string): string {
 <template>
   <v-dialog v-model="open" max-width="51rem" scrollable aria-labelledby="identify-title">
     <v-card class="identify-card">
-      <v-card-title id="identify-title" class="th-display">{{ $t('match.dialog.title') }}</v-card-title>
-      <v-card-subtitle class="subtitle">{{ $t('match.dialog.subtitle', { name: initialQuery }) }}</v-card-subtitle>
+      <v-card-title id="identify-title" class="th-display">{{ $t(groupKeys ? 'match.dialog.groupTitle' : 'match.dialog.title') }}</v-card-title>
+      <v-card-subtitle class="subtitle">{{ groupKeys ? $t('match.dialog.groupSubtitle', groupKeys.length) : $t('match.dialog.subtitle', { name: initialQuery }) }}</v-card-subtitle>
       <v-card-text>
+        <v-text-field
+          v-if="groupKeys"
+          v-model="groupName"
+          :label="$t('match.dialog.groupName')"
+          :hint="$t('match.dialog.groupNameHint')"
+          persistent-hint
+          density="compact"
+          variant="outlined"
+          class="group-name"
+          data-test="group-name"
+        />
         <form class="search" role="search" @submit.prevent="search">
           <SearchField
             v-model="query"
@@ -146,7 +184,7 @@ function problem(code: string, fallback: string): string {
               variant="tonal"
               color="primary"
               :loading="choosing === c.externalId"
-              :disabled="choosing !== null"
+              :disabled="choosing !== null || (groupKeys !== undefined && !groupName.trim())"
               :aria-label="$t('match.dialog.choose', { name: c.title, year: c.year ?? '' })"
               @click="choose(c)"
             >{{ $t('match.dialog.pick') }}</v-btn>
@@ -156,6 +194,7 @@ function problem(code: string, fallback: string): string {
       <v-card-actions>
         <p class="th-muted note">{{ $t('match.dialog.lockNote') }}</p>
         <v-spacer />
+        <v-btn v-if="groupKeys" variant="text" :loading="choosing === NO_MATCH" :disabled="choosing !== null || !groupName.trim()" data-test="group-only" @click="groupOnly">{{ $t('match.dialog.groupOnly') }}</v-btn>
         <v-btn variant="text" @click="open = false">{{ $t('common.cancel') }}</v-btn>
       </v-card-actions>
     </v-card>
@@ -168,6 +207,9 @@ function problem(code: string, fallback: string): string {
 }
 .subtitle {
   white-space: normal;
+}
+.group-name {
+  margin-bottom: 16px;
 }
 .search {
   position: sticky;

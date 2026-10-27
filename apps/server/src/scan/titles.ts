@@ -9,8 +9,11 @@ import type { MetadataRepo } from '../metadata/store'
 import { nextEpisode, toEpisodeFile } from '../playback/next'
 import { buildCoverage } from './coverage'
 import { ftsQuery } from './fts'
-import { parseMediaPath, titleKeyFor } from './filename'
+import { applyTitleOverride, parseMediaPath, titleKeyFor } from './filename'
 import { toMediaFile, type ListRow } from './store'
+
+interface ActionFile { id: number; path: string; source_path: string; library_type: LibraryType }
+export interface GroupResult { key: string; affectedFileCount: number }
 
 const KIND_TO_DB: Record<TitleKind, MediaKind> = { movie: 'movie', series: 'episode', video: 'video' }
 const KIND_FROM_DB: Partial<Record<MediaKind, TitleKind>> = { movie: 'movie', episode: 'series', video: 'video' }
@@ -151,57 +154,100 @@ export class TitleRepo {
 
   /** Changes Theama's interpretation of every file represented by a title; disk paths are never changed. */
   reclassify(key: string, kind: TitleKind | null): ReclassifyTitleResult | null {
-    type ActionFile = {
-      id: number; path: string; source_path: string; library_type: LibraryType
-    }
-    const rows = this.raw.prepare(
-      `SELECT f.id, f.path, s.path AS source_path, s.library_type
-         FROM media_file f JOIN library_source s ON s.id = f.source_id
-        WHERE f.title_key = ? ORDER BY f.id`,
-    ).all(key) as ActionFile[]
+    const rows = this.filesOfKeys([key])
     if (rows.length === 0) return null
 
     const override: Exclude<MediaKind, 'extra'> | null = kind === 'series' ? 'episode' : kind
-    const targetSource: Record<Exclude<MediaKind, 'extra'>, LibraryType> = { movie: 'movies', episode: 'series', video: 'videos' }
-    const memberships = this.raw.prepare(
-      `SELECT collection_id, custom_order FROM collection_member WHERE title_key = ?`,
-    ).all(key) as { collection_id: number; custom_order: number | null }[]
+    const memberships = this.membershipsOf([key])
     const resulting = new Set<string>()
-    const now = new Date().toISOString()
 
     this.raw.transaction(() => {
-      const update = this.raw.prepare(
-        `UPDATE media_file SET kind_override = ?, kind = ?, guessed_title = ?, guessed_year = ?, season = ?,
-          episode = ?, episode_end = ?, episode_title = ?, title_key = ? WHERE id = ?`,
-      )
-      for (const row of rows) {
-        const relative = win32.relative(row.source_path, row.path).split(/[\\/]+/).filter(Boolean)
-        const effectiveSource = override ? targetSource[override] : row.library_type
-        let parsed = parseMediaPath([win32.basename(row.source_path), ...relative], effectiveSource)
-        if (override && parsed.kind === 'extra') parsed = { ...parsed, kind: override }
-        const nextKey = titleKeyFor(parsed.kind, parsed.title, parsed.year, row.path)
-        resulting.add(nextKey)
-        update.run(override, parsed.kind, parsed.title, parsed.year, parsed.season, parsed.episode, parsed.episodeEnd, parsed.episodeTitle, nextKey, row.id)
-      }
-
-      this.raw.prepare('DELETE FROM collection_member WHERE title_key = ?').run(key)
-      const describe = this.raw.prepare(
-        `SELECT MIN(guessed_title) AS title, MAX(guessed_year) AS year FROM media_file WHERE title_key = ?`,
-      )
-      const addMember = this.raw.prepare(
-        `INSERT OR IGNORE INTO collection_member (collection_id, title_key, title, year, custom_order) VALUES (?, ?, ?, ?, ?)`,
-      )
-      for (const nextKey of resulting) {
-        const description = describe.get(nextKey) as { title: string; year: number | null }
-        for (const member of memberships) addMember.run(member.collection_id, nextKey, description.title, description.year, member.custom_order)
-      }
-      for (const member of memberships) this.raw.prepare('UPDATE collection SET updated_at = ? WHERE id = ?').run(now, member.collection_id)
-
+      // A person's category choice replaces any series name they gave these files by hand.
+      for (const nextKey of this.reparse(rows, override, null)) resulting.add(nextKey)
+      this.moveMemberships([key], memberships, resulting)
       this.purgeTitleData(key)
       for (const row of rows) this.reindexFile(row.id)
     })()
 
     return { affectedFileCount: rows.length, resultingTitleKeys: [...resulting], kind }
+  }
+
+  /**
+   * Puts every file of the given cards into one series called `title`. The name is stored on each file, so
+   * a rescan keeps them together. Files that already belong to a series of that name simply join it.
+   */
+  group(keys: string[], title: string): GroupResult | null {
+    const rows = this.filesOfKeys(keys)
+    if (rows.length === 0) return null
+
+    const memberships = this.membershipsOf(keys)
+    const target = titleKeyFor('episode', title, null, '')
+
+    this.raw.transaction(() => {
+      this.reparse(rows, 'episode', title)
+      this.moveMemberships(keys, memberships, new Set([target]))
+      // The series that already carries the name keeps its identification; the cards that dissolved lose theirs.
+      for (const key of new Set(keys)) if (key !== target) this.purgeTitleData(key)
+      for (const row of rows) this.reindexFile(row.id)
+    })()
+
+    return { key: target, affectedFileCount: rows.length }
+  }
+
+  private filesOfKeys(keys: string[]): ActionFile[] {
+    if (keys.length === 0) return []
+    return this.raw.prepare(
+      `SELECT f.id, f.path, s.path AS source_path, s.library_type
+         FROM media_file f JOIN library_source s ON s.id = f.source_id
+        WHERE f.title_key IN (${keys.map(() => '?').join(', ')}) ORDER BY f.id`,
+    ).all(...keys) as ActionFile[]
+  }
+
+  private membershipsOf(keys: string[]): { collection_id: number; custom_order: number | null }[] {
+    if (keys.length === 0) return []
+    return this.raw.prepare(
+      `SELECT collection_id, custom_order FROM collection_member WHERE title_key IN (${keys.map(() => '?').join(', ')})`,
+    ).all(...keys) as { collection_id: number; custom_order: number | null }[]
+  }
+
+  /** Re-reads each file's name under a category (and optional series name) and stores the result. Call inside a transaction. */
+  private reparse(rows: ActionFile[], override: Exclude<MediaKind, 'extra'> | null, titleOverride: string | null): Set<string> {
+    const targetSource: Record<Exclude<MediaKind, 'extra'>, LibraryType> = { movie: 'movies', episode: 'series', video: 'videos' }
+    const resulting = new Set<string>()
+    const update = this.raw.prepare(
+      `UPDATE media_file SET kind_override = ?, title_override = ?, kind = ?, guessed_title = ?, guessed_year = ?, season = ?,
+        episode = ?, episode_end = ?, episode_title = ?, title_key = ? WHERE id = ?`,
+    )
+    for (const row of rows) {
+      const relative = win32.relative(row.source_path, row.path).split(/[\\/]+/).filter(Boolean)
+      const effectiveSource = override ? targetSource[override] : row.library_type
+      let parsed = parseMediaPath([win32.basename(row.source_path), ...relative], effectiveSource)
+      if (override && parsed.kind === 'extra') parsed = { ...parsed, kind: override }
+      parsed = applyTitleOverride(parsed, titleOverride)
+      const nextKey = titleKeyFor(parsed.kind, parsed.title, parsed.year, row.path)
+      resulting.add(nextKey)
+      update.run(override, titleOverride, parsed.kind, parsed.title, parsed.year, parsed.season, parsed.episode, parsed.episodeEnd, parsed.episodeTitle, nextKey, row.id)
+    }
+    return resulting
+  }
+
+  /** Moves the collection links of the old cards onto the cards the files now belong to. Call inside a transaction. */
+  private moveMemberships(oldKeys: string[], memberships: { collection_id: number; custom_order: number | null }[], resulting: ReadonlySet<string>): void {
+    if (memberships.length === 0) return
+    const now = new Date().toISOString()
+    const forget = this.raw.prepare('DELETE FROM collection_member WHERE title_key = ?')
+    for (const key of new Set(oldKeys)) forget.run(key)
+    const describe = this.raw.prepare(
+      `SELECT MIN(guessed_title) AS title, MAX(guessed_year) AS year FROM media_file WHERE title_key = ?`,
+    )
+    const addMember = this.raw.prepare(
+      `INSERT OR IGNORE INTO collection_member (collection_id, title_key, title, year, custom_order) VALUES (?, ?, ?, ?, ?)`,
+    )
+    for (const nextKey of resulting) {
+      const description = describe.get(nextKey) as { title: string; year: number | null }
+      for (const member of memberships) addMember.run(member.collection_id, nextKey, description.title, description.year, member.custom_order)
+    }
+    for (const member of new Set(memberships.map((m) => m.collection_id))) this.raw.prepare('UPDATE collection SET updated_at = ? WHERE id = ?').run(now, member)
   }
 
   /** Excludes a title and removes only Theama-owned data. The media files and operation journal stay intact. */

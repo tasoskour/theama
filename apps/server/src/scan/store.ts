@@ -25,7 +25,7 @@ export type FilePatch = Partial<
   Pick<
     FileRow,
     | 'path' | 'size' | 'mtimeMs' | 'volumeId' | 'fileId' | 'state' | 'lastSeenAt' | 'missingSince' | 'excluded'
-    | 'kind' | 'kindOverride' | 'guessedTitle' | 'guessedYear' | 'season' | 'episode' | 'episodeEnd' | 'episodeTitle' | 'titleKey'
+    | 'kind' | 'kindOverride' | 'titleOverride' | 'guessedTitle' | 'guessedYear' | 'season' | 'episode' | 'episodeEnd' | 'episodeTitle' | 'titleKey'
     | 'probedAt' | 'probeError' | 'durationMs' | 'width' | 'height' | 'container' | 'videoCodec' | 'audioCodecs' | 'subtitleCount' | 'tracks'
   >
 >
@@ -33,7 +33,7 @@ export type FilePatch = Partial<
 const COLUMN_SQL: Record<keyof FilePatch, string> = {
   path: 'path', size: 'size', mtimeMs: 'mtime_ms', volumeId: 'volume_id', fileId: 'file_id', state: 'state',
   lastSeenAt: 'last_seen_at', missingSince: 'missing_since', kind: 'kind', guessedTitle: 'guessed_title',
-  kindOverride: 'kind_override', excluded: 'excluded',
+  kindOverride: 'kind_override', titleOverride: 'title_override', excluded: 'excluded',
   guessedYear: 'guessed_year', season: 'season', episode: 'episode', episodeEnd: 'episode_end',
   episodeTitle: 'episode_title', probedAt: 'probed_at', probeError: 'probe_error', durationMs: 'duration_ms',
   width: 'width', height: 'height', container: 'container', videoCodec: 'video_codec', audioCodecs: 'audio_codecs',

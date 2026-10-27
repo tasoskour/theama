@@ -322,6 +322,10 @@ export const MIGRATIONS: readonly string[] = [
     dismissed_at TEXT NOT NULL
   );
   `,
+  /* 15 — a person's series name for a file, so hand-grouped episodes stay together across rescans */
+  `
+  ALTER TABLE media_file ADD COLUMN title_override TEXT;
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

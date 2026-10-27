@@ -266,7 +266,11 @@
       "hidden": "Hid {count} title. Restore it from Library exclusions. | Hid {count} titles. Restore them from Library exclusions.",
       "moved": "Changed {count} title(s) to {destination}.",
       "moveConfirmTitle": "Change this title's category? | Change the category of these titles?",
-      "moveConfirmBody": "This changes the category of {count} selected title(s) to {destination}. Files stay where they are on disk. Provider matches will be detached and may need to be identified again."
+      "moveConfirmBody": "This changes the category of {count} selected title(s) to {destination}. Files stay where they are on disk. Provider matches will be detached and may need to be identified again.",
+      "group": "Group into series…",
+      "grouped": "Grouped {count} file(s) into one series.",
+      "groupedIdentified": "Grouped {count} file(s) into one series and identified it.",
+      "groupedUnidentified": "Grouped {count} file(s) into one series, but it could not be identified: {reason}"
     },
     "hide": "Hide {title}",
     "hideHint": "Hide this title and exclude its files from future scans",
@@ -713,7 +717,12 @@
       "noOverview": "No description available.",
       "pick": "This one",
       "choose": "This one: {name} {year}",
-      "lockNote": "Your choice is locked: rescans and refreshes will not change it."
+      "lockNote": "Your choice is locked: rescans and refreshes will not change it.",
+      "groupTitle": "Group into one series",
+      "groupSubtitle": "{count} title will become one series. | {count} titles will become one series.",
+      "groupName": "Series name",
+      "groupNameHint": "Files grouped under this name join the same series, including one you already have.",
+      "groupOnly": "Group without identifying"
     }
   },
   "downloads": {

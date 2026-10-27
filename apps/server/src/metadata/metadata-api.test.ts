@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { GenreList, LibraryStatus, MetadataSearchResult, MetadataStatus, MetadataSuggestionDetails, MetadataSuggestionsResult, TitleDetail, TitlePage, type TitleSummary } from '@theama/contracts'
+import { GenreList, GroupTitlesResult, LibraryStatus, MetadataSearchResult, MetadataStatus, MetadataSuggestionDetails, MetadataSuggestionsResult, TitleDetail, TitlePage, type TitleSummary } from '@theama/contracts'
 import { GOOD_KEY, startFakeTmdb, type FakeTmdb } from '../../../../tools/fake-tmdb/server.mjs'
 import { startServer, type RunningServer } from '../bootstrap'
 import { loadConfig } from '../config'
@@ -345,6 +345,49 @@ describe('manual identification', () => {
     res = TitleDetail.parse(await (await send('POST', '/library/title/unlock', { key: interstellar.key })).json())
     await until('re-identification', async () => (await detail(interstellar.key)).match?.state === 'matched')
     expect((await detail(interstellar.key)).match).toMatchObject({ decidedBy: 'auto', locked: false })
+  })
+
+  it('groups hand-picked cards into one series, identifies it, and keeps it across a rescan', async () => {
+    const rescan = async (): Promise<void> => {
+      const sources = (await get('/library/sources')) as { items: { id: number }[] }
+      await send('POST', `/library/sources/${sources.items[0]!.id}/scan`)
+      await until('rescan', async () => !LibraryStatus.parse(await get('/library/status')).scanning)
+      await settled()
+    }
+    writeFileSync(join(media, 'Whoish Fan Cut 01 Pilot.mkv'), 'x')
+    writeFileSync(join(media, 'Whoish Fan Cut 02 Sequel.mkv'), 'x')
+    await rescan()
+    const cards = (await titles('?kind=video&limit=200')).filter((t) => t.title.startsWith('Whoish Fan Cut'))
+    expect(cards).toHaveLength(2)
+
+    expect((await send('POST', '/library/titles/group', { keys: ['video:nothing'], title: 'Doctor Who' })).status).toBe(404)
+    expect((await send('POST', '/library/titles/group', { keys: cards.map((c) => c.key), title: '!!!' })).status).toBe(400)
+
+    const res = await send('POST', '/library/titles/group', { keys: cards.map((c) => c.key), title: 'Doctor Who', externalId: '57243' })
+    expect(res.status).toBe(200)
+    expect(GroupTitlesResult.parse(await res.json())).toEqual({ key: 'series:doctor who', affectedFileCount: 2, identified: true })
+    const grouped = await detail('series:doctor who')
+    expect(grouped.match).toMatchObject({ state: 'matched', decidedBy: 'user', externalId: '57243' })
+    expect(grouped.files.map((f) => f.fileName).sort()).toEqual(['Doctor.Who.S01E01.mkv', 'Whoish Fan Cut 01 Pilot.mkv', 'Whoish Fan Cut 02 Sequel.mkv'])
+    expect(grouped.files.filter((f) => f.fileName.startsWith('Whoish')).map((f) => [f.season, f.episode])).toEqual([[1, 1], [1, 2]])
+    expect((await titles('?kind=video&limit=200')).some((t) => t.title.startsWith('Whoish Fan Cut'))).toBe(false)
+
+    await rescan()
+    const after = await detail('series:doctor who')
+    expect(after.files).toHaveLength(3)
+    expect(after.match).toMatchObject({ state: 'matched', externalId: '57243' })
+  })
+
+  it('still groups when the provider cannot identify the series, and says so', async () => {
+    writeFileSync(join(media, 'Plain Fan Cut 03.mkv'), 'x')
+    const sources = (await get('/library/sources')) as { items: { id: number }[] }
+    await send('POST', `/library/sources/${sources.items[0]!.id}/scan`)
+    await until('rescan', async () => !LibraryStatus.parse(await get('/library/status')).scanning)
+    const card = (await titles('?kind=video&limit=200')).find((t) => t.title.startsWith('Plain Fan Cut'))!
+    const res = await send('POST', '/library/titles/group', { keys: [card.key], title: 'Plain Fan Cut', externalId: '999999999' })
+    expect(res.status).toBe(200)
+    expect(GroupTitlesResult.parse(await res.json())).toMatchObject({ key: 'series:plain fan cut', affectedFileCount: 1, identified: false, identifyError: expect.any(String) })
+    expect((await detail('series:plain fan cut')).files).toHaveLength(1)
   })
 })
 

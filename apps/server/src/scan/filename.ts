@@ -36,6 +36,14 @@ const SEASON_WORD = /\bSeason[ -]*(\d{1,2})\b(?!\s*(?:and|&|,|-))/i
 const ABSOLUTE = /^(.+?)\s+(\d{1,3})(?:v\d)?\s+-\s+(.+)$/
 /** "01 - Title" inside a Season folder. */
 const LEADING_NUMBER = /^(\d{1,3})\s*[-.]\s*(.+)$/
+/** "第7話" (group 1), "Episode 7" / "Ep.7" (group 2) or "#7" (group 3). Season-less, so the number is absolute. */
+const EPISODE_WORD = /第\s*(\d{1,4})\s*[話话回]|\b(?:episode|ep)[ .#-]*(\d{1,4})\b|#(\d{1,4})\b/i
+/** "Title 007" or "Title 007 Episode title" in a series folder, where nothing else numbers the episode. */
+const BARE_NUMBER = /^(.+?)\s+0*(\d{1,3})(?:v\d)?(?:\s+(.+))?$/
+/** What precedes a "第7話" marker when the show name is followed by its number: "Title 007 ちびまる子ちゃん". */
+const NUMBER_THEN_NAME = /^(.+?)\s+0*\d{1,4}\s+(.+)$/
+/** Trailing " - dQw4w9WgXcQ" left by a downloader. Needs a digit and a letter, so a real word is never taken for one. */
+const VIDEO_ID_SUFFIX = /\s+-\s*(?=[\w-]{11}\s*$)(?=[\w-]*\d)(?=[\w-]*[A-Za-z])[\w-]{11}\s*$/
 
 /** Quality, source, codec and release flags: everything after these is not part of the title. */
 const NOISE =
@@ -62,6 +70,8 @@ interface Analysis {
   hasEpisodeMarker: boolean
   /** A year, resolution, source or codec tag was found (typical of released movies). */
   hasReleaseSignals: boolean
+  /** The episode number stands alone ("Title 01 - ...", "第7話"): it counts from the start of the show, with no season. */
+  absolute: boolean
 }
 
 function stripDecorations(raw: string): { text: string; parenYear: number | null } {
@@ -73,6 +83,8 @@ function stripDecorations(raw: string): { text: string; parenYear: number | null
   s = s.replace(/\[[^\]]*\]/g, ' ') // [group], [BD], [eztv.re], [KOREAN]
   s = s.replace(/\((?!(?:19|20)\d{2}\))[^)]*\)/g, ' ') // (1080p BluRay x265), (Season 1), but keep (2020)
   s = s.replace(/\(((?:19|20)\d{2})\)/g, ' $1 ')
+  s = s.replace(/[（【][^）】]*[）】]/g, ' ') // full-width brackets, as in （英語字幕付き）
+  s = s.replace(VIDEO_ID_SUFFIX, '')
   s = s.replace(/[._]+/g, ' ').replace(/\s+/g, ' ').trim()
   return { text: s, parenYear }
 }
@@ -89,9 +101,12 @@ function analyse(raw: string): Analysis {
   let markerStart = -1
   let markerEnd = -1
   let hasEpisodeMarker = false
+  let absolute = false
+  let nativeMarker = false
 
   const sxe = SXXEYY.exec(text)
   const nxn = sxe ? null : NXNN.exec(text)
+  const word = sxe || nxn ? null : EPISODE_WORD.exec(text)
   if (sxe) {
     season = Number(sxe[1])
     episode = Number(sxe[2])
@@ -105,6 +120,13 @@ function analyse(raw: string): Analysis {
     markerStart = nxn.index
     markerEnd = nxn.index + nxn[0].length
     hasEpisodeMarker = true
+  } else if (word) {
+    episode = Number(word[1] ?? word[2] ?? word[3])
+    markerStart = word.index
+    markerEnd = word.index + word[0].length
+    hasEpisodeMarker = true
+    absolute = true
+    nativeMarker = word[1] !== undefined
   } else {
     const only = SEASON_ONLY.exec(text) ?? SEASON_WORD.exec(text)
     if (only) {
@@ -123,6 +145,12 @@ function analyse(raw: string): Analysis {
   if (episode !== null) {
     const after = trimSeparators(text.slice(markerEnd, noiseStart > markerEnd ? noiseStart : text.length))
     episodeTitle = after || null
+    // "Show 007 ちびまる子ちゃん 第7話": the number and the native name before the marker are the show and the episode name.
+    const split = nativeMarker ? NUMBER_THEN_NAME.exec(region) : null
+    if (split) {
+      region = split[1]!
+      episodeTitle = trimSeparators([split[2], after].filter(Boolean).join(' ')) || null
+    }
   } else if (markerStart < 0) {
     // No SxxEyy / NxNN: try anime-style "Title 01 - Episode Title".
     const abs = ABSOLUTE.exec(text.slice(0, noiseStart))
@@ -131,6 +159,7 @@ function analyse(raw: string): Analysis {
       episode = Number(abs[2])
       episodeTitle = trimSeparators(abs[3]!) || null
       hasEpisodeMarker = true
+      absolute = true
     }
   }
 
@@ -152,6 +181,7 @@ function analyse(raw: string): Analysis {
     episodeTitle,
     hasEpisodeMarker,
     hasReleaseSignals: year !== null || noise !== null,
+    absolute,
   }
 }
 
@@ -186,6 +216,11 @@ export function titleKeyFor(kind: MediaKind, title: string, year: number | null,
     case 'extra':
       return `extra:${path.toLowerCase()}`
   }
+}
+
+/** A person's series name for a file: it replaces the parsed show title, so every file given the same name groups together. */
+export function applyTitleOverride(parsed: ParsedMedia, titleOverride: string | null | undefined): ParsedMedia {
+  return titleOverride && parsed.kind === 'episode' ? { ...parsed, title: titleOverride } : parsed
 }
 
 function isGeneric(folder: string): boolean {
@@ -252,6 +287,7 @@ export function parseMediaPath(segments: readonly string[], sourceType: LibraryT
   }
 
   // Title from the nearest meaningful folder when the file name has none.
+  const titleFromName = title !== ''
   if (!title) {
     title = ''
     for (const f of nearestFirst) {
@@ -266,7 +302,21 @@ export function parseMediaPath(segments: readonly string[], sourceType: LibraryT
   }
   if (!title) title = trimSeparators(stripDecorations(base).text) || base
 
+  // "Show 007" or "Show 007 Episode name" in a series folder: the trailing number is the episode.
+  let absolute = a.absolute
+  if (episode === null && !a.hasEpisodeMarker && sourceType === 'series' && titleFromName) {
+    const bare = BARE_NUMBER.exec(title)
+    if (bare) {
+      title = trimSeparators(bare[1]!)
+      episode = Number(bare[2])
+      episodeTitle = trimSeparators(bare[3] ?? '') || null
+      absolute = true
+    }
+  }
+
   if (season === null && (episode !== null || a.hasEpisodeMarker)) season = inferSeason()
+  // A number that counts from the start of the show has no season of its own: it is season 1.
+  if (season === null && absolute && episode !== null) season = 1
 
   const hasEpisodeInfo = a.hasEpisodeMarker || episode !== null
   let kind: MediaKind

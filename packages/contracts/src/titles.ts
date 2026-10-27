@@ -88,6 +88,24 @@ export const ReclassifyTitleResult = z.object({
 })
 export type ReclassifyTitleResult = z.infer<typeof ReclassifyTitleResult>
 
+/** Puts the files of several cards into one series; with an externalId the series is identified in the same step. */
+export const GroupTitlesRequest = z.object({
+  keys: z.array(z.string().min(1).max(1000)).min(1).max(500),
+  title: z.string().trim().min(1).max(200),
+  externalId: z.string().min(1).max(40).optional(),
+})
+export type GroupTitlesRequest = z.infer<typeof GroupTitlesRequest>
+
+export const GroupTitlesResult = z.object({
+  key: z.string(),
+  affectedFileCount: z.number().int().nonnegative(),
+  /** True only when an externalId was given and the provider accepted it. */
+  identified: z.boolean(),
+  /** Why identification did not happen even though one was asked for; the files are grouped regardless. */
+  identifyError: z.string().optional(),
+})
+export type GroupTitlesResult = z.infer<typeof GroupTitlesResult>
+
 export const RemoveTitleResult = z.object({ removedFileCount: z.number().int().nonnegative() })
 export type RemoveTitleResult = z.infer<typeof RemoveTitleResult>
 

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiCheckboxMarkedOutline, mdiClose, mdiEyeOffOutline, mdiMovieOpenOutline, mdiRestore, mdiTelevisionClassic, mdiVideoOutline } from '@mdi/js'
-import type { TitleKind, TitleSort } from '@theama/contracts'
+import { mdiCheckboxMarkedOutline, mdiClose, mdiEyeOffOutline, mdiMovieOpenOutline, mdiRestore, mdiTelevisionClassic, mdiVideoOutline, mdiVectorCombine } from '@mdi/js'
+import type { GroupTitlesResult, TitleKind, TitleSort } from '@theama/contracts'
 import { useGenres } from '@/composables/useGenres'
 import type { TitlesList } from '@/composables/useTitles'
+import { commonTitlePrefix } from '@/utils/commonTitle'
 import { useLibraryStore } from '@/stores/library'
 import { useTitleActionsStore } from '@/stores/titleActions'
+import IdentifyDialog from './IdentifyDialog.vue'
 import PosterGrid from './PosterGrid.vue'
 import GenreFilter from '@/components/common/GenreFilter.vue'
 import SearchField from '@/components/common/SearchField.vue'
@@ -42,6 +44,10 @@ const targets: { kind: TitleKind; icon: string; label: string }[] = [
   { kind: 'series', icon: mdiTelevisionClassic, label: 'nav.series' },
   { kind: 'video', icon: mdiVideoOutline, label: 'nav.videos' },
 ]
+const groupOpen = ref(false)
+const groupKeys = computed(() => [...selected.value])
+/** What the selected cards have in common, offered as the series name. */
+const groupName = computed(() => commonTitlePrefix(items.value.filter((i) => selected.value.has(i.key)).map((i) => i.title)))
 const allSelected = computed(() => items.value.length > 0 && items.value.every((i) => selected.value.has(i.key)))
 
 function toggle(key: string): void {
@@ -80,6 +86,13 @@ async function hideSelected(): Promise<void> {
   const failed = selected.value.size - done
   notices.notify(failed === 0 ? t('titles.select.hidden', done) : (library.error ?? t('titles.actions.failed')), failed > 0)
   busy.value = false
+  stopSelecting()
+}
+
+function onGrouped(result: GroupTitlesResult, identifyRequested: boolean): void {
+  const count = result.affectedFileCount
+  if (identifyRequested && !result.identified) notices.notify(t('titles.select.groupedUnidentified', { count, reason: result.identifyError ?? t('titles.actions.failed') }), true)
+  else notices.notify(t(result.identified ? 'titles.select.groupedIdentified' : 'titles.select.grouped', { count }))
   stopSelecting()
 }
 
@@ -127,6 +140,7 @@ async function moveSelected(): Promise<void> {
       <span class="selection__count" aria-live="polite">{{ $t('titles.select.count', selected.size) }}</span>
       <v-btn variant="text" size="small" :disabled="busy || items.length === 0" @click="toggleAll">{{ allSelected ? $t('titles.select.none') : $t('titles.select.all') }}</v-btn>
       <v-spacer />
+      <v-btn variant="tonal" size="small" :prepend-icon="mdiVectorCombine" :disabled="busy || selected.size === 0" data-test="selection-group" @click="groupOpen = true">{{ $t('titles.select.group') }}</v-btn>
       <v-menu location="top end">
         <template #activator="{ props: menuProps }">
           <v-btn v-bind="menuProps" variant="tonal" size="small" :prepend-icon="mdiRestore" :disabled="busy || selected.size === 0" data-test="selection-move">{{ $t('titles.actions.moveTo') }}</v-btn>
@@ -147,6 +161,8 @@ async function moveSelected(): Promise<void> {
         <PosterGrid v-else :titles="items" :label="label" :has-more="nextCursor !== null" :loading="loading" :selecting="selecting" :selected="selected" @load-more="loadMore()" @toggle="toggle" @paint="paint" />
       </div>
     </transition>
+
+    <IdentifyDialog v-model="groupOpen" kind="series" :group-keys="groupKeys" :initial-query="groupName" :initial-year="null" @grouped="onGrouped" />
 
     <v-dialog :model-value="confirmKind !== undefined" max-width="31rem" @update:model-value="confirmKind = undefined">
       <v-card>

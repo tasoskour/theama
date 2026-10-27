@@ -560,11 +560,20 @@ const metaChips = computed(() => {
 
       <!-- Series: season tabs and the episode list -->
       <section v-if="isSeries" class="episodes">
-        <v-tabs v-model="season" color="primary" show-arrows class="mb-4" :aria-label="$t('detail.seasons')">
-          <v-tab v-for="g in seasons" :key="g.id" :value="g.id">
-            {{ g.label }}<span class="th-muted tab-count">{{ g.local }}</span>
-            <v-chip v-if="g.missing" size="x-small" color="warning" variant="tonal" label class="ml-2">{{ $t('series.missingN', { n: g.missing }) }}</v-chip>
+        <v-tabs v-model="season" color="primary" height="4.5rem" hide-slider show-arrows class="season-nav" :aria-label="$t('detail.seasons')">
+          <template #prev>
+            <v-btn icon="$prev" variant="text" size="small" class="season-nav__arrow" :aria-label="$t('series.previousSeasons')" />
+          </template>
+          <v-tab v-for="g in seasons" :key="g.id" :value="g.id" :rounded="false" :ripple="false" class="season-nav__card">
+            <span class="season-nav__label">{{ g.label }}</span>
+            <span class="season-nav__meta">
+              <span class="th-muted">{{ $t('series.inLibraryN', { n: g.local }) }}</span>
+              <span v-if="g.missing" class="season-nav__missing">{{ $t('series.missingN', { n: g.missing }) }}</span>
+            </span>
           </v-tab>
+          <template #next>
+            <v-btn icon="$next" variant="text" size="small" class="season-nav__arrow" :aria-label="$t('series.nextSeasons')" />
+          </template>
         </v-tabs>
         <p v-if="shownGroup?.summary" class="th-muted season-summary" data-test="season-summary">{{ shownGroup.summary }}</p>
         <ul class="eplist" role="list">
@@ -731,7 +740,7 @@ const metaChips = computed(() => {
   max-width: 100%;
 }
 .season-summary {
-  margin: -4px 0 12px;
+  margin: 0 0 12px;
   font-size: 0.88rem;
 }
 .ep--gap .ep__row {
@@ -857,9 +866,73 @@ const metaChips = computed(() => {
 .episodes {
   container: episodes / inline-size;
 }
-.tab-count {
-  margin-left: 8px;
+.season-nav {
+  height: calc(var(--v-tabs-height) + 0.5rem);
+  margin-bottom: 12px;
+}
+.season-nav :deep(.v-slide-group__content) {
+  gap: 0.5rem;
+  padding: 0.25rem;
+}
+.season-nav :deep(.season-nav__card) {
+  flex: 0 0 auto;
+  min-width: 9rem;
+  max-width: none;
+  padding-inline: 1rem;
+  border: 1px solid rgba(var(--v-theme-hairline), 0.78);
+  border-radius: var(--th-radius);
+  background: rgba(var(--v-theme-surface), 0.84);
+  color: rgb(var(--v-theme-on-surface));
+  letter-spacing: 0;
+  text-align: start;
+  transition: background-color var(--th-motion), border-color var(--th-motion), color var(--th-motion);
+}
+.season-nav :deep(.season-nav__card:hover) {
+  border-color: rgb(var(--v-theme-on-surface-variant));
+  background: rgb(var(--v-theme-surface-light));
+}
+.season-nav :deep(.season-nav__card.v-tab--selected) {
+  border-color: rgb(var(--v-theme-primary));
+}
+.season-nav :deep(.season-nav__card .v-btn__content) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+.season-nav :deep(.season-nav__card .v-btn__overlay),
+.season-nav :deep(.season-nav__card::after) {
+  display: none;
+}
+.season-nav :deep(.season-nav__card:focus-visible) {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+}
+.season-nav__label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.season-nav__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.season-nav__missing {
+  padding: 0.05rem 0.4rem;
+  border-radius: 5px;
+  background: rgba(var(--v-theme-warning), 0.12);
+  color: rgb(var(--v-theme-warning));
+}
+.season-nav :deep(.v-slide-group__prev),
+.season-nav :deep(.v-slide-group__next) {
+  min-width: 2.75rem;
+  flex-basis: 2.75rem;
 }
 .eplist {
   list-style: none;

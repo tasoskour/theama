@@ -1000,6 +1000,9 @@
   },
   "series": {
     "summary": "{expected} expected · {local} in your library",
+    "inLibraryN": "{n} in library",
+    "previousSeasons": "Scroll to previous seasons",
+    "nextSeasons": "Scroll to next seasons",
     "missingN": "{n} missing",
     "upcomingN": "{n} not aired yet",
     "undatedN": "{n} without an air date",

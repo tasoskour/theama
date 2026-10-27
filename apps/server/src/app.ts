@@ -47,6 +47,7 @@ import {
   MediaFileQuery,
   TitleQuery,
   GenreQuery,
+  RelocateSourceRequest,
   UpdateSourceRequest,
   type LibrarySource,
   type LibrarySourceList,
@@ -70,8 +71,8 @@ import {
   type MetadataSuggestionsResult,
   type MetadataSuggestionDetails,
   type MetadataStatus,
-  type ReclassifyTitleResult,
   type GroupTitlesResult,
+  type ReclassifyTitleResult,
   type RemoveTitleResult,
   type MediaFilePage,
   type TitleDetail,
@@ -100,8 +101,8 @@ import type { DownloadMonitor } from './downloads/monitor'
 import type { FavoritesRepo } from './downloads/favorites'
 import { DownloadNotFound, FilesNotReady, InvalidFileSelection, ReleaseExpired, type DownloadsService } from './downloads/service'
 import { MetadataProblem, type MetadataManager } from './metadata/manager'
-import { ProviderError, type MetadataProvider } from './metadata/provider'
 import { normaliseTitle } from './scan/filename'
+import { ProviderError, type MetadataProvider } from './metadata/provider'
 import type { AutoScanner } from './scan/auto'
 import type { ScanManager } from './scan/manager'
 import type { MediaFileRepo, ScanJobRepo } from './scan/store'
@@ -116,6 +117,7 @@ import { TemplateError, validateTemplate } from './files/template'
 import { chooseSubtitle, discoverExternal } from './subtitles/discover'
 import type { SubtitleService } from './subtitles/service'
 import { registerSubtitleRoutes } from './subtitles/routes'
+import { assertRelocatable } from './library/relocate'
 import { ApiProblem, LibrarySourceRepo, normaliseFolderPath, probeFolder, refreshAvailability, withTimeout } from './library/sources'
 import type { LibraryExclusionRepo } from './library/exclusions'
 import { extractBearer, isAllowedOrigin, isLoopbackHost, tokenMatches } from './security'
@@ -285,6 +287,24 @@ export async function buildApp(deps: AppDeps) {
     return source
   })
 
+  app.post(`${API_PREFIX}/library/sources/:id/relocate`, async (req): Promise<LibrarySource> => {
+    const { id } = IdParams.parse(req.params)
+    const { path: raw } = RelocateSourceRequest.parse(req.body ?? {})
+    const source = library.get(id)
+    if (!source) throw new ApiProblem('not_found', 'No such library folder', 404)
+    const path = normaliseFolderPath(raw)
+    assertRelocatable(source, path, library.list())
+    const { volumeId } = await probeFolder(path)
+    scans.cancelForSource(id)
+    files.relocateSource(id, path, volumeId)
+    logger.info({ sourceId: id, from: source.path, to: path }, 'Library folder relocated')
+    const updated = library.get(id)!
+    events.broadcast({ type: 'library.changed' })
+    scans.enqueue(id, 'folder relocated')
+    auto.syncWatchers()
+    return updated
+  })
+
   app.delete(`${API_PREFIX}/library/sources/:id`, async (req) => {
     const { id } = IdParams.parse(req.params)
     const existing = library.get(id)
@@ -347,6 +367,25 @@ export async function buildApp(deps: AppDeps) {
     return result
   })
 
+  app.post(`${API_PREFIX}/library/titles/group`, async (req): Promise<GroupTitlesResult> => {
+    const body = GroupTitlesRequest.parse(req.body ?? {})
+    if (normaliseTitle(body.title) === '') throw new ApiProblem('invalid_title', 'Give the series a name with letters or numbers in it', 400)
+    const grouped = titles.group(body.keys, body.title)
+    if (!grouped) throw new ApiProblem('not_found', 'No such title', 404)
+    logger.info({ key: grouped.key, title: body.title, affectedFileCount: grouped.affectedFileCount }, 'Titles grouped into one series (files untouched)')
+    events.broadcast({ type: 'library.changed' })
+    if (!body.externalId) return { ...grouped, identified: false }
+    // Grouping is already saved, so a provider failure is reported rather than thrown.
+    try {
+      await metadata.identify(grouped.key, 'series', body.externalId)
+    } catch (err) {
+      logger.warn({ key: grouped.key, externalId: body.externalId, err }, 'Grouped titles could not be identified')
+      return { ...grouped, identified: false, identifyError: err instanceof Error ? err.message : String(err) }
+    }
+    logger.info({ key: grouped.key, externalId: body.externalId }, 'Grouped series identified by the user')
+    return { ...grouped, identified: true }
+  })
+
   app.delete(`${API_PREFIX}/library/titles/:key`, async (req): Promise<RemoveTitleResult> => {
     const { key } = z.object({ key: z.string().min(1).max(1000) }).parse(req.params)
     // A card whose key no longer exists (its file was renamed or re-keyed) is already gone: succeed, and let every list refresh.
@@ -367,25 +406,6 @@ export async function buildApp(deps: AppDeps) {
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) }).parse(req.query)
     return { items: jobs.list(limit) }
   })
-  app.post(`${API_PREFIX}/library/titles/group`, async (req): Promise<GroupTitlesResult> => {
-    const body = GroupTitlesRequest.parse(req.body ?? {})
-    if (normaliseTitle(body.title) === '') throw new ApiProblem('invalid_title', 'Give the series a name with letters or numbers in it', 400)
-    const grouped = titles.group(body.keys, body.title)
-    if (!grouped) throw new ApiProblem('not_found', 'No such title', 404)
-    logger.info({ key: grouped.key, title: body.title, affectedFileCount: grouped.affectedFileCount }, 'Titles grouped into one series (files untouched)')
-    events.broadcast({ type: 'library.changed' })
-    if (!body.externalId) return { ...grouped, identified: false }
-    // Grouping is already saved, so a provider failure is reported rather than thrown.
-    try {
-      await metadata.identify(grouped.key, 'series', body.externalId)
-    } catch (err) {
-      logger.warn({ key: grouped.key, externalId: body.externalId, err }, 'Grouped titles could not be identified')
-      return { ...grouped, identified: false, identifyError: err instanceof Error ? err.message : String(err) }
-    }
-    logger.info({ key: grouped.key, externalId: body.externalId }, 'Grouped series identified by the user')
-    return { ...grouped, identified: true }
-  })
-
 
   app.get(`${API_PREFIX}/scans/:id`, async (req): Promise<ScanJob> => {
     const { id } = IdParams.parse(req.params)

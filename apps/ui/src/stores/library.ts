@@ -70,6 +70,18 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
+  /** Points the folder at a new location (its drive got another letter); history follows it, no files are touched. */
+  async function relocate(id: number, path: string): Promise<LibraryResult> {
+    if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
+    try {
+      const source = await connection.client.post(`/library/sources/${id}/relocate`, { path }, LibrarySource)
+      sources.value = sources.value.map((s) => (s.id === id ? source : s))
+      return { ok: true, source }
+    } catch (err) {
+      return failure(err)
+    }
+  }
+
   async function loadExclusions(sourceId: number): Promise<void> {
     if (!connection.client) return
     try {
@@ -163,5 +175,5 @@ export const useLibraryStore = defineStore('library', () => {
     if (e.type === 'library.changed') void load()
   })
 
-  return { sources, exclusions, loaded, loading, error, count, offlineCount, load, add, update, remove, loadExclusions, addExclusion, removeExclusion, hideTitle, reclassifyTitle, hideFile }
+  return { sources, exclusions, loaded, loading, error, count, offlineCount, load, add, update, relocate, remove, loadExclusions, addExclusion, removeExclusion, hideTitle, reclassifyTitle, hideFile }
 })

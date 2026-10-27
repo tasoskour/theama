@@ -38,6 +38,12 @@ export const UpdateSourceRequest = z.object({
 })
 export type UpdateSourceRequest = z.infer<typeof UpdateSourceRequest>
 
+/** Points an existing folder at a new location (its drive got another letter, or its files were moved). */
+export const RelocateSourceRequest = z.object({
+  path: z.string().min(1).max(32_000),
+})
+export type RelocateSourceRequest = z.infer<typeof RelocateSourceRequest>
+
 export const ExclusionKind = z.enum(['file', 'folder'])
 export type ExclusionKind = z.infer<typeof ExclusionKind>
 

@@ -1,6 +1,7 @@
 import { watch as fsWatch, type FSWatcher } from 'node:fs'
 import type { Logger } from 'pino'
 import type { LibrarySource, SourceAvailability } from '@theama/contracts'
+import { findRelocation } from '../library/relocate'
 import { LibrarySourceRepo, refreshAvailability } from '../library/sources'
 import type { ScanManager } from './manager'
 
@@ -16,6 +17,9 @@ export interface AutoScanDeps {
   debounceMs?: number
   watch?: typeof fsWatch
   refresh?: (repo: LibrarySourceRepo) => Promise<LibrarySource[]>
+  /** Moves a folder to its new path; without it, drives that return under another letter are not followed. */
+  relocate?: (source: LibrarySource, newPath: string, volumeId: string) => void
+  find?: typeof findRelocation
   now?: () => number
 }
 
@@ -37,6 +41,7 @@ export class AutoScanner {
   private availability = new Map<number, SourceAvailability>()
   private timer: NodeJS.Timeout | null = null
   private ticking: Promise<void> | null = null
+  private readonly warnedAmbiguous = new Set<number>()
 
   constructor(private readonly deps: AutoScanDeps) {}
 
@@ -62,7 +67,7 @@ export class AutoScanner {
     this.ticking ??= (async () => {
       try {
         const previous = this.availability
-        const refreshed = await (this.deps.refresh ?? refreshAvailability)(this.deps.library)
+        const refreshed = await this.relink(await (this.deps.refresh ?? refreshAvailability)(this.deps.library))
         const now = this.now()
         this.availability = new Map(refreshed.map((s) => [s.id, s.availability]))
         for (const s of refreshed) {
@@ -78,6 +83,37 @@ export class AutoScanner {
       }
     })()
     return this.ticking
+  }
+
+  /**
+   * An offline folder whose drive is plugged in under another letter is pointed at its new path, so the library
+   * follows the disk. Only an unambiguous match (exactly one drive with the recorded serial and the same folder) is
+   * acted on; otherwise the folder stays offline and the person can relocate it by hand.
+   */
+  private async relink(sources: LibrarySource[]): Promise<LibrarySource[]> {
+    const relocate = this.deps.relocate
+    if (!relocate) return sources
+    let changed = false
+    for (const s of sources) {
+      if (s.availability !== 'offline' || !s.volumeId) continue
+      const result = await (this.deps.find ?? findRelocation)(s, sources.map((o) => o.path))
+      if (result.kind === 'ambiguous') {
+        if (!this.warnedAmbiguous.has(s.id)) this.deps.logger.warn({ sourceId: s.id, path: s.path, candidates: result.paths }, 'More than one drive looks like this folder; relocate it by hand')
+        this.warnedAmbiguous.add(s.id)
+        continue
+      }
+      this.warnedAmbiguous.delete(s.id)
+      if (result.kind !== 'found') continue
+      try {
+        relocate(s, result.path, result.volumeId)
+        this.deps.logger.info({ sourceId: s.id, from: s.path, to: result.path }, 'Drive came back under another letter; library folder relinked')
+        this.deps.library.setAvailability(s.id, 'online', true)
+        changed = true
+      } catch (err) {
+        this.deps.logger.warn({ err, sourceId: s.id, to: result.path }, 'Could not relink the library folder')
+      }
+    }
+    return changed ? this.deps.library.list() : sources
   }
 
   /** Call after folders were added, changed or removed. */

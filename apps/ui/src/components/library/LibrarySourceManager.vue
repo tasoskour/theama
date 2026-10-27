@@ -47,6 +47,39 @@ async function confirmRemove(): Promise<void> {
   if (source && (await library.remove(source.id))) snackbar.value = t('library.removed')
 }
 
+const relocating = ref<LibrarySource | null>(null)
+const relocateOpen = ref(false)
+const relocatePath = ref('')
+const relocateBusy = ref(false)
+const relocateError = ref<string | null>(null)
+
+function askRelocate(source: LibrarySource): void {
+  relocating.value = source
+  relocatePath.value = source.path
+  relocateError.value = null
+  relocateOpen.value = true
+}
+
+async function browseRelocate(): Promise<void> {
+  const picked = await bridge?.pickFolder(t('library.relocate.pickFolder'))
+  if (picked) relocatePath.value = picked
+}
+
+async function confirmRelocate(): Promise<void> {
+  const source = relocating.value
+  if (!source || !relocatePath.value.trim() || relocateBusy.value) return
+  relocateBusy.value = true
+  relocateError.value = null
+  const result = await library.relocate(source.id, relocatePath.value)
+  relocateBusy.value = false
+  if (result.ok) {
+    relocateOpen.value = false
+    snackbar.value = t('library.relocate.done')
+  } else {
+    relocateError.value = te(`library.errors.${result.code}`) ? t(`library.errors.${result.code}`) : result.message
+  }
+}
+
 async function toggleExclusions(sourceId: number): Promise<void> {
   exclusionSource.value = exclusionSource.value === sourceId ? null : sourceId
   exclusionPath.value = ''
@@ -98,6 +131,10 @@ async function addExclusion(sourceId: number): Promise<void> {
             <v-chip v-if="!s.enabled" size="small" label variant="outlined">{{ $t('library.paused') }}</v-chip>
           </div>
           <p v-if="s.availability === 'offline'" class="th-muted text-caption offline-note">{{ $t('library.offlineNote') }}</p>
+          <p v-if="s.availability === 'offline'" class="th-muted text-caption offline-note">
+            {{ $t('library.relocate.hint') }}
+            <v-btn variant="text" size="x-small" @click="askRelocate(s)">{{ $t('library.relocate.action') }}</v-btn>
+          </p>
           <ScanStatus :source="s" />
         </div>
 
@@ -171,6 +208,24 @@ async function addExclusion(sourceId: number): Promise<void> {
     </ul>
 
     <AddSourceDialog :flow="flow" @added="snackbar = $t('library.added')" />
+
+    <v-dialog v-model="relocateOpen" max-width="34rem" aria-labelledby="relocate-source-title">
+      <v-card class="pa-2">
+        <v-card-title id="relocate-source-title" class="th-display">{{ $t('library.relocate.title') }}</v-card-title>
+        <v-card-text>
+          <p class="mb-3">{{ $t('library.relocate.body') }}</p>
+          <div class="exclusion-form">
+            <v-text-field v-model="relocatePath" :label="$t('library.relocate.path')" density="compact" hide-details="auto" :error-messages="relocateError ?? undefined" class="exclusion-path" @keyup.enter="confirmRelocate" />
+            <v-btn v-if="bridge" variant="tonal" :prepend-icon="mdiFolderOpenOutline" @click="browseRelocate">{{ $t('library.browse') }}</v-btn>
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="relocateOpen = false">{{ $t('common.cancel') }}</v-btn>
+          <v-btn color="primary" :loading="relocateBusy" :disabled="!relocatePath.trim()" @click="confirmRelocate">{{ $t('library.relocate.confirm') }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog v-model="removeOpen" max-width="30rem" aria-labelledby="remove-source-title">
       <v-card class="pa-2">

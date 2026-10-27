@@ -235,6 +235,61 @@ export class MediaFileRepo {
     })()
   }
 
+  /**
+   * Re-roots a library folder after its drive got another letter (or the person pointed it elsewhere): every
+   * stored path moves from the old root to `newRoot`, and so do the title keys of personal videos and extras,
+   * which are derived from the path, so their metadata, collections and progress follow. Nothing on disk is touched.
+   * The caller guarantees the two roots do not contain one another.
+   */
+  relocateSource(sourceId: number, newRoot: string, newVolumeId: string): void {
+    const source = this.raw.prepare('SELECT path FROM library_source WHERE id = ?').get(sourceId) as { path: string } | undefined
+    if (!source) throw new Error('No such library folder')
+    const oldRoot = source.path
+    const oldPrefix = oldRoot.toLowerCase()
+    const rest = (p: string): string | null => {
+      if (p.slice(0, oldRoot.length).toLowerCase() !== oldPrefix) return null
+      const tail = p.slice(oldRoot.length)
+      if (tail === '') return ''
+      if (/[\\/]$/.test(oldRoot)) return tail
+      return /^[\\/]/.test(tail) ? tail.slice(1) : null
+    }
+    const cleanRoot = newRoot.replace(/[\\/]+$/, '')
+    const reroot = (p: string): string | null => {
+      const tail = rest(p)
+      if (tail === null) return null
+      return tail === '' ? newRoot : `${cleanRoot}\\${tail}`
+    }
+
+    this.raw.transaction(() => {
+      // title_credit points at title_metadata; both keys change inside this transaction, so check the link at commit.
+      this.raw.pragma('defer_foreign_keys = ON')
+      const keyMoves = new Map<string, string>()
+      const files = this.raw.prepare('SELECT id, path, kind, title_key FROM media_file WHERE source_id = ?').all(sourceId) as
+        { id: number; path: string; kind: MediaFile['kind']; title_key: string | null }[]
+      const setPath = this.raw.prepare('UPDATE media_file SET path = ? WHERE id = ?')
+      for (const f of files) {
+        const next = reroot(f.path)
+        if (next === null) continue
+        setPath.run(next, f.id)
+        if ((f.kind === 'video' || f.kind === 'extra') && f.title_key === titleKeyFor(f.kind, '', null, f.path)) {
+          keyMoves.set(f.title_key, titleKeyFor(f.kind, '', null, next))
+        }
+      }
+      const setExclusion = this.raw.prepare('UPDATE library_exclusion SET path = ? WHERE id = ?')
+      for (const e of this.raw.prepare('SELECT id, path FROM library_exclusion WHERE source_id = ?').all(sourceId) as { id: number; path: string }[]) {
+        const next = reroot(e.path)
+        if (next !== null) setExclusion.run(next, e.id)
+      }
+      const KEYED_TABLES = ['media_file', 'title_match', 'title_metadata', 'title_credit', 'episode_metadata', 'collection_member', 'continue_dismissal']
+      for (const table of KEYED_TABLES) {
+        const stmt = this.raw.prepare(`UPDATE ${table} SET title_key = ? WHERE title_key = ?`)
+        for (const [from, to] of keyMoves) stmt.run(to, from)
+      }
+      this.raw.prepare('UPDATE library_source SET path = ?, volume_id = ? WHERE id = ?').run(newRoot, newVolumeId, sourceId)
+      for (const f of files) this.reindex(f.id)
+    })()
+  }
+
   markMissing(ids: readonly number[], now: string): void {
     this.raw.transaction(() => {
       const stmt = this.raw.prepare("UPDATE media_file SET state = 'missing_unconfirmed', missing_since = COALESCE(missing_since, ?) WHERE id = ?")

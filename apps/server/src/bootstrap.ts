@@ -142,7 +142,15 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     },
     logger,
   })
-  const auto = new AutoScanner({ library, manager: scans, logger })
+  const auto = new AutoScanner({
+    library,
+    manager: scans,
+    logger,
+    relocate: (source, path, volumeId) => {
+      files.relocateSource(source.id, path, volumeId)
+      events.broadcast({ type: 'library.changed' })
+    },
+  })
   const downloadMonitor = new DownloadMonitor({
     list: () => downloads.list(),
     emit: (list) => events.broadcast({ type: 'downloads.changed', list }),

@@ -179,7 +179,18 @@
       "added": "Exclusion added",
       "none": "No exclusions for this folder."
     },
+    "relocate": {
+      "hint": "Drive back under a different letter or moved? Theama follows a returning drive on its own when it can tell which one it is.",
+      "action": "Change location",
+      "title": "Change location",
+      "body": "Point this folder at where it is now. Your titles, progress and collections are kept; no files are touched, and anything not found there is marked missing after the next scan.",
+      "path": "New folder path",
+      "pickFolder": "Choose the folder's new location",
+      "confirm": "Move",
+      "done": "Location updated"
+    },
     "errors": {
+      "same_path": "That is already this folder's location.",
       "not_found": "That folder does not exist, or its drive is not connected.",
       "not_a_directory": "That path is a file, not a folder.",
       "invalid_path": "Enter a full folder path such as D:\\Movies (no \"..\" parts).",

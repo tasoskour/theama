@@ -344,6 +344,9 @@ function createWindow(): void {
   })
   mainWindow.on('closed', () => (mainWindow = null))
   mainWindow.webContents.on('render-process-gone', (_e, details) => logDesktop(paths.logsDir, 'error', 'The window\'s renderer process ended unexpectedly', { reason: details.reason, exitCode: details.exitCode }))
+  // A frozen page ("Not Responding") is not a crash, so say so in the log, with where the page was.
+  mainWindow.on('unresponsive', () => logDesktop(paths.logsDir, 'warn', 'The window stopped responding', { url: mainWindow?.webContents.getURL() }))
+  mainWindow.on('responsive', () => logDesktop(paths.logsDir, 'info', 'The window responds again'))
   void mainWindow.loadURL(devUiUrl ?? `${APP_ORIGIN}/index.html`)
 }
 

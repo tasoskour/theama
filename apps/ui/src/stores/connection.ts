@@ -25,6 +25,9 @@ export const useConnectionStore = defineStore('connection', () => {
   const everConnected = ref(false)
   const apiBase = ref<string | null>(null)
   const listeners = new Set<(event: ServerEvent) => void>()
+  /** Counts library changes, so a page that was not mounted when one happened can tell what it remembers is out of date. */
+  let libraryRevision = 0
+  const getLibraryRevision = (): number => libraryRevision
 
   let wsUrl: string | null = null
   let socket: WebSocket | null = null
@@ -85,7 +88,10 @@ export const useConnectionStore = defineStore('connection', () => {
     ws.onmessage = (msg) => {
       armWatchdog()
       const parsed = ServerEvent.safeParse(safeJson(msg.data))
-      if (parsed.success) for (const l of listeners) l(parsed.data)
+      if (parsed.success) {
+        if (parsed.data.type === 'library.changed' || parsed.data.type === 'scan.finished') libraryRevision++
+        for (const l of listeners) l(parsed.data)
+      }
     }
     ws.onclose = () => {
       if (socket === ws) markUnavailable()
@@ -116,5 +122,5 @@ export const useConnectionStore = defineStore('connection', () => {
     return path && apiBase.value ? `${apiBase.value}${path}` : null
   }
 
-  return { phase, client, desktop, everConnected, isConnected, apiBase, assetUrl, start, retryNow, onEvent }
+  return { phase, client, desktop, everConnected, isConnected, apiBase, assetUrl, start, retryNow, onEvent, getLibraryRevision }
 })

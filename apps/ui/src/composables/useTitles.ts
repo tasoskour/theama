@@ -6,6 +6,7 @@ import { navState } from '@/utils/navState'
 import { useRefresh } from './useRefresh'
 
 const PAGE_SIZE = 60
+const MAX_PAGE_SIZE = 200 // the most the server returns in one page
 
 interface Snapshot {
   items: TitleSummary[]
@@ -18,6 +19,8 @@ interface Snapshot {
   hideUnavailable: boolean
   scrollY: number
   focusKey: string | null
+  /** The library revision when this was saved; a later one means the list may have changed while away. */
+  revision: number
 }
 /** Per route, so coming back from a details page shows the same list at the same place. */
 const snapshots = new Map<string, Snapshot>()
@@ -61,6 +64,7 @@ export function useTitles(options: UseTitlesOptions) {
   const genreMode = options.genreMode ?? ref<GenreMode>(snap?.genreMode ?? 'any')
   const hideUnavailable = ref(snap?.hideUnavailable ?? false)
 
+  let keepSize = 0 // the first page of the next reload is at least this long
   let generation = 0 // drops responses that belong to an older query
   let controller: AbortController | undefined
   let disposed = false
@@ -82,7 +86,7 @@ export function useTitles(options: UseTitlesOptions) {
       genres: genres.value.join(GENRE_SEPARATOR) || undefined,
       genreMode: genres.value.length > 1 ? genreMode.value : undefined,
       hideUnavailable: hideUnavailable.value,
-      limit: options.limit ?? PAGE_SIZE,
+      limit: options.limit ?? (cursor ? PAGE_SIZE : Math.max(PAGE_SIZE, keepSize)),
       cursor,
     }, { signal: controller!.signal })
   }
@@ -103,7 +107,9 @@ export function useTitles(options: UseTitlesOptions) {
     }
     loading.value = true
     try {
-      const page = await fetchPage()
+      const request = fetchPage()
+      keepSize = 0 // applies to this request only
+      const page = await request
       if (!page || mine !== generation) return
       items.value = page.items
       total.value = page.total
@@ -146,7 +152,7 @@ export function useTitles(options: UseTitlesOptions) {
         if (from.fullPath === routeKey) {
           snapshots.set(routeKey, {
             items: items.value, total: total.value, nextCursor: nextCursor.value, q: q.value, sort: sort.value, genres: genres.value, genreMode: genreMode.value,
-            hideUnavailable: hideUnavailable.value, scrollY: window.scrollY, focusKey: focusedKey(),
+            hideUnavailable: hideUnavailable.value, scrollY: window.scrollY, focusKey: focusedKey(), revision: connection.getLibraryRevision(),
           })
           // Query strings can create arbitrarily many route keys during a long session.
           if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value!)
@@ -183,9 +189,15 @@ export function useTitles(options: UseTitlesOptions) {
     () => connection.phase,
     (phase) => {
       if (phase !== 'connected') return
-      // Coming back to a list we left: trust what we showed (a refresh would cut a long list back to one page).
-      if (snap && navState.arrivedByHistory) restorePlace()
-      else void reload().then(restorePlace)
+      // Coming back to a list we left: trust what we showed, unless the library changed meanwhile (e.g. a title was identified).
+      if (snap && navState.arrivedByHistory) {
+        if (snap.revision === connection.getLibraryRevision()) restorePlace()
+        else {
+          // Reload as many titles as were showing, so the person's place in a long list survives.
+          keepSize = Math.min(items.value.length, MAX_PAGE_SIZE)
+          void reload().then(restorePlace)
+        }
+      } else void reload().then(restorePlace)
     },
     { immediate: true },
   )

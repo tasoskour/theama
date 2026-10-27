@@ -873,6 +873,10 @@
     },
     "releases": {
       "back": "Πίσω",
+      "title": "Αναζήτηση torrent για…",
+      "search": "Αναζήτηση",
+      "minSeeders": "Ελάχ. seeders",
+      "filteredOut": "Κανένα αποτέλεσμα δεν περνά τα φίλτρα. Μειώστε τα seeders ή διαλέξτε άλλη ανάλυση.",
       "searching": "Αναζήτηση στους ιστότοπους…",
       "download": "Λήψη",
       "sent": "Στάλθηκε στο qBittorrent",

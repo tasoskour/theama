@@ -270,7 +270,8 @@ function changeKind(): void {
     </v-alert>
 
     <section v-show="tab === 'find'" class="find">
-      <form class="find__row" role="search" @submit.prevent="search">
+      <!-- Releases bring their own title and filters; this bar would only drop the user out of them. -->
+      <form v-if="!query" class="find__row" role="search" @submit.prevent="search">
         <v-btn-toggle v-model="kind" mandatory divided variant="outlined" density="compact" color="primary" class="find__kind th-toggle-control" :aria-label="$t('downloads.suggestions.filter')" data-test="suggestion-filter" @update:model-value="changeKind">
           <v-btn v-for="filter in (['all', 'series', 'movie'] as const)" :key="filter" :value="filter" :aria-pressed="kind === filter" :data-test="`suggestion-filter-${filter}`">
             {{ $t(`downloads.suggestions.filters.${filter}`) }}
@@ -325,8 +326,8 @@ function changeKind(): void {
         <v-btn type="submit" color="primary" :loading="searching" :disabled="!text.trim()" data-test="find-search">{{ $t('downloads.find.search') }}</v-btn>
       </form>
 
-      <v-alert v-if="problem" type="warning" variant="tonal" density="compact" class="mt-3">{{ problem }}</v-alert>
-      <v-alert v-if="genreProblem" type="warning" variant="tonal" density="compact" class="mt-3" data-test="genre-error">
+      <v-alert v-if="problem && !query" type="warning" variant="tonal" density="compact" class="mt-3">{{ problem }}</v-alert>
+      <v-alert v-if="genreProblem && !query" type="warning" variant="tonal" density="compact" class="mt-3" data-test="genre-error">
         {{ genreProblem }}
         <v-btn variant="text" size="small" :loading="genreLoading" @click="genreRetry += 1">{{ $t('common.retry') }}</v-btn>
       </v-alert>

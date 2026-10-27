@@ -873,6 +873,10 @@
     },
     "releases": {
       "back": "Back",
+      "title": "Search the torrents for…",
+      "search": "Search",
+      "minSeeders": "Min. seeders",
+      "filteredOut": "No release passes the filters. Lower the seeders or pick another resolution.",
       "searching": "Searching the sites…",
       "download": "Download",
       "sent": "Sent to qBittorrent",

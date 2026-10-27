@@ -128,6 +128,26 @@ describe('scanning through the API', () => {
     expect((await files()).total).toBe(6)
   })
 
+  it('removes a personal video whose key is its whole (long) path, and a card that is already gone', async () => {
+    writeFileSync(join(media, 'Family holiday at the lake with all the cousins.mp4'), 'x')
+    expect((await post(`/library/sources/${sourceId}/scan`)).status).toBe(202)
+    await waitForScans()
+    expect((await files()).total).toBe(7)
+    const video = TitlePage.parse(await get('/library/titles?kind=video&limit=200')).items[0]!
+    const remove = (key: string) => fetch(`${base}/library/titles/${encodeURIComponent(key)}`, { method: 'DELETE', headers: auth() })
+    expect(encodeURIComponent(video.key).length).toBeGreaterThan(100) // past Fastify's default route parameter limit
+
+    const removed = await remove(video.key)
+    expect(removed.status).toBe(200)
+    expect(await removed.json()).toEqual({ removedFileCount: 1 })
+    expect((await files()).total).toBe(6)
+
+    // The card's key can be stale (its file was renamed meanwhile): nothing is left to remove, and that is fine.
+    const stale = await remove(video.key.replace('family', 'gone'))
+    expect(stale.status).toBe(200)
+    expect(await stale.json()).toEqual({ removedFileCount: 0 })
+  })
+
   it('reports unknown folders and scans', async () => {
     expect((await post('/library/sources/9999/scan')).status).toBe(404)
     expect((await fetch(`${base}/scans/9999`, { headers: auth() })).status).toBe(404)

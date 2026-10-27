@@ -7,8 +7,10 @@ import {
   LibraryExclusion,
   LibraryExclusionList,
   HiddenResult,
+  ReclassifyTitleResult,
   type ExclusionKind,
   type LibraryType,
+  type TitleKind,
   type UpdateSourceRequest,
 } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
@@ -115,6 +117,17 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
+  /** Changes a card's category only in Theama's index; the files stay where they are on disk. */
+  async function reclassifyTitle(key: string, kind: TitleKind | null): Promise<number | null> {
+    if (!connection.client) return null
+    try {
+      return (await connection.client.post('/library/titles/reclassify', { key, kind }, ReclassifyTitleResult)).affectedFileCount
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err)
+      return null
+    }
+  }
+
   async function hideFile(id: number): Promise<boolean> {
     if (!connection.client) return false
     try {
@@ -150,5 +163,5 @@ export const useLibraryStore = defineStore('library', () => {
     if (e.type === 'library.changed') void load()
   })
 
-  return { sources, exclusions, loaded, loading, error, count, offlineCount, load, add, update, remove, loadExclusions, addExclusion, removeExclusion, hideTitle, hideFile }
+  return { sources, exclusions, loaded, loading, error, count, offlineCount, load, add, update, remove, loadExclusions, addExclusion, removeExclusion, hideTitle, reclassifyTitle, hideFile }
 })

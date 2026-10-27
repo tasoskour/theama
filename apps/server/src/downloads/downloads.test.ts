@@ -73,6 +73,41 @@ describe('QBittorrentClient', () => {
     expect(fake.seen.every((r) => r.headers.Cookie === undefined)).toBe(true)
   })
 
+  it('skips the login when no user name or password is set, and says so when qBittorrent still wants one', async () => {
+    const open = fakeQBittorrent({ bypass: true })
+    const client = new QBittorrentClient(() => ({ ...conn, username: '', password: '' }), { fetch: open.fetch })
+    expect(await client.version()).toBe('v5.0.1')
+    expect(open.seen.some((r) => r.url.endsWith('/auth/login'))).toBe(false)
+
+    const closed = fakeQBittorrent()
+    const anonymous = new QBittorrentClient(() => ({ ...conn, username: '', password: '' }), { fetch: closed.fetch })
+    await expect(anonymous.version()).rejects.toMatchObject({ kind: 'auth' })
+  })
+
+  it('sends back a session cookie that is not called SID', async () => {
+    const seen: Seen[] = []
+    const fetchImpl = (async (input: URL | string, init: RequestInit = {}) => {
+      const url = new URL(input)
+      const headers = Object.fromEntries(Object.entries((init.headers ?? {}) as Record<string, string>))
+      seen.push({ method: init.method ?? 'GET', url: url.pathname, headers, body: '' })
+      if (url.pathname.endsWith('/auth/login')) {
+        const res = new Response('Ok.')
+        res.headers.append('set-cookie', 'theme=dark; path=/')
+        res.headers.append('set-cookie', 'QBT_SID_8080=xyz; HttpOnly; path=/')
+        return res
+      }
+      return headers.Cookie === 'QBT_SID_8080=xyz' ? new Response('v5.1.0') : new Response('Forbidden', { status: 403 })
+    }) as typeof fetch
+    const client = new QBittorrentClient(() => conn, { fetch: fetchImpl })
+    expect(await client.version()).toBe('v5.1.0')
+  })
+
+  it('treats a 401 at login as wrong credentials', async () => {
+    const fetchImpl = (async () => new Response('Unauthorized', { status: 401 })) as typeof fetch
+    const client = new QBittorrentClient(() => conn, { fetch: fetchImpl })
+    await expect(client.version()).rejects.toMatchObject({ kind: 'auth' })
+  })
+
   it('keeps a reverse-proxy path prefix', async () => {
     const fake = fakeQBittorrent()
     const client = new QBittorrentClient(() => ({ ...conn, url: 'https://nas.lan/qbt/' }), { fetch: fake.fetch })

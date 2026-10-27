@@ -59,7 +59,7 @@ export interface QBittorrentOptions {
 }
 
 /**
- * A thin client for the qBittorrent Web API (v2). It logs in lazily, keeps the `SID` session cookie, and logs in
+ * A thin client for the qBittorrent Web API (v2). It logs in lazily, keeps the session cookie, and logs in
  * again once if the session has expired. qBittorrent refuses requests whose Origin/Referer do not match its own
  * host (its CSRF check), so both are sent.
  *
@@ -222,15 +222,28 @@ export class QBittorrentClient {
       this.sid = null
       this.sidFor = identity
     }
-    if (this.sid === null) await this.login(base, conn)
-    const res = await this.raw(base, method, path, form, this.sid ? { Cookie: `SID=${this.sid}` } : {})
+    // No user name and password: qBittorrent is set to skip authentication for this machine (localhost or a
+    // whitelisted subnet), so there is nothing to log in with and the requests go out as they are.
+    const anonymous = !conn.username && !conn.password
+    if (this.sid === null) {
+      if (anonymous) this.sid = ''
+      else await this.login(base, conn)
+    }
+    const res = await this.raw(base, method, path, form, this.sid ? { Cookie: this.sid } : {})
+    if (anonymous && (res.status === 401 || res.status === 403)) {
+      await res.body?.cancel().catch(() => undefined)
+      throw new DownloadClientError('auth', 'qBittorrent asks for a user name and password from this machine')
+    }
     if (res.status === 403 && !retried) {
       // The session expired (qBittorrent restarted or timed out): log in once more.
       this.sid = null
       await res.body?.cancel().catch(() => undefined)
       return this.send(method, path, form, true)
     }
-    if (res.status === 403) throw new DownloadClientError('forbidden', 'qBittorrent refused the request (is this machine banned or the host not allowed?)')
+    if (res.status === 403) {
+      const session = this.sid ? 'a session cookie was sent' : 'no session cookie was received at login'
+      throw new DownloadClientError('forbidden', `qBittorrent refused the request (${session}; is this machine banned or the host not allowed?)`)
+    }
     if (!res.ok) throw new DownloadClientError('unavailable', `qBittorrent answered HTTP ${res.status}`, res.status)
     return res
   }
@@ -240,13 +253,14 @@ export class QBittorrentClient {
     if (res.status === 403) {
       throw new DownloadClientError('forbidden', 'qBittorrent has banned this machine after too many failed logins; wait or restart qBittorrent')
     }
+    // Some builds and reverse proxies answer a failed login with 401 instead of a 200 "Fails.".
+    if (res.status === 401) throw new DownloadClientError('auth', 'qBittorrent did not accept the user name or password')
     if (!res.ok) throw new DownloadClientError('unavailable', `qBittorrent answered HTTP ${res.status}`)
     // Wrong credentials are a 200 with the body "Fails.", not an error status.
     const body = (await res.text()).trim()
     if (body !== 'Ok.') throw new DownloadClientError('auth', 'qBittorrent did not accept the user name or password')
-    const cookie = res.headers.getSetCookie().find((c) => c.startsWith('SID='))
     // With "bypass authentication for localhost" there is no cookie and none is needed.
-    this.sid = cookie ? (cookie.slice(4).split(';')[0] ?? null) : ''
+    this.sid = sessionCookie(res.headers.getSetCookie())
   }
 
   private async raw(base: string, method: 'GET' | 'POST', path: string, form: Form | undefined, headers: Record<string, string>): Promise<Response> {
@@ -259,13 +273,32 @@ export class QBittorrentClient {
         redirect: 'error',
       })
     } catch (err) {
-      const reason = err instanceof Error ? (err.name === 'TimeoutError' ? 'timed out' : err.message) : 'network error'
+      const reason = err instanceof Error ? (err.name === 'TimeoutError' ? 'timed out' : withCause(err)) : 'network error'
       throw new DownloadClientError('unreachable', `Could not reach qBittorrent at ${base} (${reason})`)
     }
   }
 }
 
-/** `http://host:8080` -> `http://host:8080/`; a reverse-proxy path prefix is kept so endpoints resolve under it. */
+/** Node's fetch only says "fetch failed"; the refused connection, bad certificate or redirect is in `cause`. */
+function withCause(err: Error): string {
+  const cause = err.cause
+  if (cause instanceof Error) {
+    const code = (cause as NodeJS.ErrnoException).code
+    return `${err.message}: ${code ? `${code} ` : ''}${cause.message}`
+  }
+  return err.message
+}
+
+/**
+ * The `name=value` pair to send back. qBittorrent names its session cookie `SID`, newer builds `QBT_SID_<port>`; a
+ * proxy may rename it again, so fall back to the first cookie set. No cookie means authentication is bypassed.
+ */
+function sessionCookie(setCookies: string[]): string {
+  const pairs = setCookies.map((c) => c.split(';')[0]?.trim() ?? '').filter((p) => p.includes('='))
+  return pairs.find((p) => /^(QBT_)?SID(_\d+)?=/i.test(p)) ?? pairs[0] ?? ''
+}
+
+/** `http://host:8080` ->`http://host:8080/`; a reverse-proxy path prefix is kept so endpoints resolve under it. */
 export function baseOf(url: string): string {
   const u = new URL(url)
   return `${u.origin}${u.pathname.replace(/\/+$/, '')}/`

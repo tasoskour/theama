@@ -1,18 +1,28 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiCheckCircle, mdiCloudOffOutline } from '@mdi/js'
+import { mdiCheckBold, mdiCheckCircle, mdiCloudOffOutline } from '@mdi/js'
 import type { TitleSummary } from '@theama/contracts'
 import { useTilt } from '@/composables/useTilt'
 import { useConnectionStore } from '@/stores/connection'
 import PosterArt from './PosterArt.vue'
 import TitleActionsMenu from './TitleActionsMenu.vue'
 
-const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number; caption?: string; inContinue?: boolean }>(), {
+const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number; caption?: string; inContinue?: boolean; selecting?: boolean; selected?: boolean }>(), {
   tabindex: 0,
   caption: undefined,
   inContinue: false,
+  selecting: false,
+  selected: false,
 })
+const emit = defineEmits<{ toggle: [key: string] }>()
+
+/** While selecting, a click picks the card instead of opening it. */
+function onLinkClick(e: Event): void {
+  if (!props.selecting) return
+  e.preventDefault()
+  emit('toggle', props.title.key)
+}
 const { t } = useI18n()
 const connection = useConnectionStore()
 
@@ -48,13 +58,17 @@ const label = computed(() =>
 </script>
 
 <template>
-  <article class="card" :class="{ 'card--offline': offline }" data-poster-card>
+  <article class="card" :class="{ 'card--offline': offline, 'card--selected': selecting && selected }" data-poster-card>
     <router-link
       class="card__link"
       :to="{ name: 'title', query: { key: title.key } }"
       :data-title-key="title.key"
       :tabindex="tabindex ?? 0"
       :aria-label="label"
+      :role="selecting ? 'checkbox' : undefined"
+      :aria-checked="selecting ? selected : undefined"
+      @click="onLinkClick"
+      @keydown.space="onLinkClick"
       @pointermove="tilt.onPointerMove"
       @pointerleave="tilt.reset"
     >
@@ -75,12 +89,15 @@ const label = computed(() =>
           <svg viewBox="0 0 24 24" class="th-icon card__seen-icon" aria-hidden="true"><path :d="mdiCheckCircle" fill="currentColor" /></svg>
         </span>
         <span v-if="needsId" class="card__badge card__badge--id" :title="$t('match.notIdentifiedHint')" data-text="?" />
+        <span v-if="selecting" class="card__pick" :class="{ 'card__pick--on': selected }" aria-hidden="true">
+          <svg v-if="selected" viewBox="0 0 24 24" class="th-icon card__pick-icon"><path :d="mdiCheckBold" fill="currentColor" /></svg>
+        </span>
       </div>{{ ' ' }}
       <div class="card__meta" aria-hidden="true">
         <span class="card__title">{{ title.title }}</span>{{ ' ' }}<span v-if="caption ?? detail" class="card__detail th-muted">{{ caption ?? detail }}</span>
       </div>
     </router-link>
-    <TitleActionsMenu :title="title" :tabindex="tabindex === 0 ? 0 : -1" :in-continue="inContinue" />
+    <TitleActionsMenu v-if="!selecting" :title="title" :tabindex="tabindex === 0 ? 0 : -1" :in-continue="inContinue" />
   </article>
 </template>
 
@@ -150,6 +167,30 @@ const label = computed(() =>
   color: #8fd19e;
   background: rgba(15, 14, 12, 0.78);
   border-radius: 50%;
+}
+.card__pick {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(15, 14, 12, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.75);
+}
+.card__pick--on {
+  background: rgb(var(--v-theme-primary));
+  border-color: rgb(var(--v-theme-primary));
+}
+.card__pick-icon {
+  width: 1rem;
+  height: 1rem;
+}
+.card--selected .card__art {
+  box-shadow: 0 0 0 3px rgb(var(--v-theme-primary));
 }
 .card__badge[data-text]::before {
   content: attr(data-text);

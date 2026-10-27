@@ -141,14 +141,8 @@ export async function runScan(ctx: ScanContext): Promise<ScanOutcome> {
     identity.set(k, [...(identity.get(k) ?? []), r])
   }
   const movedRowIds = new Set<number>()
-  const brandNew: WalkedFile[] = []
-  for (const f of unmatched) {
-    const candidates = f.fileId ? identity.get(`${f.volumeId}|${f.fileId}|${f.size}`) : undefined
-    const row = candidates?.shift()
-    if (!row) {
-      brandNew.push(f)
-      continue
-    }
+  const exclusionMoves: { from: string; to: string }[] = []
+  const applyMove = (f: WalkedFile, row: FileRow): void => {
     movedRowIds.add(row.id)
     summary.moved++
     const patch: FilePatch = {
@@ -159,7 +153,39 @@ export async function runScan(ctx: ScanContext): Promise<ScanOutcome> {
       Object.assign(patch, { probedAt: null, probeError: null })
       probeIds.set(row.id, f.path)
     }
+    // A file the person hid or removed stays hidden under its new name; one hidden only by a folder rule
+    // was walked at its new path, so no rule covers it any more.
+    if (row.excluded) {
+      if ((ctx.exclusions ?? []).some((e) => e.kind === 'file' && pathKey(e.path) === pathKey(row.path))) exclusionMoves.push({ from: row.path, to: f.path })
+      else patch.excluded = false
+    }
     toUpdate.push({ id: row.id, patch })
+  }
+
+  const unidentified: WalkedFile[] = []
+  for (const f of unmatched) {
+    const row = (f.fileId ? identity.get(`${f.volumeId}|${f.fileId}|${f.size}`) : undefined)?.shift()
+    if (row) applyMove(f, row)
+    else unidentified.push(f)
+  }
+
+  // A copy that replaced the original (or a tool that re-created the file) gets a new NTFS id. The same size and
+  // modified time still say it is the same file, as long as exactly one vanished row and one new file share them.
+  const brandNew: WalkedFile[] = []
+  const lookalikes = new Map<string, { rows: FileRow[]; files: WalkedFile[] }>()
+  const lookalike = (size: number, mtimeMs: number) => {
+    const k = `${size}|${mtimeMs}`
+    let group = lookalikes.get(k)
+    if (!group) lookalikes.set(k, (group = { rows: [], files: [] }))
+    return group
+  }
+  // A hidden row is "unseen" even when its file is still there (the walk skips it), so only visible rows can have vanished.
+  for (const r of unseen) if (!movedRowIds.has(r.id) && !r.excluded) lookalike(r.size, r.mtimeMs).rows.push(r)
+  for (const f of unidentified) lookalike(f.size, f.mtimeMs).files.push(f)
+  for (const f of unidentified) {
+    const group = lookalike(f.size, f.mtimeMs)
+    if (group.rows.length === 1 && group.files.length === 1) applyMove(f, group.rows[0]!)
+    else brandNew.push(f)
   }
 
   // 3. Files that disappeared: flag, never delete, and only when we are sure the folder is still there.
@@ -183,6 +209,7 @@ export async function runScan(ctx: ScanContext): Promise<ScanOutcome> {
   }
   summary.new = newRows.length
   for (let i = 0; i < toUpdate.length; i += 500) files.updateMany(toUpdate.slice(i, i + 500))
+  files.moveFileExclusions(source.id, exclusionMoves)
   if (stillOnline && candidates.length > 0) {
     files.markMissing(candidates.map((r) => r.id), now)
     summary.missing = candidates.length

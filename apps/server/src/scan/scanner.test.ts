@@ -1,5 +1,5 @@
 import { mkdirSync, mkdtempSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
-import { rename, rm, unlink } from 'node:fs/promises'
+import { copyFile, rename, rm, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -160,6 +160,57 @@ describe('rescans', () => {
     const out = await scan(source.id)
     expect(out.summary).toMatchObject({ moved: 1, new: 0 })
     expect(rows(source.id)).toHaveLength(1)
+  })
+
+  it('recognises a renamed copy (new NTFS id) by its size and modified time', async () => {
+    const mtime = new Date('2024-05-01T10:00:00Z')
+    const original = put(join(root, 'stalker .mkv'), 'film', mtime)
+    const source = addSource(root)
+    await scan(source.id)
+    const before = rows(source.id)[0]!
+
+    const renamed = join(root, "Andrei Tarkovsky's Stalker (1979).mkv")
+    await copyFile(original, renamed)
+    utimesSync(renamed, mtime, mtime)
+    await unlink(original)
+    const out = await scan(source.id)
+
+    expect(out.summary).toMatchObject({ moved: 1, new: 0, missing: 0 })
+    expect(rows(source.id)).toHaveLength(1)
+    expect(rows(source.id)[0]).toMatchObject({ id: before.id, path: renamed, state: 'available', guessedYear: 1979 })
+  })
+
+  it('does not guess when several vanished files and new files look alike', async () => {
+    const mtime = new Date('2024-05-01T10:00:00Z')
+    const a = put(join(root, 'a.2020.mkv'), 'same', mtime)
+    const b = put(join(root, 'b.2021.mkv'), 'same', mtime)
+    const source = addSource(root)
+    await scan(source.id)
+    for (const [from, to] of [[a, 'c.2022.mkv'], [b, 'd.2023.mkv']] as const) {
+      await copyFile(from, join(root, to))
+      utimesSync(join(root, to), mtime, mtime)
+      await unlink(from)
+    }
+    const out = await scan(source.id)
+    expect(out.summary).toMatchObject({ moved: 0, new: 2, missing: 2 })
+  })
+
+  it('keeps a hidden file hidden under its new name, and its exclusion follows it', async () => {
+    const original = put(join(root, 'Hidden.Film.2020.mkv'))
+    const source = addSource(root)
+    await scan(source.id)
+    const row = rows(source.id)[0]!
+    handle.raw.prepare('UPDATE media_file SET excluded = 1 WHERE id = ?').run(row.id)
+    handle.raw.prepare("INSERT INTO library_exclusion (source_id, path, kind, created_at) VALUES (?, ?, 'file', 'now')").run(source.id, original)
+
+    const renamed = join(root, 'Hidden Film (2020).mkv')
+    await rename(original, renamed)
+    const exclusions = [{ id: 1, sourceId: source.id, path: original, kind: 'file' as const, createdAt: 'now' }]
+    const out = await scan(source.id, { exclusions })
+
+    expect(out.summary).toMatchObject({ moved: 1, new: 0, missing: 0 })
+    expect(rows(source.id)[0]).toMatchObject({ id: row.id, path: renamed, excluded: true })
+    expect(handle.raw.prepare('SELECT path FROM library_exclusion').all()).toEqual([{ path: renamed }])
   })
 
   it('re-interprets the names when the folder type changes', async () => {

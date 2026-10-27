@@ -17,7 +17,7 @@ const snackbar = ref('')
 
 // --- qBittorrent ---
 const qbUrl = ref('http://localhost:8080')
-const qbUser = ref('admin')
+const qbUser = ref('')
 const qbPass = ref('')
 const qbEditing = ref(false)
 const qbSaving = ref(false)
@@ -138,7 +138,7 @@ onMounted(() => {
 
       <form v-if="showQbForm" class="form" @submit.prevent="saveQb">
         <v-text-field v-model="qbUrl" :label="$t('downloads.address')" :hint="$t('downloads.qb.addressHint')" persistent-hint spellcheck="false" autocomplete="off" :disabled="!connection.isConnected" data-test="qb-url" />
-        <v-text-field v-model="qbUser" :label="$t('downloads.username')" spellcheck="false" autocomplete="off" :disabled="!connection.isConnected" data-test="qb-user" />
+        <v-text-field v-model="qbUser" :label="$t('downloads.username')" :hint="$t('downloads.usernameHint')" persistent-hint spellcheck="false" autocomplete="off" :disabled="!connection.isConnected" data-test="qb-user" />
         <v-text-field
           v-model="qbPass"
           type="password"

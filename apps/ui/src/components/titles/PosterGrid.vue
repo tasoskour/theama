@@ -4,8 +4,8 @@ import type { TitleSummary } from '@theama/contracts'
 import { nextGridIndex, type NavKey } from '@/utils/gridNav'
 import PosterCard from './PosterCard.vue'
 
-const props = defineProps<{ titles: TitleSummary[]; label: string; hasMore?: boolean; loading?: boolean }>()
-const emit = defineEmits<{ loadMore: [] }>()
+const props = defineProps<{ titles: TitleSummary[]; label: string; hasMore?: boolean; loading?: boolean; selecting?: boolean; selected?: ReadonlySet<string> }>()
+const emit = defineEmits<{ loadMore: []; toggle: [key: string] }>()
 const root = ref<HTMLElement | null>(null)
 const sentinel = ref<HTMLElement | null>(null)
 const columns = ref(1)
@@ -131,7 +131,7 @@ watch(() => [props.titles.length, props.loading], async () => {
       <li v-for="{ title, index } in visible" :key="title.key" class="cell" data-poster-cell :data-grid-index="index"
         :aria-posinset="index + 1" :aria-setsize="titles.length"
         :style="{ width: `${width}px`, left: `${4 + (index % columns) * (width + gap)}px`, top: `${8 + Math.floor(index / columns) * rowHeight}px` }">
-        <PosterCard :title="title" :tabindex="index === active ? 0 : -1" />
+        <PosterCard :title="title" :tabindex="index === active ? 0 : -1" :selecting="selecting" :selected="selected?.has(title.key)" @toggle="emit('toggle', $event)" />
       </li>
     </ul>
     <div ref="sentinel" class="sentinel" aria-hidden="true" />

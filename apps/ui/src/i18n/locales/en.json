@@ -257,6 +257,17 @@
       "year": "Year (newest first)"
     },
     "noMatches": "Nothing matches.",
+    "select": {
+      "start": "Select",
+      "bar": "Selection actions",
+      "count": "{count} selected",
+      "all": "Select all",
+      "none": "Select none",
+      "hidden": "Hid {count} title. Restore it from Library exclusions. | Hid {count} titles. Restore them from Library exclusions.",
+      "moved": "Changed {count} title(s) to {destination}.",
+      "moveConfirmTitle": "Change this title's category? | Change the category of these titles?",
+      "moveConfirmBody": "This changes the category of {count} selected title(s) to {destination}. Files stay where they are on disk. Provider matches will be detached and may need to be identified again."
+    },
     "hide": "Hide {title}",
     "hideHint": "Hide this title and exclude its files from future scans",
     "hidden": "{title} hidden. You can restore it from Settings → Library → Exclusions.",
@@ -754,6 +765,7 @@
     },
     "address": "Address",
     "username": "User name",
+    "usernameHint": "Optional. Leave the user name and password empty if qBittorrent skips authentication for this computer (Web UI → Bypass authentication for clients on localhost).",
     "password": "Password",
     "passwordHint": "Kept on this PC only and never shown again. Leave empty if qBittorrent does not ask for one on this computer.",
     "connect": "Connect",

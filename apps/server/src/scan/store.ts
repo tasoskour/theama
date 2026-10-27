@@ -24,7 +24,7 @@ export type NewFileRow = typeof mediaFile.$inferInsert
 export type FilePatch = Partial<
   Pick<
     FileRow,
-    | 'path' | 'size' | 'mtimeMs' | 'volumeId' | 'fileId' | 'state' | 'lastSeenAt' | 'missingSince'
+    | 'path' | 'size' | 'mtimeMs' | 'volumeId' | 'fileId' | 'state' | 'lastSeenAt' | 'missingSince' | 'excluded'
     | 'kind' | 'kindOverride' | 'guessedTitle' | 'guessedYear' | 'season' | 'episode' | 'episodeEnd' | 'episodeTitle' | 'titleKey'
     | 'probedAt' | 'probeError' | 'durationMs' | 'width' | 'height' | 'container' | 'videoCodec' | 'audioCodecs' | 'subtitleCount' | 'tracks'
   >
@@ -33,12 +33,15 @@ export type FilePatch = Partial<
 const COLUMN_SQL: Record<keyof FilePatch, string> = {
   path: 'path', size: 'size', mtimeMs: 'mtime_ms', volumeId: 'volume_id', fileId: 'file_id', state: 'state',
   lastSeenAt: 'last_seen_at', missingSince: 'missing_since', kind: 'kind', guessedTitle: 'guessed_title',
-  kindOverride: 'kind_override',
+  kindOverride: 'kind_override', excluded: 'excluded',
   guessedYear: 'guessed_year', season: 'season', episode: 'episode', episodeEnd: 'episode_end',
   episodeTitle: 'episode_title', probedAt: 'probed_at', probeError: 'probe_error', durationMs: 'duration_ms',
   width: 'width', height: 'height', container: 'container', videoCodec: 'video_codec', audioCodecs: 'audio_codecs',
   subtitleCount: 'subtitle_count', titleKey: 'title_key', tracks: 'tracks',
 }
+
+/** SQLite has no boolean type; better-sqlite3 refuses to bind one. */
+const bindable = (v: unknown): unknown => (typeof v === 'boolean' ? Number(v) : (v ?? null))
 
 const INSERT_COLUMNS = [
   'source_id', 'path', 'size', 'mtime_ms', 'volume_id', 'file_id', 'state', 'first_seen_at', 'last_seen_at',
@@ -217,9 +220,18 @@ export class MediaFileRepo {
         const keys = (Object.keys(patch) as (keyof FilePatch)[]).filter((k) => patch[k] !== undefined)
         if (keys.length === 0) continue
         const set = keys.map((k) => `${COLUMN_SQL[k]} = ?`).join(', ')
-        this.raw.prepare(`UPDATE media_file SET ${set} WHERE id = ?`).run(...keys.map((k) => patch[k] ?? null), id)
+        this.raw.prepare(`UPDATE media_file SET ${set} WHERE id = ?`).run(...keys.map((k) => bindable(patch[k])), id)
         if (keys.some((k) => k === 'guessedTitle' || k === 'episodeTitle' || k === 'path' || k === 'titleKey')) this.reindex(id)
       }
+    })()
+  }
+
+  /** A hidden file was renamed or moved: its exclusion follows it, so it stays hidden under the new name. */
+  moveFileExclusions(sourceId: number, moves: readonly { from: string; to: string }[]): void {
+    if (moves.length === 0) return
+    this.raw.transaction(() => {
+      const stmt = this.raw.prepare("UPDATE OR IGNORE library_exclusion SET path = ? WHERE source_id = ? AND kind = 'file' AND path = ? COLLATE NOCASE")
+      for (const m of moves) stmt.run(m.to, sourceId, m.from)
     })()
   }
 

@@ -162,6 +162,8 @@ export async function buildApp(deps: AppDeps) {
     loggerInstance: logger,
     logController: new LogController({ disableRequestLogging: true }),
     bodyLimit: 64 * 1024,
+    // Title keys travel in the URL path; a personal video's key is its whole path, far past the default of 100.
+    routerOptions: { maxParamLength: 4096 },
   })
 
   // Registered first so preflight (OPTIONS) is answered before auth runs.
@@ -344,8 +346,8 @@ export async function buildApp(deps: AppDeps) {
 
   app.delete(`${API_PREFIX}/library/titles/:key`, async (req): Promise<RemoveTitleResult> => {
     const { key } = z.object({ key: z.string().min(1).max(1000) }).parse(req.params)
-    const result = titles.remove(key)
-    if (!result) throw new ApiProblem('not_found', 'No such title', 404)
+    // A card whose key no longer exists (its file was renamed or re-keyed) is already gone: succeed, and let every list refresh.
+    const result = titles.remove(key) ?? { removedFileCount: 0 }
     logger.info({ key, removedFileCount: result.removedFileCount }, 'Title removed from Theama (files untouched)')
     events.broadcast({ type: 'library.changed' })
     return result

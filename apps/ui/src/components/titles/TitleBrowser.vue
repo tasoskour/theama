@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { mdiCheckboxMarkedOutline, mdiClose, mdiEyeOffOutline, mdiMovieOpenOutline, mdiRestore, mdiTelevisionClassic, mdiVideoOutline } from '@mdi/js'
 import type { TitleKind, TitleSort } from '@theama/contracts'
 import { useGenres } from '@/composables/useGenres'
 import type { TitlesList } from '@/composables/useTitles'
+import { useLibraryStore } from '@/stores/library'
+import { useTitleActionsStore } from '@/stores/titleActions'
 import PosterGrid from './PosterGrid.vue'
 import GenreFilter from '@/components/common/GenreFilter.vue'
 import SearchField from '@/components/common/SearchField.vue'
@@ -26,6 +29,65 @@ watch(items, (next, previous) => {
   if (!sameLead) resultsVersion.value++
 })
 
+// --- selecting several titles to hide or move together ---------------------------------------
+const library = useLibraryStore()
+const notices = useTitleActionsStore()
+const selecting = ref(false)
+const selected = ref<ReadonlySet<string>>(new Set())
+const busy = ref(false)
+/** undefined: no dialog; null: back to the folder's own setting. */
+const confirmKind = ref<TitleKind | null | undefined>(undefined)
+const targets: { kind: TitleKind; icon: string; label: string }[] = [
+  { kind: 'movie', icon: mdiMovieOpenOutline, label: 'nav.movies' },
+  { kind: 'series', icon: mdiTelevisionClassic, label: 'nav.series' },
+  { kind: 'video', icon: mdiVideoOutline, label: 'nav.videos' },
+]
+const allSelected = computed(() => items.value.length > 0 && items.value.every((i) => selected.value.has(i.key)))
+
+function toggle(key: string): void {
+  const next = new Set(selected.value)
+  if (!next.delete(key)) next.add(key)
+  selected.value = next
+}
+function toggleAll(): void {
+  selected.value = allSelected.value ? new Set() : new Set(items.value.map((i) => i.key))
+}
+function stopSelecting(): void {
+  selecting.value = false
+  selected.value = new Set()
+}
+// Titles that a refresh or filter removed from view can no longer be seen, so they must not be acted on.
+watch(items, (next) => {
+  if (selected.value.size === 0) return
+  const present = new Set(next.map((i) => i.key))
+  const kept = [...selected.value].filter((k) => present.has(k))
+  if (kept.length !== selected.value.size) selected.value = new Set(kept)
+})
+
+async function hideSelected(): Promise<void> {
+  if (busy.value || selected.value.size === 0) return
+  busy.value = true
+  let done = 0
+  for (const key of selected.value) if (await library.hideTitle(key)) done++
+  const failed = selected.value.size - done
+  notices.notify(failed === 0 ? t('titles.select.hidden', done) : (library.error ?? t('titles.actions.failed')), failed > 0)
+  busy.value = false
+  stopSelecting()
+}
+
+async function moveSelected(): Promise<void> {
+  const kind = confirmKind.value
+  if (kind === undefined || busy.value || selected.value.size === 0) return
+  confirmKind.value = undefined
+  busy.value = true
+  let moved = 0
+  for (const key of selected.value) if ((await library.reclassifyTitle(key, kind)) !== null) moved++
+  const failed = selected.value.size - moved
+  const destination = kind ? t(`detail.kind.${kind}`) : t('titles.actions.folderSetting')
+  notices.notify(failed === 0 ? t('titles.select.moved', { count: moved, destination }) : (library.error ?? t('titles.actions.failed')), failed > 0)
+  busy.value = false
+  stopSelecting()
+}
 </script>
 
 <template>
@@ -41,17 +103,53 @@ watch(items, (next, previous) => {
       <GenreFilter v-model="genres" v-model:mode="genreMode" :items="genreItems" class="genres" />
       <v-select v-model="sort" :items="sortItems" :label="$t('titles.sortBy')" density="compact" variant="solo-filled" flat bg-color="surface-bright" hide-details class="sort th-search-control" />
       <v-switch v-model="hideUnavailable" :label="$t('files.hideUnavailable')" color="primary" density="compact" hide-details inset class="availability" />
+      <v-btn
+        :prepend-icon="selecting ? mdiClose : mdiCheckboxMarkedOutline"
+        :variant="selecting ? 'tonal' : 'text'"
+        size="small"
+        class="select-toggle"
+        data-test="select-toggle"
+        @click="selecting ? stopSelecting() : (selecting = true)"
+      >{{ selecting ? $t('common.cancel') : $t('titles.select.start') }}</v-btn>
       <span class="count" aria-live="polite">{{ $t('titles.count', total) }}</span>
       <v-progress-linear v-if="loading && loaded" indeterminate color="primary" height="2" class="toolbar__progress" />
+    </div>
+
+    <div v-if="selecting" class="selection th-filter-panel" role="toolbar" :aria-label="$t('titles.select.bar')" data-test="selection-bar">
+      <span class="selection__count" aria-live="polite">{{ $t('titles.select.count', selected.size) }}</span>
+      <v-btn variant="text" size="small" :disabled="busy || items.length === 0" @click="toggleAll">{{ allSelected ? $t('titles.select.none') : $t('titles.select.all') }}</v-btn>
+      <v-spacer />
+      <v-menu location="top end">
+        <template #activator="{ props: menuProps }">
+          <v-btn v-bind="menuProps" variant="tonal" size="small" :prepend-icon="mdiRestore" :disabled="busy || selected.size === 0" data-test="selection-move">{{ $t('titles.actions.moveTo') }}</v-btn>
+        </template>
+        <v-list density="compact">
+          <v-list-item v-for="target in targets" :key="target.kind" :prepend-icon="target.icon" :title="$t(target.label)" :disabled="kind === target.kind" @click="confirmKind = target.kind" />
+          <v-divider />
+          <v-list-item :prepend-icon="mdiRestore" :title="$t('titles.actions.folderSetting')" @click="confirmKind = null" />
+        </v-list>
+      </v-menu>
+      <v-btn variant="tonal" size="small" :prepend-icon="mdiEyeOffOutline" :disabled="busy || selected.size === 0" :loading="busy" data-test="selection-hide" @click="hideSelected">{{ $t('titles.actions.hide') }}</v-btn>
     </div>
 
     <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-3">{{ error }}</v-alert>
     <transition name="results" mode="out-in">
       <div :key="resultsVersion">
         <p v-if="loaded && items.length === 0" class="th-muted none">{{ $t('titles.noMatches') }}</p>
-        <PosterGrid v-else :titles="items" :label="label" :has-more="nextCursor !== null" :loading="loading" @load-more="loadMore()" />
+        <PosterGrid v-else :titles="items" :label="label" :has-more="nextCursor !== null" :loading="loading" :selecting="selecting" :selected="selected" @load-more="loadMore()" @toggle="toggle" />
       </div>
     </transition>
+
+    <v-dialog :model-value="confirmKind !== undefined" max-width="31rem" @update:model-value="confirmKind = undefined">
+      <v-card>
+        <v-card-title>{{ $t('titles.select.moveConfirmTitle', selected.size) }}</v-card-title>
+        <v-card-text>{{ $t('titles.select.moveConfirmBody', { count: selected.size, destination: confirmKind ? $t(`detail.kind.${confirmKind}`) : $t('titles.actions.folderSetting') }) }}</v-card-text>
+        <v-card-actions class="th-action-row">
+          <v-btn variant="text" @click="confirmKind = undefined">{{ $t('common.cancel') }}</v-btn>
+          <v-btn color="primary" variant="flat" :loading="busy" @click="moveSelected">{{ $t('titles.actions.confirmMove') }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </section>
 </template>
 
@@ -79,6 +177,24 @@ watch(items, (next, previous) => {
   flex: 0 0 auto;
   align-self: center;
   margin-inline: 4px;
+}
+.select-toggle {
+  align-self: center;
+}
+.selection {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+}
+.selection__count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 /* The default inset switch has an off-state track that vanishes into the dark surface; give it an outline. */
 .availability :deep(.v-selection-control:not(.v-selection-control--dirty) .v-switch__track) {

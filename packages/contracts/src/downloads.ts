@@ -63,6 +63,8 @@ export const ReleaseQuery = z.object({
   season: z.coerce.number().int().min(0).max(99).optional(),
   episode: z.coerce.number().int().min(0).max(999).optional(),
   source: ReleaseSource.optional(),
+  /** Keeps results whose name does not look like the title asked for. Sent as `unmatched=true`; anything else is ignored. */
+  unmatched: z.enum(['true']).transform(() => true as const).optional(),
 })
 export type ReleaseQuery = z.infer<typeof ReleaseQuery>
 

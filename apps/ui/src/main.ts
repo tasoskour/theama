@@ -33,5 +33,13 @@ app.config.errorHandler = (err) => {
   console.error(err)
   reportError('vue', err)
 }
-window.addEventListener('error', (e) => reportError('error', e.error ?? e.message))
+// Browsers raise this when an observer callback changes layout within the same frame; nothing is lost, so it is not an error.
+const BENIGN_ERRORS = /^ResizeObserver loop (completed with undelivered notifications|limit exceeded)/
+window.addEventListener('error', (e) => {
+  if (BENIGN_ERRORS.test(e.message)) {
+    e.stopImmediatePropagation()
+    return
+  }
+  reportError('error', e.error ?? e.message)
+})
 window.addEventListener('unhandledrejection', (e) => reportError('unhandledrejection', e.reason))

@@ -28,6 +28,8 @@ const items = ref<Release[]>([])
 const received = ref(0)
 const resolution = ref<Resolution | null>(null)
 const minSeeders = ref('')
+/** Asks the server to keep results that do not look like the title. Off for every new title. */
+const unmatched = ref(false)
 const adding = ref<string | null>(null)
 const sent = ref(new Set<string>())
 const snackbar = ref('')
@@ -62,7 +64,7 @@ async function run(): Promise<void> {
   error.value = null
   items.value = []
   resolution.value = null
-  const res = await downloads.findReleases(active.value, controller.signal)
+  const res = await downloads.findReleases({ ...active.value, unmatched: unmatched.value }, controller.signal)
   if (mine !== generation) return
   loading.value = false
   if (res.ok) {
@@ -80,11 +82,17 @@ watch(
   (q) => {
     active.value = q
     fill(q)
+    unmatched.value = false
     sent.value = new Set()
     void run()
   },
   { immediate: true },
 )
+
+function showUnmatched(show: boolean): void {
+  unmatched.value = show
+  void run()
+}
 
 // Searches again with the edited title and numbers; the kind of release stays the one that was opened.
 function apply(): void {
@@ -164,6 +172,7 @@ const heading = computed(() => {
       <v-chip-group v-if="resolutions.length > 1" v-model="resolution" column class="rel__chips" :aria-label="$t('detail.facts.resolution')">
         <v-chip v-for="r in resolutions" :key="r" :value="r" filter variant="tonal" size="small">{{ r }}</v-chip>
       </v-chip-group>
+      <v-btn v-if="unmatched" variant="text" size="small" data-test="release-hide-unmatched" @click="showUnmatched(false)">{{ $t('downloads.releases.hideUnmatched') }}</v-btn>
       <v-text-field
         v-model="minSeeders"
         :label="$t('downloads.releases.minSeeders')"
@@ -185,7 +194,10 @@ const heading = computed(() => {
     </v-alert>
 
     <p v-if="filtered" class="th-muted" data-test="release-filtered">{{ $t('downloads.releases.filteredOut') }}</p>
-    <p v-if="!loading && !error && items.length === 0" class="th-muted" data-test="release-none">{{ $t(received === 0 ? 'downloads.releases.nothingReceived' : 'downloads.releases.noneMatched', { count: received, source: source ? $t(`downloads.releases.name.${source}`) : '' }) }}</p>
+    <div v-if="!loading && !error && items.length === 0">
+      <p class="th-muted" data-test="release-none">{{ $t(received === 0 ? 'downloads.releases.nothingReceived' : 'downloads.releases.noneMatched', { count: received, source: source ? $t(`downloads.releases.name.${source}`) : '' }) }}</p>
+      <v-btn v-if="received > 0 && !unmatched" variant="tonal" size="small" data-test="release-show-unmatched" @click="showUnmatched(true)">{{ $t('downloads.releases.showUnmatched') }}</v-btn>
+    </div>
 
     <ul v-if="shown.length > 0" class="releases" role="list" data-test="release-list">
       <li v-for="r in shown" :key="r.id" class="release">

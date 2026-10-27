@@ -88,6 +88,22 @@ const THIS_YEAR = new Date().getFullYear()
 const YEARS_PER_STEP = 5
 const yearCount = ref(YEARS_PER_STEP)
 const sectionYears = computed(() => Array.from({ length: yearCount.value }, (_, i) => THIS_YEAR - i).filter((y) => y >= FIRST_YEAR))
+const hasOlderYears = computed(() => THIS_YEAR - yearCount.value >= FIRST_YEAR)
+
+// Scrolling near the end of the list adds the next few years. Observing again after each step
+// asks once more if the new sections are still too short to push the sentinel out of range.
+const yearsSentinel = ref<HTMLElement | null>(null)
+watch(yearsSentinel, (el, _, onCleanup) => {
+  if (!el) return
+  const observer = new IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return
+    yearCount.value += YEARS_PER_STEP
+    observer.unobserve(el)
+    void nextTick(() => observer.observe(el))
+  }, { rootMargin: '600px 0px' })
+  observer.observe(el)
+  onCleanup(() => observer.disconnect())
+})
 
 const preview = ref<SuggestionItem | null>(null)
 const previewOpen = ref(false)
@@ -369,7 +385,7 @@ function changeKind(): void {
               :year="y"
               @preview="openPreview"
             />
-            <v-btn variant="text" size="small" data-test="suggestion-more-years" @click="yearCount += YEARS_PER_STEP">{{ $t('downloads.suggestions.moreYears') }}</v-btn>
+            <div v-if="hasOlderYears" ref="yearsSentinel" class="years-sentinel" aria-hidden="true" data-test="suggestion-years-sentinel" />
           </template>
         </template>
       </div>
@@ -402,6 +418,9 @@ function changeKind(): void {
 </template>
 
 <style scoped>
+.years-sentinel {
+  height: 1px;
+}
 .head {
   display: flex;
   flex-wrap: wrap;

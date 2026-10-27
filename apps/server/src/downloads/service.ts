@@ -142,7 +142,7 @@ export class DownloadsService {
     const text = searchText(q)
     let hits: IndexerHit[]
     if (source === 'prowlarr') {
-      hits = await this.prowlarr.search(text, q.kind)
+      hits = await this.prowlarr.search(text)
     } else {
       hits = (await this.qbittorrent.search(text)).map((h) => ({ ...h, indexer: h.site }))
     }
@@ -150,7 +150,7 @@ export class DownloadsService {
     for (const h of hits) {
       if (!isDownloadLink(h.link)) continue
       const parsed = parseRelease(h.title)
-      if (!matchesQuery(h.title, parsed, q)) continue
+      if (!q.unmatched && !matchesQuery(h.title, parsed, q)) continue
       kept.push({ title: h.title, size: h.size, seeders: h.seeders, leechers: h.leechers, indexer: h.indexer, link: h.link, ...parsed })
     }
     const items = rankReleases(kept).slice(0, MAX_RELEASES).map(({ link, ...release }): Release => ({ id: this.remember(link), ...release }))

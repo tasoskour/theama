@@ -149,6 +149,15 @@ describe('searching through qBittorrent plugins', () => {
     // Neither the magnet link nor anything else internal reaches the UI.
     expect(JSON.stringify(list)).not.toContain('magnet:')
   })
+
+  it('keeps releases that do not look like the title when asked, but still never unusable links', async () => {
+    expect((await send('PUT', '/downloads/client', { qbittorrent: { url: qbUrl, username: 'a', password: 'b' } })).status).toBe(200)
+    const list = ReleaseList.parse(await (await releases('kind=movie&title=Dune&year=2021&unmatched=true')).json())
+    const titles = list.items.map((i) => i.title)
+    expect(titles).toContain('Dune.2021.1080p.BluRay.x264')
+    expect(titles.length).toBeGreaterThan(1)
+    expect(JSON.stringify(list)).not.toContain('javascript:')
+  })
 })
 
 describe('Prowlarr', () => {
@@ -166,7 +175,7 @@ describe('Prowlarr', () => {
     // Better resolution wins over more seeders; usenet, the link-less CAM and the 1984 film are gone.
     expect(list.items.map((i) => i.title)).toEqual(['Dune.2021.2160p.UHD.BluRay.x265', 'Dune.2021.1080p.WEB-DL'])
     expect(prowlarr.queries[0]).toContain('query=Dune+2021')
-    expect(prowlarr.queries[0]).toContain('categories=2000')
+    expect(prowlarr.queries[0]).not.toContain('categories')
   })
 
   it('can still be told to use the qBittorrent plugins', async () => {

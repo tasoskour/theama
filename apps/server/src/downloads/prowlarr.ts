@@ -31,9 +31,6 @@ const SearchHit = z.object({
   downloadUrl: z.string().nullish(),
 })
 
-const MOVIES = 2000
-const TV = 5000
-
 /** Prowlarr's v1 API: one JSON search across every indexer the person configured there. */
 export class ProwlarrClient {
   private readonly fetchImpl: typeof fetch
@@ -51,9 +48,13 @@ export class ProwlarrClient {
     return SystemStatus.parse(await this.getJson('api/v1/system/status')).version
   }
 
-  /** Searches torrent indexers only. Indexers can be slow, so this has a longer timeout than a status call. */
-  async search(query: string, kind: 'movie' | 'series'): Promise<IndexerHit[]> {
-    const params = new URLSearchParams({ query, type: 'search', limit: '100', categories: String(kind === 'movie' ? MOVIES : TV) })
+  /**
+   * Searches torrent indexers only, in every category: a category filter hides releases an indexer files oddly (an
+   * animated show under "Other", say), and what is not the title asked for is dropped by the caller anyway.
+   * Indexers can be slow, so this has a longer timeout than a status call.
+   */
+  async search(query: string): Promise<IndexerHit[]> {
+    const params = new URLSearchParams({ query, type: 'search', limit: '100' })
     const raw = await this.getJson(`api/v1/search?${params}`, Math.max(this.timeout, 30_000))
     if (!Array.isArray(raw)) throw new DownloadClientError('unavailable', 'Prowlarr sent an unexpected answer')
     const hits: IndexerHit[] = []

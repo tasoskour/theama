@@ -17,6 +17,8 @@ export interface ReleaseSearch {
   season?: number | undefined
   episode?: number | undefined
   source?: ReleaseSource | undefined
+  /** Keep results that do not look like the title. */
+  unmatched?: boolean | undefined
 }
 
 const Done = z.object({ ok: z.literal(true) })
@@ -92,8 +94,8 @@ export const useDownloadsStore = defineStore('downloads', () => {
   async function findReleases(q: ReleaseSearch, signal?: AbortSignal): Promise<ReleasesResult> {
     if (!connection.client) return notConnected
     try {
-      const { kind, title, year, season, episode, source } = q
-      return { ok: true, value: await connection.client.get('/downloads/releases', ReleaseList, { kind, title, year, season, episode, source }, signal ? { signal } : undefined) }
+      const { kind, title, year, season, episode, source, unmatched } = q
+      return { ok: true, value: await connection.client.get('/downloads/releases', ReleaseList, { kind, title, year, season, episode, source, unmatched: unmatched ? true : undefined },signal ? { signal } : undefined) }
     } catch (err) {
       return failure(err)
     }

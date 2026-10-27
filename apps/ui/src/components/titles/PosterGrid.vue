@@ -5,7 +5,7 @@ import { nextGridIndex, type NavKey } from '@/utils/gridNav'
 import PosterCard from './PosterCard.vue'
 
 const props = defineProps<{ titles: TitleSummary[]; label: string; hasMore?: boolean; loading?: boolean; selecting?: boolean; selected?: ReadonlySet<string> }>()
-const emit = defineEmits<{ loadMore: []; toggle: [key: string] }>()
+const emit = defineEmits<{ loadMore: []; toggle: [key: string]; paint: [key: string, on: boolean] }>()
 const root = ref<HTMLElement | null>(null)
 const sentinel = ref<HTMLElement | null>(null)
 const columns = ref(1)
@@ -91,6 +91,26 @@ function restore(e: Event): void {
   const index = props.titles.findIndex(t => t.key === (e as CustomEvent<string>).detail)
   if (index >= 0) void focusIndex(index, false)
 }
+// Press-and-drag selecting: the first card pressed decides whether the drag selects or deselects.
+let paintOn: boolean | null = null
+function keyAtEvent(target: EventTarget | null): string | null {
+  const index = indexOfEvent(target)
+  return index >= 0 ? (props.titles[index]?.key ?? null) : null
+}
+function onPointerdown(e: PointerEvent): void {
+  if (!props.selecting || e.button !== 0 || (e.pointerType !== 'mouse' && e.pointerType !== 'pen')) return
+  const key = keyAtEvent(e.target)
+  if (!key) return
+  paintOn = !props.selected?.has(key)
+  emit('paint', key, paintOn)
+}
+function onPointerover(e: PointerEvent): void {
+  if (paintOn === null) return
+  if (e.buttons === 0) { paintOn = null; return }
+  const key = keyAtEvent(e.target)
+  if (key) emit('paint', key, paintOn)
+}
+function endPaint(): void { paintOn = null }
 function checkMore(): void {
   if (props.hasMore && !props.loading && sentinel.value && sentinel.value.getBoundingClientRect().top < window.innerHeight + 600) emit('loadMore')
 }
@@ -102,6 +122,8 @@ onMounted(() => {
   fonts.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] })
   window.addEventListener('scroll', schedule, { passive: true })
   window.addEventListener('resize', schedule)
+  window.addEventListener('pointerup', endPaint)
+  window.addEventListener('pointercancel', endPaint)
   document.addEventListener('theama:restore-title-focus', restore)
   observer = new IntersectionObserver(entries => {
     if (entries.some(e => e.isIntersecting)) checkMore()
@@ -115,6 +137,8 @@ onBeforeUnmount(() => {
   observer?.disconnect()
   window.removeEventListener('scroll', schedule)
   window.removeEventListener('resize', schedule)
+  window.removeEventListener('pointerup', endPaint)
+  window.removeEventListener('pointercancel', endPaint)
   document.removeEventListener('theama:restore-title-focus', restore)
 })
 watch(() => [props.titles.length, props.loading], async () => {
@@ -127,7 +151,8 @@ watch(() => [props.titles.length, props.loading], async () => {
 
 <template>
   <div class="poster-grid">
-    <ul ref="root" class="grid" role="list" :aria-label="label" :style="{ height: `${height}px` }" @keydown="onKeydown" @focusin="onFocusin" @focusout="onFocusout">
+    <ul ref="root" class="grid" :class="{ 'grid--selecting': selecting }" role="list" :aria-label="label" :style="{ height: `${height}px` }" @keydown="onKeydown" @focusin="onFocusin" @focusout="onFocusout"
+      @pointerdown="onPointerdown" @pointerover="onPointerover" @dragstart="selecting && $event.preventDefault()">
       <li v-for="{ title, index } in visible" :key="title.key" class="cell" data-poster-cell :data-grid-index="index"
         :aria-posinset="index + 1" :aria-setsize="titles.length"
         :style="{ width: `${width}px`, left: `${4 + (index % columns) * (width + gap)}px`, top: `${8 + Math.floor(index / columns) * rowHeight}px` }">
@@ -152,6 +177,7 @@ watch(() => [props.titles.length, props.loading], async () => {
   overflow-anchor: none;
 }
 .cell { position: absolute; min-width: 0; }
+.grid--selecting { user-select: none; }
 /* Reserve two title lines and one caption line, so virtual rows have a stable height. */
 .cell :deep(.card__meta) { height: calc(3.5rem + 12px); }
 .cell :deep(.card) { content-visibility: visible; }

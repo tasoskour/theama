@@ -17,11 +17,16 @@ const props = withDefaults(defineProps<{ title: TitleSummary; tabindex?: number;
 })
 const emit = defineEmits<{ toggle: [key: string] }>()
 
-/** While selecting, a click picks the card instead of opening it. */
+/**
+ * While selecting, the card never opens. Bound on capture so it runs before the router link's own
+ * handler, which would otherwise already have navigated. A mouse press is handled by the grid (so a
+ * drag can paint a whole run of cards); keyboard and touch have no press-and-drag, so they toggle here.
+ */
 function onLinkClick(e: Event): void {
   if (!props.selecting) return
   e.preventDefault()
-  emit('toggle', props.title.key)
+  const pointer = (e as PointerEvent).pointerType
+  if (pointer !== 'mouse' && pointer !== 'pen') emit('toggle', props.title.key)
 }
 const { t } = useI18n()
 const connection = useConnectionStore()
@@ -67,7 +72,7 @@ const label = computed(() =>
       :aria-label="label"
       :role="selecting ? 'checkbox' : undefined"
       :aria-checked="selecting ? selected : undefined"
-      @click="onLinkClick"
+      @click.capture="onLinkClick"
       @keydown.space="onLinkClick"
       @pointermove="tilt.onPointerMove"
       @pointerleave="tilt.reset"

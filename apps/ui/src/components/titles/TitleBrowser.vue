@@ -49,6 +49,14 @@ function toggle(key: string): void {
   if (!next.delete(key)) next.add(key)
   selected.value = next
 }
+/** Drag-selecting sets a card to a given state rather than flipping it, so passing over one twice changes nothing. */
+function paint(key: string, on: boolean): void {
+  if (selected.value.has(key) === on) return
+  const next = new Set(selected.value)
+  if (on) next.add(key)
+  else next.delete(key)
+  selected.value = next
+}
 function toggleAll(): void {
   selected.value = allSelected.value ? new Set() : new Set(items.value.map((i) => i.key))
 }
@@ -136,7 +144,7 @@ async function moveSelected(): Promise<void> {
     <transition name="results" mode="out-in">
       <div :key="resultsVersion">
         <p v-if="loaded && items.length === 0" class="th-muted none">{{ $t('titles.noMatches') }}</p>
-        <PosterGrid v-else :titles="items" :label="label" :has-more="nextCursor !== null" :loading="loading" :selecting="selecting" :selected="selected" @load-more="loadMore()" @toggle="toggle" />
+        <PosterGrid v-else :titles="items" :label="label" :has-more="nextCursor !== null" :loading="loading" :selecting="selecting" :selected="selected" @load-more="loadMore()" @toggle="toggle" @paint="paint" />
       </div>
     </transition>
 

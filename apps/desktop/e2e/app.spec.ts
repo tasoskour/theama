@@ -604,6 +604,60 @@ test('starts a player on a video with the right subtitle, remembers what was wat
   await expect(page.getByText('No folders yet.')).toBeVisible()
 })
 
+test('shows an episode and a film once when several files play them, and plays the path the person switches to', async () => {
+  for (const f of await readdir(mediaFolder)) await rm(join(mediaFolder, f), { force: true })
+  for (const f of ['Twin.S01E01.1080p.mkv', 'Twin.S01E01.720p.mkv', 'Twin.S01E02.mkv', 'Echo.2020.1080p.mkv', 'Echo.2020.720p.mkv']) writeFileSync(join(mediaFolder, f), 'x')
+  const here = page.url().split('#')[0]
+  await page.goto(here + '#/settings/library')
+  await page.getByRole('button', { name: 'Add folder' }).first().click()
+  const add = page.getByRole('dialog', { name: 'Add a media folder' })
+  await add.getByRole('button', { name: 'Auto-detect' }).click()
+  await add.getByRole('button', { name: 'Add folder' }).click()
+  await expect(page.getByText('Folder added', { exact: true })).toBeVisible()
+  const launches = () => (existsSync(playerLog) ? readFileSync(playerLog, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as { exe: string; args: string[] }) : [])
+  const before = launches().length
+
+  // Series: one row per episode, and the switch only where an episode has more than one file.
+  await nav('Series').click()
+  await page.getByRole('link', { name: /^Twin/ }).click()
+  await expect(page.getByRole('heading', { name: 'Twin', level: 1 })).toBeVisible()
+  await expect(page.locator('.eplist > li')).toHaveCount(2)
+  await expect(page.locator('[data-test="path-switch"]')).toHaveCount(1)
+  await page.locator('.eplist > li').first().locator('[data-test="path-switch"]').click()
+  const options = page.locator('.v-overlay-container [data-test="path-option"]')
+  await expect(options).toHaveCount(2)
+  await options.filter({ hasText: 'Twin.S01E01.720p.mkv' }).click()
+  await page.locator('.eplist > li').first().locator('[data-test="play-episode"]').click()
+  await expect.poll(() => launches().length).toBe(before + 1)
+  expect(launches().at(-1)!.args).toContain(join(mediaFolder, 'Twin.S01E01.720p.mkv'))
+
+  // The choice is remembered when the page is opened again.
+  await page.reload()
+  await expect(page.locator('.eplist > li')).toHaveCount(2)
+  await page.locator('.eplist > li').first().locator('[data-test="play-episode"]').click()
+  await expect.poll(() => launches().length).toBe(before + 2)
+  expect(launches().at(-1)!.args).toContain(join(mediaFolder, 'Twin.S01E01.720p.mkv'))
+
+  // Film: one file card with the switch, instead of a card for each file.
+  await nav('Movies').click()
+  await page.getByRole('link', { name: /^Echo/ }).click()
+  await expect(page.getByRole('heading', { name: 'Echo', level: 1 })).toBeVisible()
+  await expect(page.locator('.files .file')).toHaveCount(1)
+  await page.locator('[data-test="path-switch"]').click()
+  await page.locator('.v-overlay-container [data-test="path-option"]', { hasText: 'Echo.2020.720p.mkv' }).click()
+  await expect(page.locator('.files .file__name')).toHaveText('Echo.2020.720p.mkv')
+  await page.locator('[data-test="play"]').click()
+  await expect.poll(() => launches().length).toBe(before + 3)
+  expect(launches().at(-1)!.args).toContain(join(mediaFolder, 'Echo.2020.720p.mkv'))
+
+  // Tidy up so the following tests start from an empty library.
+  await page.goto(here + '#/settings/library')
+  const row = page.locator('li.source', { hasText: mediaFolder })
+  await row.getByRole('button', { name: new RegExp('^Remove: ') }).click()
+  await page.getByRole('dialog', { name: 'Remove this folder from Theama?' }).getByRole('button', { name: 'Remove folder' }).click()
+  await expect(page.getByText('No folders yet.')).toBeVisible()
+})
+
 test('renames files from a preview, takes the subtitle along, and can put everything back', async () => {
   for (const f of await readdir(mediaFolder)) await rm(join(mediaFolder, f), { force: true })
   for (const f of ['Interstellar.2014.1080p.BluRay.mkv', 'Interstellar.2014.1080p.BluRay.en.srt']) writeFileSync(join(mediaFolder, f), 'x')

@@ -11,7 +11,9 @@ import FileFacts from '@/components/titles/FileFacts.vue'
 import CreditPopover from '@/components/titles/CreditPopover.vue'
 import RenameDialog from '@/components/files/RenameDialog.vue'
 import IdentifyDialog from '@/components/titles/IdentifyDialog.vue'
+import PathSwitch from '@/components/titles/PathSwitch.vue'
 import PlayButton from '@/components/titles/PlayButton.vue'
+import { episodeChoiceKey, groupEpisodeFiles, loadChoices, movieChoiceKey, resolveChoice, saveChoice } from '@/components/titles/variants'
 import TrailerDialog from '@/components/titles/TrailerDialog.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { imdbLinkFor, openExternal as openLink, trailerInApp } from '@/composables/useExternalLinks'
@@ -127,6 +129,23 @@ async function openExternal(link: ExternalLinkRequest): Promise<void> {
 // --- playing and watching -----------------------------------------------------
 const playable = (f: MediaFile): boolean => f.state === 'available'
 
+// Several files can play one movie or episode: it is shown once, with a switch between the paths. The path the
+// person picked is remembered on this device; until they pick one, the best available copy is used.
+const choices = ref<Record<string, number>>(loadChoices())
+function choose(choiceKey: string, fileId: number): void {
+  choices.value = { ...choices.value, [choiceKey]: fileId }
+  saveChoice(choiceKey, fileId)
+}
+/** The file a film plays. */
+const movieFile = computed<MediaFile | null>(() => resolveChoice(files.value, choices.value[movieChoiceKey(key.value)]))
+/** The file chosen for the episode a file belongs to (the file itself when it has no copies). */
+const chosenByFile = computed(() => {
+  const map = new Map<number, MediaFile>()
+  for (const g of seasons.value) for (const r of g.rows) if (r.file) for (const v of r.variants) map.set(v.id, r.file)
+  return map
+})
+const chosenFor = (f: MediaFile | undefined): MediaFile | undefined => (f ? (chosenByFile.value.get(f.id) ?? f) : undefined)
+
 /** What the big Play button starts: a film's best file, a series' next episode (or the first one once all are watched). */
 const playTarget = computed<{ fileId: number | null; label: string; reason: string | null; resumable: boolean }>(() => {
   const s = summary.value
@@ -135,16 +154,18 @@ const playTarget = computed<{ fileId: number | null; label: string; reason: stri
   if (s.kind === 'series') {
     const next = detail.value?.playback.next
     if (next) {
-      const f = files.value.find((x) => x.id === next.fileId)
-      const resumable = next.resumeSeconds !== null
-      const label = resumable ? t('play.resumeLabel', { label: next.label, time: formatClock(next.resumeSeconds) }) : t('play.next', { label: next.label })
-      return { fileId: next.fileId, label, reason: f && playable(f) ? null : offlineReason, resumable }
+      // The server names an available copy; the path the person switched to wins, with its own resume point.
+      const f = chosenFor(files.value.find((x) => x.id === next.fileId))
+      const resumeSeconds = f && f.id !== next.fileId ? f.positionSeconds : next.resumeSeconds
+      const resumable = resumeSeconds !== null
+      const label = resumable ? t('play.resumeLabel', { label: next.label, time: formatClock(resumeSeconds) }) : t('play.next', { label: next.label })
+      return { fileId: f?.id ?? next.fileId, label, reason: f && playable(f) ? null : offlineReason, resumable }
     }
-    const first = [...files.value].filter((f) => f.kind === 'episode' && f.season !== 0).sort((a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0))[0]
+    const first = chosenFor([...files.value].filter((f) => f.kind === 'episode' && f.season !== 0).sort((a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0))[0])
     const label = s.watchState === 'all' ? t('play.again') : t('detail.play')
     return first ? { fileId: first.id, label, reason: playable(first) ? null : offlineReason, resumable: false } : { fileId: null, label, reason: offlineReason, resumable: false }
   }
-  const best = files.value.find((x) => playable(x) && x.positionSeconds !== null) ?? files.value.find(playable) ?? files.value[0]
+  const best = movieFile.value
   const resumable = best?.positionSeconds != null
   const label = resumable ? t('play.resumeFilm', { time: formatClock(best!.positionSeconds) }) : s.watchState === 'all' ? t('play.again') : t('detail.play')
   return best ? { fileId: best.id, label, reason: playable(best) ? null : offlineReason, resumable } : { fileId: null, label, reason: offlineReason, resumable: false }
@@ -159,16 +180,18 @@ function onPlayed(ok: boolean): void {
 }
 
 const Changed = z.object({ changed: z.number().int() })
-async function setWatched(path: string, body: unknown): Promise<void> {
+async function setWatched(path: string, body: unknown, ...more: string[]): Promise<void> {
   if (!connection.client) return
   try {
-    await connection.client.put(path, body, Changed)
+    for (const p of [path, ...more]) await connection.client.put(p, body, Changed)
     await load()
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : String(err)
   }
 }
-const setFileWatched = (f: MediaFile, watched: boolean): Promise<void> => setWatched(`/playback/files/${f.id}`, { watched })
+/** An episode is watched when any of its files is, so marking it changes every copy; a hidden copy cannot undo it. */
+const setEpisodeWatched = (copies: MediaFile[], watched: boolean): Promise<void> =>
+  setWatched(`/playback/files/${copies[0]!.id}`, { watched }, ...copies.slice(1).map((f) => `/playback/files/${f.id}`))
 const setTitleWatched = (watched: boolean, seasonNumber?: number): Promise<void> =>
   setWatched('/playback/titles', { key: key.value, watched, ...(seasonNumber === undefined ? {} : { season: seasonNumber }) })
 const currentSeasonNumber = computed(() => (/^\d+$/.test(season.value) ? Number(season.value) : undefined))
@@ -209,16 +232,21 @@ function episodeName(f: MediaFile): string {
 }
 
 type Gap = Exclude<EpisodeStatus, 'local'>
-/** One line of the episode list: a file, or an episode the provider lists that has no file. */
+/** One line of the episode list: an episode with its file(s), or an episode the provider lists that has no file. */
 interface EpisodeRow {
   id: string
+  /** The file in use: the one the person chose, else the best copy. */
   file: MediaFile | null
+  /** Every file that plays this episode (two or more when it has copies); empty for a gap. */
+  variants: MediaFile[]
+  /** Where the person's choice among `variants` is remembered. */
+  choiceKey: string
+  /** Watched in any of its files. */
+  watched: boolean
   info: EpisodeInfo | null
   gap: Gap | null
   /** The file's season/episode is not in the provider's list. */
   stray: boolean
-  /** More than one file plays this episode. */
-  copies: number
   code: string
   sort: number
 }
@@ -231,16 +259,25 @@ interface SeasonGroup {
   summary: string | null
 }
 
-const fileRow = (f: MediaFile, info: EpisodeInfo | null, stray: boolean, copies: number): EpisodeRow => ({
-  id: `f${f.id}`,
-  file: f,
-  info,
-  gap: null,
-  stray,
-  copies,
-  code: episodeCode(f.season, f.episode, f.episodeEnd),
-  sort: f.episode ?? 1e6,
-})
+/** A row for the files that play one episode; `variants` is never empty. */
+function fileRow(variants: MediaFile[], info: EpisodeInfo | null, stray: boolean): EpisodeRow {
+  const first = variants[0]!
+  // A file without an episode number has no copies to tell it from, so its own id identifies it.
+  const choiceKey = first.episode === null ? `${key.value}:f${first.id}` : episodeChoiceKey(key.value, info?.season ?? first.season, info?.episode ?? first.episode)
+  const f = resolveChoice(variants, choices.value[choiceKey])!
+  return {
+    id: `f${first.id}`,
+    file: f,
+    variants,
+    choiceKey,
+    watched: variants.some((v) => v.watched),
+    info,
+    gap: null,
+    stray,
+    code: episodeCode(f.season, f.episode, f.episodeEnd),
+    sort: f.episode ?? 1e6,
+  }
+}
 
 /**
  * Season tabs. With the provider's episode list the rows are the provider's episodes (a file, or a clearly
@@ -272,21 +309,19 @@ const seasons = computed<SeasonGroup[]>(() => {
       const rows: EpisodeRow[] = []
       for (const info of (episodesBySeason.get(s.season) ?? [])) {
         if (info.fileIds.length === 0) {
-          rows.push({ id: `g${info.season}-${info.episode}`, file: null, info, gap: info.status as Gap, stray: false, copies: 0, code: episodeCode(info.season, info.episode, null), sort: info.episode })
+          rows.push({ id: `g${info.season}-${info.episode}`, file: null, variants: [], choiceKey: '', watched: false, info, gap: info.status as Gap, stray: false, code: episodeCode(info.season, info.episode, null), sort: info.episode })
           continue
         }
-        for (const fid of info.fileIds) {
-          const f = byId.get(fid)
-          if (!f || placed.has(fid)) continue // a range file is listed once, at its first episode
-          placed.add(fid)
-          rows.push(fileRow(f, info, false, info.fileIds.length))
-        }
+        // Copies of one episode share one row; a range file is listed once, at its first episode.
+        const variants = info.fileIds.map((fid) => byId.get(fid)).filter((f): f is MediaFile => f !== undefined && !placed.has(f.id))
+        if (variants.length === 0) continue
+        for (const f of variants) placed.add(f.id)
+        rows.push(fileRow(variants, info, false))
       }
-      for (const f of filesBySeason.get(s.season) ?? []) {
-        if (f.season === s.season && strays.has(f.id) && !placed.has(f.id)) {
-          placed.add(f.id)
-          rows.push(fileRow(f, null, true, 1))
-        }
+      const strayFiles = (filesBySeason.get(s.season) ?? []).filter((f) => f.season === s.season && strays.has(f.id) && !placed.has(f.id))
+      for (const copies of groupEpisodeFiles(strayFiles)) {
+        for (const f of copies) placed.add(f.id)
+        rows.push(fileRow(copies, null, true))
       }
       rows.sort((a, b) => a.sort - b.sort)
       const parts = [t('series.summary', { expected: s.expected, local: s.local })]
@@ -296,7 +331,8 @@ const seasons = computed<SeasonGroup[]>(() => {
       groups.push({ id: String(s.season), label: label(s.season), rows, local: s.local, missing: s.missing, summary: parts.join(' · ') })
     }
     const rest = files.value.filter((f) => !placed.has(f.id))
-    if (rest.length) groups.push({ id: 'none', label: t('detail.unnumbered'), rows: rest.map((f) => fileRow(f, null, true, 1)), local: rest.length, missing: 0, summary: null })
+    const restRows = groupEpisodeFiles(rest).map((copies) => fileRow(copies, null, true))
+    if (restRows.length) groups.push({ id: 'none', label: t('detail.unnumbered'), rows: restRows, local: restRows.length, missing: 0, summary: null })
     return groups
   }
 
@@ -307,11 +343,14 @@ const seasons = computed<SeasonGroup[]>(() => {
     bySeason.set(f.season, group)
   }
   for (const n of [...bySeason.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b)) {
-    const list = bySeason.get(n)!
-    groups.push({ id: String(n), label: label(n), rows: list.map((f) => fileRow(f, null, false, 1)), local: list.length, missing: 0, summary: null })
+    const rows = groupEpisodeFiles(bySeason.get(n)!).map((copies) => fileRow(copies, null, false))
+    groups.push({ id: String(n), label: label(n), rows, local: rows.length, missing: 0, summary: null })
   }
   const none = bySeason.get(null)
-  if (none) groups.push({ id: 'none', label: t('detail.unnumbered'), rows: none.map((f) => fileRow(f, null, false, 1)), local: none.length, missing: 0, summary: null })
+  if (none) {
+    const rows = groupEpisodeFiles(none).map((copies) => fileRow(copies, null, false))
+    groups.push({ id: 'none', label: t('detail.unnumbered'), rows, local: rows.length, missing: 0, summary: null })
+  }
   return groups
 })
 watch(
@@ -324,7 +363,7 @@ watch(
 const shownGroup = computed(() => seasons.value.find((g) => g.id === season.value) ?? null)
 
 const kindLabel = computed(() => (summary.value ? t(`detail.kind.${summary.value.kind}`) : ''))
-const expanded = ref<number | null>(null)
+const expanded = ref<string | null>(null)
 
 const metaChips = computed(() => {
   const s = summary.value
@@ -335,14 +374,14 @@ const metaChips = computed(() => {
     if (s.seasonCount > 0) chips.push(t('titles.seasons', s.seasonCount))
     chips.push(t('titles.episodes', s.episodeCount > 0 ? s.episodeCount : s.fileCount))
   } else {
-    const best = files.value.find((f) => f.durationMs !== null)
-    if (best?.durationMs) chips.push(formatDuration(best.durationMs, locale.value))
+    // The facts of the file in use; its copies are behind the path switch.
+    const used = movieFile.value
+    if (used?.durationMs) chips.push(formatDuration(used.durationMs, locale.value))
     else if (meta.value?.runtimeMinutes) chips.push(formatDuration(meta.value.runtimeMinutes * 60_000, locale.value))
-    const res = files.value.map((f) => resolutionLabel(f.width, f.height)).find(Boolean)
+    const res = used ? resolutionLabel(used.width, used.height) : ''
     if (res) chips.push(res)
-    if (s.fileCount > 1) chips.push(t('detail.versions', s.fileCount))
   }
-  chips.push(formatBytes(s.size, locale.value))
+  chips.push(formatBytes(s.kind === 'series' || !movieFile.value ? s.size : movieFile.value.size, locale.value))
   return chips
 })
 </script>
@@ -542,16 +581,15 @@ const metaChips = computed(() => {
                 </span>
               </div>
             </li>
-            <li v-else class="ep" :class="{ 'ep--dim': r.file.state !== 'available', 'ep--watched': r.file.watched }">
+            <li v-else class="ep" :class="{ 'ep--dim': r.file.state !== 'available', 'ep--watched': r.watched }">
               <div class="ep__line">
-              <button type="button" class="ep__row" :aria-expanded="expanded === r.file.id" @click="expanded = expanded === r.file.id ? null : r.file.id">
+              <button type="button" class="ep__row" :aria-expanded="expanded === r.id" @click="expanded = expanded === r.id ? null : r.id">
                 <span class="ep__code th-mono">{{ r.code || '·' }}</span>
                 <span class="ep__name">
                   <span class="ep__title">{{ episodeName(r.file) }}</span>
                   <span v-if="episodeName(r.file) !== r.file.fileName" class="ep__file th-muted">{{ r.file.fileName }}</span>
                 </span>
                 <span class="ep__meta">
-                  <v-chip v-if="r.copies > 1" size="x-small" color="warning" label variant="outlined" :title="$t('series.copiesHint')">{{ $t('series.copies', { n: r.copies }) }}</v-chip>
                   <v-chip v-if="r.stray" size="x-small" label variant="outlined" :title="$t('series.strayHint')">{{ $t('series.stray') }}</v-chip>
                   <v-chip v-if="r.file.state === 'source_offline'" size="x-small" color="warning" label variant="tonal">{{ $t('files.offline') }}</v-chip>
                   <v-chip v-else-if="r.file.state === 'missing_unconfirmed'" size="x-small" color="error" label variant="tonal">{{ $t('files.missing') }}</v-chip>
@@ -562,17 +600,25 @@ const metaChips = computed(() => {
                 </span>
               </button>
               <div class="ep__actions">
+                <PathSwitch
+                  v-if="r.variants.length > 1"
+                  compact
+                  :variants="r.variants"
+                  :model-value="r.file.id"
+                  :name="episodeName(r.file)"
+                  @update:model-value="choose(r.choiceKey, $event)"
+                />
                 <v-btn
                   icon
                   size="small"
                   variant="text"
-                  :aria-pressed="r.file.watched"
-                  :aria-label="r.file.watched ? $t('play.markUnwatched', { name: episodeName(r.file) }) : $t('play.markWatched', { name: episodeName(r.file) })"
-                  :title="r.file.watched ? $t('play.watched') : $t('play.markWatchedShort')"
+                  :aria-pressed="r.watched"
+                  :aria-label="r.watched ? $t('play.markUnwatched', { name: episodeName(r.file) }) : $t('play.markWatched', { name: episodeName(r.file) })"
+                  :title="r.watched ? $t('play.watched') : $t('play.markWatchedShort')"
                   data-test="toggle-watched"
-                  @click="setFileWatched(r.file, !r.file.watched)"
+                  @click="setEpisodeWatched(r.variants, !r.watched)"
                 >
-                  <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="r.file.watched ? mdiCheckCircle : mdiCheckCircleOutline" fill="currentColor" /></svg>
+                  <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="r.watched ? mdiCheckCircle : mdiCheckCircleOutline" fill="currentColor" /></svg>
                 </v-btn>
                 <PlayButton
                   icon
@@ -583,7 +629,7 @@ const metaChips = computed(() => {
                 />
               </div>
               </div>
-              <div v-if="expanded === r.file.id" class="ep__facts">
+              <div v-if="expanded === r.id" class="ep__facts">
                 <div v-if="infoFor(r.file)?.overview || infoFor(r.file)?.stillUrl" class="ep__about">
                   <img v-if="infoFor(r.file)?.stillUrl" class="ep__still" :src="connection.assetUrl(infoFor(r.file)?.stillUrl) ?? ''" alt="" loading="lazy" decoding="async" />
                   <div>
@@ -598,27 +644,26 @@ const metaChips = computed(() => {
         </ul>
       </section>
 
-      <!-- Movies and videos: the file(s) behind the title -->
-      <section v-else class="files">
-        <h2 class="th-display files__title">{{ files.length > 1 ? $t('detail.versionsTitle') : $t('detail.file') }}</h2>
-        <div v-for="f in files" :key="f.id" class="file th-hairline" :class="{ 'ep--dim': f.state !== 'available' }">
+      <!-- Movies and videos: the file behind the title; its copies, if any, are behind the path switch. -->
+      <section v-else-if="movieFile" class="files">
+        <h2 class="th-display files__title">{{ $t('detail.file') }}</h2>
+        <div class="file th-hairline" :class="{ 'ep--dim': movieFile.state !== 'available' }">
           <div class="file__head">
-            <span class="th-mono file__name">{{ f.fileName }}</span>
-            <v-chip v-if="f.state === 'source_offline'" size="x-small" color="warning" label variant="tonal">{{ $t('files.offline') }}</v-chip>
-            <v-chip v-else-if="f.state === 'missing_unconfirmed'" size="x-small" color="error" label variant="tonal">{{ $t('files.missing') }}</v-chip>
-            <v-chip v-if="f.watched" size="x-small" label variant="tonal" color="success">{{ $t('play.watched') }}</v-chip>
-            <v-chip v-else-if="f.positionSeconds !== null" size="x-small" label variant="tonal" color="primary" data-test="stopped-at">{{ $t('play.stoppedAt', { time: formatClock(f.positionSeconds) }) }}</v-chip>
+            <span class="th-mono file__name">{{ movieFile.fileName }}</span>
+            <v-chip v-if="movieFile.state === 'source_offline'" size="x-small" color="warning" label variant="tonal">{{ $t('files.offline') }}</v-chip>
+            <v-chip v-else-if="movieFile.state === 'missing_unconfirmed'" size="x-small" color="error" label variant="tonal">{{ $t('files.missing') }}</v-chip>
+            <v-chip v-if="movieFile.watched" size="x-small" label variant="tonal" color="success">{{ $t('play.watched') }}</v-chip>
+            <v-chip v-else-if="movieFile.positionSeconds !== null" size="x-small" label variant="tonal" color="primary" data-test="stopped-at">{{ $t('play.stoppedAt', { time: formatClock(movieFile.positionSeconds) }) }}</v-chip>
             <span class="file__spacer" />
-            <PlayButton
+            <PathSwitch
               v-if="files.length > 1"
-              :file-id="f.id"
-              :label="$t('play.version', { name: f.fileName })"
-              :blocked-reason="players.canPlay ? (playable(f) ? null : $t('play.unavailable')) : $t('play.needsApp')"
-              icon
-              @played="onPlayed"
+              :variants="files"
+              :model-value="movieFile.id"
+              :name="summary.title"
+              @update:model-value="choose(movieChoiceKey(summary.key), $event)"
             />
           </div>
-          <FileFacts :file="f" @hidden="onFileHidden" />
+          <FileFacts :file="movieFile" @hidden="onFileHidden" />
         </div>
       </section>
 

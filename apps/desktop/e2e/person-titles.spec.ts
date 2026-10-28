@@ -112,6 +112,22 @@ test.afterAll(async () => {
   }
 })
 
+test('shows cached cast and director photos with initials for missing or broken images', async ({ browserName: _browserName }, testInfo) => {
+  for (const credit of [actor(), director()]) {
+    const photo = credit.locator('[data-test="credit-photo"]')
+    await photo.scrollIntoViewIfNeeded()
+    await expect(photo).toBeVisible()
+    await expect(photo).toHaveAttribute('src', /\/api\/v1\/artwork\/thumb-person-\d+\.png/)
+    await expect.poll(() => photo.evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+  }
+  const missing = page.locator('[data-test="credit-actor"]').nth(1)
+  await expect(missing.locator('[data-test="credit-photo-fallback"]')).not.toBeEmpty()
+  await page.screenshot({ path: testInfo.outputPath('cast-portraits.png') })
+  await actor().locator('[data-test="credit-photo"]').dispatchEvent('error')
+  await expect(actor().locator('[data-test="credit-photo-fallback"]')).toHaveText('MM')
+  await expect(actor()).toContainText('Matthew McConaughey')
+})
+
 test('loads on focus and hover, shows both top sections, scrolls, and retains library navigation', async ({ browserName: _browserName }, testInfo) => {
   expect(personRequests).toHaveLength(0)
   await actor().focus()
@@ -185,6 +201,19 @@ test('failed person suggestions do not fall back to general titles', async () =>
   personHandler = null
   await page.locator('[data-test="person-suggestions-retry"]').click()
   await expect(page.locator('[data-test="person-suggestions"] [data-test="suggestion-item"]')).toHaveCount(10)
+})
+
+test('reloading a person link preserves its scoped suggestions after connecting', async () => {
+  await actor().focus()
+  await popup().locator('[data-test="credit-top-movie"] [data-test="credit-releases"]').first().click()
+  await expect(page.locator('[data-test="releases-back"]')).toBeVisible()
+  await page.reload()
+  await expect(page.locator('[data-test="releases-back"]')).toBeVisible()
+  await page.locator('[data-test="releases-back"]').click()
+  const suggestions = page.locator('[data-test="person-suggestions"]')
+  await expect(suggestions.getByRole('heading')).toHaveText('Movies and TV series featuring Matthew McConaughey')
+  await expect(suggestions.locator('[data-test="suggestion-item"]')).toHaveCount(10)
+  expect(generalSuggestionRequests).toBe(0)
 })
 
 test('errors retain library links, retry succeeds, and empty sections are explained', async () => {

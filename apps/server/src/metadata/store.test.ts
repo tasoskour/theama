@@ -95,8 +95,8 @@ describe('MetadataRepo.creditLinks', () => {
     })
 
     expect(repo.creditLinks(first)).toEqual([
-      { externalId: '77', name: 'Shared Director', category: 'director', character: null, relatedKeys: [second] },
-      { externalId: '42', name: 'Shared Actor', category: 'actor', character: 'Lead', relatedKeys: [second] },
+      { externalId: '77', name: 'Shared Director', profileUrl: null, category: 'director', character: null, relatedKeys: [second] },
+      { externalId: '42', name: 'Shared Actor', profileUrl: null, category: 'actor', character: 'Lead', relatedKeys: [second] },
     ])
     expect(new TitleRepo(handle.raw, repo).detail(first)?.credits).toEqual([
       expect.objectContaining({ name: 'Shared Director', relatedTitles: [expect.objectContaining({ key: second, availableCount: 1 })] }),

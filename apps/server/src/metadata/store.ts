@@ -12,7 +12,7 @@ import { artworkUrl } from './artwork'
 import type { ProviderEpisode, ProviderTitle } from './provider'
 
 /** Bumped when a new build stores more provider fields; older rows are then refreshed in the background. */
-export const METADATA_VERSION = 4
+export const METADATA_VERSION = 5
 
 /** Series that can still gain episodes, so their data is refreshed now and then. */
 const IN_PRODUCTION = ['Returning Series', 'In Production', 'Planned', 'Pilot']
@@ -98,6 +98,7 @@ export interface MetadataWrite {
   title: ProviderTitle
   posterFile: string | null
   backdropFile: string | null
+  profileFiles?: Map<string, string | null>
 }
 
 export interface MetadataCounts {
@@ -214,11 +215,11 @@ export class MetadataRepo {
       this.raw.prepare('DELETE FROM episode_metadata WHERE title_key = ?').run(w.key)
       this.raw.prepare('DELETE FROM title_credit WHERE title_key = ?').run(w.key)
       const insertCredit = this.raw.prepare(
-        `INSERT INTO title_credit (title_key, provider, person_external_id, name, category, role, billing_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO title_credit (title_key, provider, person_external_id, name, category, role, billing_order, profile_file)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      t.directors.forEach((person, order) => insertCredit.run(w.key, w.provider, person.externalId, person.name, 'director', null, order))
-      t.cast.forEach((person, order) => insertCredit.run(w.key, w.provider, person.externalId, person.name, 'actor', person.character, order))
+      t.directors.forEach((person, order) => insertCredit.run(w.key, w.provider, person.externalId, person.name, 'director', null, order, w.profileFiles?.get(person.externalId) ?? null))
+      t.cast.forEach((person, order) => insertCredit.run(w.key, w.provider, person.externalId, person.name, 'actor', person.character, order, w.profileFiles?.get(person.externalId) ?? null))
       const insert = this.raw.prepare(
         `INSERT OR REPLACE INTO episode_metadata (title_key, season, episode, name, overview, air_date, runtime_min, still_path, still_file)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -275,10 +276,10 @@ export class MetadataRepo {
     }
   }
 
-  creditLinks(key: string): { externalId: string; name: string; category: 'actor' | 'director'; character: string | null; relatedKeys: string[] }[] {
+  creditLinks(key: string): { externalId: string; name: string; profileUrl: string | null; category: 'actor' | 'director'; character: string | null; relatedKeys: string[] }[] {
     const rows = this.raw
       .prepare(
-        `SELECT c.person_external_id, c.name, c.category, c.role, c.billing_order, related.title_key AS related_key
+        `SELECT c.person_external_id, c.name, c.profile_file, c.category, c.role, c.billing_order, related.title_key AS related_key
            FROM title_credit c
            LEFT JOIN title_credit related
              ON related.provider = c.provider AND related.person_external_id = c.person_external_id AND related.title_key <> c.title_key
@@ -288,16 +289,18 @@ export class MetadataRepo {
       .all(key) as {
       person_external_id: string
       name: string
+      profile_file: string | null
       category: 'actor' | 'director'
       role: string | null
       related_key: string | null
     }[]
-    const grouped = new Map<string, { externalId: string; name: string; category: 'actor' | 'director'; character: string | null; relatedKeys: string[] }>()
+    const grouped = new Map<string, { externalId: string; name: string; profileUrl: string | null; category: 'actor' | 'director'; character: string | null; relatedKeys: string[] }>()
     for (const row of rows) {
       const id = `${row.category}:${row.person_external_id}`
       const credit = grouped.get(id) ?? {
         externalId: row.person_external_id,
         name: row.name,
+        profileUrl: artworkUrl(row.profile_file),
         category: row.category,
         character: row.category === 'actor' ? row.role : null,
         relatedKeys: [],

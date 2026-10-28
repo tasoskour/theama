@@ -1009,6 +1009,10 @@
   },
   "series": {
     "summary": "{expected} expected · {local} in your library",
+    "findEpisode": "Find episode",
+    "findEpisodeFor": "Find episode {episode} of {title}",
+    "findSeason": "Find complete season",
+    "findSeasonFor": "Find complete season: {title}, {season}",
     "inLibraryN": "{n} in library",
     "previousSeasons": "Scroll to previous seasons",
     "nextSeasons": "Scroll to next seasons",
@@ -1025,6 +1029,7 @@
   },
   "collections": {
     "mine": "Mine",
+    "findReleasesFor": "Find releases for {title}",
     "inLibrary": "{local} of {total} in your library",
     "titles": "{count} title | {count} titles",
     "addTo": "Add to collection",

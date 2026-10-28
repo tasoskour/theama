@@ -326,6 +326,10 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE media_file ADD COLUMN title_override TEXT;
   `,
+  /* 16 — locally cached cast and director portraits */
+  `
+  ALTER TABLE title_credit ADD COLUMN profile_file TEXT;
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

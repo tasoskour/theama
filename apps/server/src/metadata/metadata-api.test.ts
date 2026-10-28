@@ -168,9 +168,16 @@ describe('automatic identification', () => {
     expect(d.episodes.filter((e) => e.season === 1).map((e) => e.name)).toEqual(['Good News About Hell', 'Half Loop', 'In Perpetuity'])
     expect(d.episodes.some((e) => e.season === 2)).toBe(true)
     expect(d.credits).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'Ben Stiller', category: 'director' }),
-      expect.objectContaining({ name: 'Adam Scott', category: 'actor', character: 'Mark Scout' }),
+      expect.objectContaining({ name: 'Ben Stiller', category: 'director', profileUrl: expect.stringMatching(/^\/api\/v1\/artwork\/thumb-person-\d+\.png$/) }),
+      expect.objectContaining({ name: 'Adam Scott', category: 'actor', character: 'Mark Scout', profileUrl: expect.stringMatching(/^\/api\/v1\/artwork\/thumb-person-\d+\.png$/) }),
     ]))
+    for (const credit of d.credits) {
+      if (!credit.profileUrl) continue
+      expect(readdirSync(cacheDir)).toContain(credit.profileUrl.split('/').at(-1))
+      const portrait = await fetch(`${base.replace('/api/v1', '')}${credit.profileUrl}`, { headers: auth() })
+      expect(portrait.status).toBe(200)
+      expect(portrait.headers.get('content-type')).toContain('image/')
+    }
   })
 
   it('lists the library genres and filters titles by any of the chosen ones', async () => {

@@ -62,8 +62,8 @@ export interface ProviderTitle {
   rating: { value: number; votes: number } | null
   posterPath: string | null
   backdropPath: string | null
-  cast: { externalId: string; name: string; character: string | null }[]
-  directors: { externalId: string; name: string }[]
+  cast: { externalId: string; name: string; character: string | null; profilePath?: string | null }[]
+  directors: { externalId: string; name: string; profilePath?: string | null }[]
   imdbId: string | null
   trailer: { site: 'youtube'; key: string } | null
   status: string | null

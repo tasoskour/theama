@@ -1009,6 +1009,10 @@
   },
   "series": {
     "summary": "{expected} αναμενόμενα · {local} στη βιβλιοθήκη σας",
+    "findEpisode": "Εύρεση επεισοδίου",
+    "findEpisodeFor": "Εύρεση επεισοδίου {episode} της σειράς {title}",
+    "findSeason": "Εύρεση πλήρους κύκλου",
+    "findSeasonFor": "Εύρεση πλήρους κύκλου: {title}, {season}",
     "inLibraryN": "{n} στη βιβλιοθήκη",
     "previousSeasons": "Κύλιση στις προηγούμενες σεζόν",
     "nextSeasons": "Κύλιση στις επόμενες σεζόν",
@@ -1025,6 +1029,7 @@
   },
   "collections": {
     "mine": "Δικές μου",
+    "findReleasesFor": "Εύρεση εκδόσεων για {title}",
     "inLibrary": "{local} από {total} στη βιβλιοθήκη σας",
     "titles": "{count} τίτλος | {count} τίτλοι",
     "addTo": "Προσθήκη σε συλλογή",

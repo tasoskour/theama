@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { z } from 'zod'
 import { DownloadClientStatus, DownloadFileList, DownloadList, IndexerStatus, ReleaseList, type DownloadFile, type ReleaseKind, type ReleaseSource } from '@theama/contracts'
@@ -28,6 +28,11 @@ export const useDownloadsStore = defineStore('downloads', () => {
   const connection = useConnectionStore()
   const client = ref<DownloadClientStatus | null>(null)
   const indexer = ref<IndexerStatus | null>(null)
+  /** Configured providers can be retried even when they are temporarily unreachable. */
+  const canFindReleases = computed(() =>
+    (client.value !== null && client.value.state !== 'not_configured') ||
+    (indexer.value !== null && indexer.value.state !== 'not_configured'),
+  )
   /** What qBittorrent is downloading for us; kept fresh by pushes from the service. */
   const list = ref<DownloadList | null>(null)
 
@@ -163,5 +168,5 @@ export const useDownloadsStore = defineStore('downloads', () => {
     if (e.type === 'downloads.changed') { listRevision++; list.value = e.list }
   })
 
-  return { client, indexer, list, setPaused, files, selectFiles, remove, load, saveClient, saveIndexer, findReleases, download }
+  return { client, indexer, canFindReleases, list, setPaused, files, selectFiles, remove, load, saveClient, saveIndexer, findReleases, download }
 })

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { mdiArrowLeft, mdiArrowLeftBold, mdiArrowRightBold, mdiClose, mdiDeleteOutline, mdiPencilOutline } from '@mdi/js'
+import { mdiArrowLeftBold, mdiArrowRightBold, mdiClose, mdiDeleteOutline, mdiMagnify, mdiPencilOutline } from '@mdi/js'
 import { z } from 'zod'
 import { CollectionDetail, type CollectionMember, type CollectionOrder } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
@@ -9,11 +9,14 @@ import PosterArt from '@/components/titles/PosterArt.vue'
 import PosterCard from '@/components/titles/PosterCard.vue'
 import { useLatestRequest, useRefresh } from '@/composables/useRefresh'
 import { useConnectionStore } from '@/stores/connection'
+import { useDownloadsStore } from '@/stores/downloads'
 import { moveBetweenCards } from '@/utils/gridNav'
+import { collectionReleaseTarget, releaseSearchRoute } from '@/utils/releaseSearch'
 
 const route = useRoute()
 const router = useRouter()
 const connection = useConnectionStore()
+const downloads = useDownloadsStore()
 
 const detail = ref<CollectionDetail | null>(null)
 const missing = ref(false)
@@ -50,11 +53,6 @@ onScopeDispose(
     if (e.type === 'library.changed') refresh.schedule()
   }),
 )
-
-function back(): void {
-  if (window.history.state?.back) router.back()
-  else void router.push({ name: 'collections' })
-}
 
 async function setOrder(next: CollectionOrder): Promise<void> {
   order.value = next
@@ -129,6 +127,10 @@ function deleteCollection(): Promise<void> {
 }
 
 const summary = computed(() => detail.value?.summary ?? null)
+const members = computed(() => (detail.value?.members ?? []).map((member) => {
+  const target = collectionReleaseTarget(member, detail.value!.summary.kind)
+  return { ...member, releaseRoute: target ? releaseSearchRoute(target) : null }
+}))
 const heroStyle = computed(() => {
   const backdrop = connection.assetUrl(detail.value?.backdropUrl)
   if (!backdrop) return {}
@@ -139,8 +141,6 @@ const heroStyle = computed(() => {
 
 <template>
   <div class="th-page th-page--wide detail">
-    <v-btn variant="text" :prepend-icon="mdiArrowLeft" class="back" @click="back">{{ $t('collections.back') }}</v-btn>
-
     <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-4">{{ error }}</v-alert>
     <section v-if="missing" class="gone">
       <h1 class="th-display">{{ $t('collections.gone') }}</h1>
@@ -183,7 +183,7 @@ const heroStyle = computed(() => {
       <p v-if="detail.members.length === 0" class="th-muted empty">{{ $t('collections.emptyCollection') }}</p>
 
       <ol v-else class="members" :aria-label="summary.name" @keydown="moveBetweenCards($event, '[data-title-key]')">
-        <li v-for="m in detail.members" :key="m.titleKey ?? m.title + m.position" class="member">
+        <li v-for="m in members" :key="m.titleKey ?? m.title + m.position" class="member">
           <div class="member__pos th-muted" aria-hidden="true">{{ m.position }}</div>
           <PosterCard v-if="m.summary" :title="m.summary" />
           <!-- A contextual entry: known to the collection, not in the library. It is never a link and never plays. -->
@@ -196,6 +196,16 @@ const heroStyle = computed(() => {
               <div class="th-muted ghost__detail">{{ m.year ?? '' }}<span v-if="m.year"> · </span>{{ $t('collections.notInLibrary') }}</div>
             </div>
           </div>
+          <v-btn
+            v-if="downloads.canFindReleases && m.releaseRoute"
+            :to="m.releaseRoute"
+            size="small"
+            variant="tonal"
+            :prepend-icon="mdiMagnify"
+            class="member__search"
+            :aria-label="$t('collections.findReleasesFor', { title: m.title })"
+            data-test="collection-find-releases"
+          >{{ $t('downloads.suggestions.findReleases') }}</v-btn>
           <div v-if="arranging && m.titleKey" class="member__tools" role="group" :aria-label="$t('collections.arrange', { name: m.title })">
             <v-btn icon size="x-small" variant="text" :disabled="busy || m.position === 1" :aria-label="$t('collections.earlier', { name: m.title })" @click="move(m, -1)">
               <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiArrowLeftBold" fill="currentColor" /></svg>
@@ -250,10 +260,6 @@ const heroStyle = computed(() => {
 <style scoped>
 .detail {
   padding-top: 16px;
-}
-.back {
-  margin-left: -12px;
-  margin-bottom: 8px;
 }
 .hero {
   padding: clamp(16px, 3vw, 32px);
@@ -310,6 +316,12 @@ const heroStyle = computed(() => {
 .member__tools {
   display: flex;
   justify-content: center;
+}
+.member__search {
+  height: auto !important;
+  min-height: 2.25rem;
+  padding-block: 8px;
+  white-space: normal;
 }
 .ghost {
   display: grid;

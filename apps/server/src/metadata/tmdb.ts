@@ -115,8 +115,8 @@ const Detail = z.object({
     .nullish(),
   credits: z
     .object({
-      cast: z.array(z.object({ id: z.number().int(), name: z.string(), character: text, order: z.number().nullish() })).nullish(),
-      crew: z.array(z.object({ id: z.number().int(), name: z.string(), job: z.string() })).nullish(),
+      cast: z.array(z.object({ id: z.number().int(), name: z.string(), character: text, order: z.number().nullish(), profile_path: text })).nullish(),
+      crew: z.array(z.object({ id: z.number().int(), name: z.string(), job: z.string(), profile_path: text })).nullish(),
     })
     .nullish(),
   seasons: z
@@ -371,11 +371,11 @@ export class TmdbProvider implements MetadataProvider {
         .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
         .filter((c, i, all) => all.findIndex((other) => other.id === c.id) === i)
         .slice(0, 15)
-        .map((c) => ({ externalId: String(c.id), name: c.name, character: c.character })),
+        .map((c) => ({ externalId: String(c.id), name: c.name, character: c.character, profilePath: c.profile_path })),
       directors: (d.credits?.crew ?? [])
         .filter((c) => c.job === 'Director')
         .filter((c, i, all) => all.findIndex((other) => other.id === c.id) === i)
-        .map((c) => ({ externalId: String(c.id), name: c.name })),
+        .map((c) => ({ externalId: String(c.id), name: c.name, profilePath: c.profile_path })),
       imdbId: d.imdb_id ?? d.external_ids?.imdb_id ?? null,
       trailer: trailer ? { site: 'youtube', key: trailer.key } : null,
       status: d.status,

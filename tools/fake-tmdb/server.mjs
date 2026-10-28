@@ -203,8 +203,8 @@ export async function startFakeTmdb(options = {}) {
         imdb_id: m.imdb_id ?? null,
         status: 'Released',
         credits: {
-          cast: (m.cast ?? []).map(([name, character], order) => ({ id: personId(name), name, character, order })),
-          crew: (m.directors ?? []).map((name) => ({ id: personId(name), name, job: 'Director' })),
+          cast: (m.cast ?? []).map(([name, character], order) => ({ id: personId(name), name, character, order, profile_path: order === 0 ? `/person-${personId(name)}.png` : null })),
+          crew: (m.directors ?? []).map((name) => ({ id: personId(name), name, job: 'Director', profile_path: `/person-${personId(name)}.png` })),
         },
         external_ids: { imdb_id: m.imdb_id ?? null },
         videos: { results: m.videos ?? [] },
@@ -246,8 +246,8 @@ export async function startFakeTmdb(options = {}) {
         backdrop_path: s.backdrop_path ?? null,
         status: s.status ?? 'Ended',
         credits: {
-          cast: (s.cast ?? []).map(([name, character], order) => ({ id: personId(name), name, character, order })),
-          crew: (s.directors ?? []).map((name) => ({ id: personId(name), name, job: 'Director' })),
+          cast: (s.cast ?? []).map(([name, character], order) => ({ id: personId(name), name, character, order, profile_path: order === 0 ? `/person-${personId(name)}.png` : null })),
+          crew: (s.directors ?? []).map((name) => ({ id: personId(name), name, job: 'Director', profile_path: `/person-${personId(name)}.png` })),
         },
         external_ids: { imdb_id: s.imdb_id ?? null },
         videos: { results: s.videos ?? [] },

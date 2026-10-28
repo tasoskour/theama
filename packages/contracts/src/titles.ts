@@ -135,6 +135,8 @@ export type SeriesCoverage = z.infer<typeof SeriesCoverage>
 export const TitleCredit = z.object({
   externalId: z.string(),
   name: z.string(),
+  /** Locally cached portrait; absent on servers predating portrait support. */
+  profileUrl: z.string().nullable().optional(),
   category: z.enum(['director', 'actor']),
   character: z.string().nullable(),
   relatedTitles: z.array(TitleSummary),

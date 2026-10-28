@@ -404,7 +404,8 @@ test('shows what a series is missing, and builds collections (official and your 
   await expect(page.locator('[data-test="season-summary"]')).toContainText('3 expected · 2 in your library · 1 missing')
   const gap = page.locator('li[data-gap="missing"]', { hasText: 'Half Loop' })
   await expect(gap).toContainText('Missing')
-  await expect(gap.getByRole('button')).toHaveCount(0) // a gap is never an action
+  await expect(gap.locator('[data-test="play-episode"]')).toHaveCount(0)
+  await expect(gap.locator('[data-test="find-episode-releases"]')).toHaveCount(0) // no download providers configured
   await expect(page.getByText("Not in TMDB's list")).toBeVisible()
 
   // Season 2: one aired episode missing, one not aired yet — shown differently.

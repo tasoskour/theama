@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { mdiClose, mdiMagnify } from '@mdi/js'
 import { useI18n } from 'vue-i18n'
@@ -19,6 +19,7 @@ import { imdbLinkFor, openExternal, trailerInApp } from '@/composables/useExtern
 import { useDownloadsStore } from '@/stores/downloads'
 import { useMetadataStore } from '@/stores/metadata'
 import { useFavoritesStore } from '@/stores/favorites'
+import { releaseSearchFromRoute } from '@/utils/releaseSearch'
 
 type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined }
 
@@ -198,20 +199,6 @@ watch(text, (v) => {
   problem.value = null
 })
 
-// Arriving from a title page ("Find a download…") fills the form in and searches straight away.
-onMounted(() => {
-  void downloads.load()
-  const { kind: k, title, year: y } = route.query
-  if ((k === 'movie' || k === 'series') && typeof title === 'string' && title.trim()) {
-    kind.value = k
-    text.value = title
-    const fromTitle = typeof y === 'string' ? Number(y) : NaN
-    if (k === 'movie' && years.includes(fromTitle)) year.value = fromTitle
-    if (route.query.releases === '1') openReleases(title, k === 'movie' && Number.isInteger(fromTitle) && fromTitle >= 1870 && fromTitle <= 2200 ? fromTitle : undefined, k)
-    else void search()
-  }
-})
-
 const num = (v: string): number | undefined => {
   const n = Number.parseInt(v, 10)
   return Number.isFinite(n) && n >= 0 ? n : undefined
@@ -274,6 +261,30 @@ function backFromReleases(): void {
     year.value = null
   }
 }
+
+// Deep links work both on arrival and when another search reuses this mounted view.
+watch(() => route.query, (params) => {
+  changeKind()
+  previewOpen.value = false
+  trailerOpen.value = false
+  tab.value = 'find'
+  kind.value = 'all'
+  genres.value = []
+  genreMode.value = 'any'
+  text.value = ''
+  year.value = null
+  season.value = ''
+  episode.value = ''
+  const target = releaseSearchFromRoute(params)
+  if (!target) return
+  kind.value = target.kind
+  text.value = target.title
+  year.value = target.year ?? null
+  season.value = target.season === undefined ? '' : String(target.season)
+  episode.value = target.episode === undefined ? '' : String(target.episode)
+  if (params.releases === '1') query.value = [target]
+  else void search()
+}, { immediate: true })
 </script>
 
 <template>

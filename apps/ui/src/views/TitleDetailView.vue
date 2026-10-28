@@ -2,7 +2,7 @@
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { mdiArrowLeft, mdiCheckCircle, mdiCheckCircleOutline, mdiCloudOffOutline, mdiDotsVertical, mdiEye, mdiOpenInNew, mdiPlayCircleOutline, mdiStar, mdiYoutube } from '@mdi/js'
+import { mdiCheckCircle, mdiCheckCircleOutline, mdiCloudOffOutline, mdiDotsVertical, mdiEye, mdiMagnify, mdiOpenInNew, mdiPlayCircleOutline, mdiStar, mdiYoutube } from '@mdi/js'
 import { z } from 'zod'
 import { TitleDetail, type EpisodeInfo, type EpisodeStatus, type ExternalLinkRequest, type MediaFile } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
@@ -24,6 +24,7 @@ import { useDownloadsStore } from '@/stores/downloads'
 import { useMetadataStore } from '@/stores/metadata'
 import { usePlayersStore } from '@/stores/players'
 import { episodeCode, formatBytes, formatClock, formatDuration, resolutionLabel } from '@/utils/format'
+import { releaseSearchRoute } from '@/utils/releaseSearch'
 
 const route = useRoute()
 const router = useRouter()
@@ -42,10 +43,7 @@ const heading = ref<HTMLElement | null>(null)
 const key = computed(() => String(route.query.key ?? ''))
 
 /** Offered only once qBittorrent or Prowlarr is set up, so it is not a button that leads nowhere. */
-const canFindDownload = computed(() => {
-  const { client, indexer } = downloadsStore
-  return (client !== null && client.state !== 'not_configured') || (indexer !== null && indexer.state !== 'not_configured')
-})
+const canFindDownload = computed(() => downloadsStore.canFindReleases)
 
 const latest = useLatestRequest()
 const refresh = useRefresh(load)
@@ -388,8 +386,6 @@ const metaChips = computed(() => {
 
 <template>
   <div class="th-page detail">
-    <v-btn variant="text" :prepend-icon="mdiArrowLeft" class="back" @click="back">{{ $t('detail.back') }}</v-btn>
-
     <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-4">{{ error }}</v-alert>
     <section v-if="missing" class="gone">
       <h1 class="th-display">{{ $t('detail.gone') }}</h1>
@@ -575,10 +571,22 @@ const metaChips = computed(() => {
             <v-btn icon="$next" variant="text" size="small" class="season-nav__arrow" :aria-label="$t('series.nextSeasons')" />
           </template>
         </v-tabs>
-        <p v-if="shownGroup?.summary" class="th-muted season-summary" data-test="season-summary">{{ shownGroup.summary }}</p>
+        <div class="season-summary">
+          <p v-if="shownGroup?.summary" class="th-muted" data-test="season-summary">{{ shownGroup.summary }}</p>
+          <v-btn
+            v-if="canFindDownload && shownGroup?.missing && currentSeasonNumber !== undefined"
+            :to="releaseSearchRoute({ kind: 'series', title: meta?.title ?? summary.title, season: currentSeasonNumber })"
+            size="small"
+            variant="tonal"
+            :prepend-icon="mdiMagnify"
+            class="gap-search"
+            :aria-label="$t('series.findSeasonFor', { title: meta?.title ?? summary.title, season: shownGroup.label })"
+            data-test="find-season-releases"
+          >{{ $t('series.findSeason') }}</v-btn>
+        </div>
         <ul class="eplist" role="list">
           <template v-for="r in shownGroup?.rows ?? []" :key="r.id">
-            <!-- An episode the provider lists but there is no file for: never a button, never playable. -->
+            <!-- A gap stays non-playable; searching is a separate navigation action. -->
             <li v-if="!r.file" class="ep ep--gap" :data-gap="r.gap">
               <div class="ep__row ep__row--static">
                 <span class="ep__code th-mono">{{ r.code }}</span>
@@ -588,6 +596,16 @@ const metaChips = computed(() => {
                   <v-chip v-else-if="r.gap === 'upcoming'" size="x-small" label variant="outlined">{{ $t('series.airs', { date: r.info?.airDate ?? '' }) }}</v-chip>
                   <v-chip v-else size="x-small" label variant="outlined" :title="$t('series.undatedHint')">{{ $t('series.undated') }}</v-chip>
                 </span>
+                <v-btn
+                  v-if="canFindDownload && r.gap === 'missing' && r.info"
+                  :to="releaseSearchRoute({ kind: 'series', title: meta?.title ?? summary.title, season: r.info.season, episode: r.info.episode })"
+                  size="small"
+                  variant="tonal"
+                  :prepend-icon="mdiMagnify"
+                  class="gap-search"
+                  :aria-label="$t('series.findEpisodeFor', { title: meta?.title ?? summary.title, episode: r.code })"
+                  data-test="find-episode-releases"
+                >{{ $t('series.findEpisode') }}</v-btn>
               </div>
             </li>
             <li v-else class="ep" :class="{ 'ep--dim': r.file.state !== 'available', 'ep--watched': r.watched }">
@@ -688,10 +706,6 @@ const metaChips = computed(() => {
   padding-top: 16px;
   max-width: 100rem;
 }
-.back {
-  margin-left: -12px;
-  margin-bottom: 8px;
-}
 .hero {
   display: grid;
   grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
@@ -740,8 +754,24 @@ const metaChips = computed(() => {
   max-width: 100%;
 }
 .season-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
   margin: 0 0 12px;
   font-size: 0.88rem;
+}
+.season-summary p {
+  margin: 0;
+}
+.gap-search {
+  flex: 0 1 auto;
+  height: auto !important;
+  min-height: 2.25rem;
+  max-width: 100%;
+  padding-block: 8px;
+  white-space: normal;
 }
 .ep--gap .ep__row {
   cursor: default;

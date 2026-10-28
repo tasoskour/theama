@@ -244,7 +244,10 @@ test('one type filter shares the search row and genres filter suggestions and mi
   await expect.poll(() => releaseRequests.length).toBe(2)
   expect(releaseRequests.map((url) => url.searchParams.get('kind')).sort()).toEqual(['movie', 'series'])
   await resize(360)
-  expect(await page.locator('.find__row').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await expect(page.locator('.rel__bar')).toHaveCount(2)
+  for (const bar of await page.locator('.rel__bar').all()) {
+    expect(await bar.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  }
 })
 
 test('genres refetch full matching pages and Show more keeps filters and removes duplicates', async () => {

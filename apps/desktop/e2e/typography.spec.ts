@@ -181,6 +181,93 @@ const controlHeight = (): Promise<number> => page.evaluate(() => {
   return h
 })
 
+test('top-bar Back stays reachable while scrolling title and collection details', async () => {
+  const response = await api('/collections', 'POST', { name: 'Back navigation', key: titleKey })
+  expect(response.ok).toBe(true)
+  const detail = await response.json() as { summary: { id: number; overview: string | null } }
+  const collection = detail.summary
+  const collectionPattern = `**/api/v1/collections/${collection.id}*`
+  // Exercise a genuinely long collection overview as well as the title's long detail page.
+  detail.summary.overview = 'A collection for checking navigation while browsing a long page. '.repeat(100)
+  await page.route(collectionPattern, (route) => route.fulfill({ json: detail }))
+  try {
+    for (const language of ['en', 'el'] as const) {
+      await api('/settings', 'PUT', { textSize: 'extra-large', language })
+      await expect(page.locator('html')).toHaveAttribute('lang', language)
+      for (const width of [360, 1280]) {
+        await resize(width)
+        for (const [origin, link] of [
+          ['/movies', 'a[href*="#/title?"]'],
+          ['/collections', `a[href="#/collection?id=${collection.id}"]`],
+        ]) {
+          await visit(origin!)
+          const back = page.locator('[data-test="navigation-back"]')
+          await expect(back).toHaveCount(0)
+          await page.locator(link!).first().click()
+          await expect(page.locator('h1.hero__title')).toBeVisible()
+          await page.waitForFunction(() => !document.querySelector('.th-fade-enter-active, .th-fade-leave-active'))
+          await expect(back).toHaveCount(1)
+          const label = language === 'en' ? 'Back' : 'Πίσω'
+          await expect(back).toHaveAccessibleName(label)
+          await expect(back).toHaveAttribute('title', label)
+          await expect(back).toHaveCSS('-webkit-app-region', 'no-drag')
+          const before = await box(back)
+          await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+          await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(100)
+          await expect(back).toBeInViewport()
+          const after = await box(back)
+          expect(Math.abs(after.top - before.top)).toBeLessThanOrEqual(1)
+          await expectNoPageOverflow()
+          if (width === 360) await expectMobileNavigationFits()
+          await back.focus()
+          await expect(back).toBeFocused()
+          if (width === 360) await page.keyboard.press('Enter')
+          else await back.click()
+          await expect(page).toHaveURL(new RegExp(`#${origin}$`))
+          await expect(back).toHaveCount(0)
+        }
+      }
+    }
+  } finally {
+    await page.unroute(collectionPattern)
+    await api(`/collections/${collection.id}`, 'DELETE')
+  }
+  expect(errors).toEqual([])
+})
+
+test('top-bar Back works while details load or fail, with direct-entry fallbacks', async () => {
+  await api('/settings', 'PUT', { language: 'en', textSize: 'default' })
+  await resize(1280)
+  for (const [destination, pattern, fallback] of [
+    ['/title?key=missing-back-test', '**/api/v1/library/title?*', '/'],
+    ['/collection?id=2147483647', '**/api/v1/collections/2147483647*', '/collections'],
+  ]) {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    await page.route(pattern!, async (route) => {
+      await gate
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'internal_error', message: 'Detail unavailable' } }) })
+    })
+    try {
+      await page.goto(`${page.url().split('#')[0]}#${destination}`)
+      const back = page.locator('[data-test="navigation-back"]')
+      await expect(back).toBeInViewport()
+      release()
+      await expect(page.locator('.detail .v-alert')).toBeVisible()
+      await expect(back).toBeInViewport()
+      // Emulate entering the detail route without an earlier in-app history entry.
+      await page.evaluate(() => window.history.replaceState({ ...window.history.state, back: null }, ''))
+      await back.click()
+      await expect(page).toHaveURL(new RegExp(`#${fallback}$`))
+      await expect(back).toHaveCount(0)
+    } finally {
+      release()
+      await page.unroute(pattern!)
+    }
+  }
+  expect(errors).toEqual([])
+})
+
 test('search and downloads toolbars keep compact controls at every size', async ({ browserName: _browserName }, testInfo) => {
   await api('/settings', 'PUT', { textSize: 'extra-large', language: 'en', theme: 'dark' })
   for (const width of [360, 1280, 2560, 4096]) {

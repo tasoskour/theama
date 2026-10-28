@@ -162,8 +162,9 @@ describe('TmdbProvider', () => {
       genres: ['Adventure', 'Drama', 'Science Fiction'],
       rating: { value: 8.4, votes: 35000 },
     })
-    expect(t.cast[0]).toMatchObject({ name: 'Matthew McConaughey', character: 'Cooper' })
-    expect(t.directors[0]).toMatchObject({ name: 'Christopher Nolan' })
+    expect(t.cast[0]).toMatchObject({ name: 'Matthew McConaughey', character: 'Cooper', profilePath: expect.stringMatching(/^\/person-\d+\.png$/) })
+    expect(t.cast[1]?.profilePath).toBeNull()
+    expect(t.directors[0]).toMatchObject({ name: 'Christopher Nolan', profilePath: expect.stringMatching(/^\/person-\d+\.png$/) })
     expect(fake.requests.at(-1)?.query).toMatchObject({ append_to_response: 'credits,external_ids,videos', include_video_language: 'en,null' })
   })
 

@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import BrandLogo from './BrandLogo.vue'
 import ConnectionChip from './ConnectionChip.vue'
+import NavigationBackButton from './NavigationBackButton.vue'
 import TheamaBottomNavigation from './TheamaBottomNavigation.vue'
 import TheamaTopNavigation from './TheamaTopNavigation.vue'
 import RecoveryScreen from '@/components/service/RecoveryScreen.vue'
@@ -46,7 +47,10 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
   <ImmersiveBackdrop v-if="immersive.active.value" />
   <TheamaTopNavigation v-if="!mobile" />
   <v-app-bar v-if="mobile" flat color="surface" class="th-hairline appbar" density="comfortable">
-    <div class="px-4"><BrandLogo :size="28" :wordmark="!display.xs.value" /></div>
+    <div class="appbar__brand px-4">
+      <NavigationBackButton />
+      <BrandLogo :size="28" :wordmark="!display.xs.value" />
+    </div>
     <v-spacer />
     <div class="pr-3"><ConnectionChip /></div>
   </v-app-bar>
@@ -74,6 +78,12 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
 <style scoped>
 .appbar {
   border-width: 0 0 1px 0;
+}
+.appbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 .main {
   min-height: 100vh;

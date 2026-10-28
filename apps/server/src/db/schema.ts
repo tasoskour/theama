@@ -207,6 +207,7 @@ export const titleCredit = sqliteTable(
     category: text('category', { enum: ['actor', 'director'] }).notNull(),
     role: text('role'),
     billingOrder: integer('billing_order').notNull(),
+    profileFile: text('profile_file'),
   },
   (t) => [primaryKey({ columns: [t.titleKey, t.category, t.personExternalId] }), index('idx_title_credit_person').on(t.provider, t.personExternalId, t.titleKey)],
 )

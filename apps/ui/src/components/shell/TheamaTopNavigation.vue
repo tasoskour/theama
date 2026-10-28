@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import BrandLogo from './BrandLogo.vue'
 import ConnectionChip from './ConnectionChip.vue'
+import NavigationBackButton from './NavigationBackButton.vue'
 import { NAV_ITEMS } from './nav'
 import { useRootFontSize } from '@/composables/useRootFontSize'
 
@@ -13,6 +14,7 @@ const barHeight = computed(() => Math.max(64, Math.ceil(4 * rootSize.value)))
 <template>
   <v-app-bar flat color="surface" :height="barHeight" class="th-hairline topnav">
     <div class="topnav__area">
+      <NavigationBackButton />
       <div class="topnav__brand"><BrandLogo :size="32" /></div>
       <nav class="topnav__links" :aria-label="$t('nav.main')">
         <v-btn

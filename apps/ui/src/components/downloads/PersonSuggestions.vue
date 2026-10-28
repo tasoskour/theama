@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import type { GenreMode, MatchKind, Suggestion } from '@theama/contracts'
 import { useMetadataStore } from '@/stores/metadata'
+import { useConnectionStore } from '@/stores/connection'
 import SuggestionGrid from './SuggestionGrid.vue'
 import type { SuggestionItem } from './suggestion'
 
@@ -17,6 +18,7 @@ const props = defineProps<{
 }>()
 defineEmits<{ preview: [candidate: SuggestionItem] }>()
 const metadata = useMetadataStore()
+const connection = useConnectionStore()
 const items = ref<Suggestion[]>([])
 const loading = ref(false)
 const problem = ref<string | null>(null)
@@ -31,12 +33,13 @@ const shown = computed(() => items.value.filter((item) =>
     : props.genres.some((genre) => item.genres?.includes(genre)))),
 ))
 
-watch([() => props.externalId, () => props.category, retry], async ([id, category], _old, onCleanup) => {
+watch([() => props.externalId, () => props.category, () => connection.phase, retry], async ([id, category, phase], _old, onCleanup) => {
   const controller = new AbortController()
   onCleanup(() => controller.abort())
   items.value = []
   problem.value = null
   loading.value = true
+  if (phase !== 'connected') return
   const result = await metadata.personTitles(id, category, controller.signal)
   if (controller.signal.aborted) return
   loading.value = false

@@ -15,6 +15,10 @@ const error = ref<{ code: string; message: string } | null>(null)
 const items = ref<Suggestion[]>([])
 const latest = useLatestRequest()
 const groups = computed(() => (['movie', 'series'] as const).map((kind) => ({ kind, items: items.value.filter((item) => item.kind === kind) })))
+const profileSrc = computed(() => connection.assetUrl(props.credit.profileUrl))
+const profileFailed = ref(false)
+const initials = computed(() => props.credit.name.trim().split(/\s+/u).filter(Boolean).map((part) => Array.from(part)[0]).filter(Boolean).slice(0, 2).join(''))
+watch(profileSrc, () => { profileFailed.value = false })
 
 async function load(): Promise<void> {
   loading.value = true
@@ -42,8 +46,14 @@ watch([open, () => props.credit.externalId, () => props.credit.category], ([show
   <v-menu v-model="open" open-on-hover open-on-focus open-on-click :close-on-content-click="false" :open-delay="120" :close-delay="180" location="top start" max-width="40rem">
     <template #activator="{ props: menuProps }">
       <button v-bind="menuProps" type="button" class="credit" :data-test="`credit-${credit.category}`">
-        <span class="credit__name">{{ credit.name }}</span>
-        <span v-if="credit.character" class="th-muted credit__role">{{ credit.character }}</span>
+        <span class="credit__portrait" aria-hidden="true">
+          <img v-if="profileSrc && !profileFailed" :src="profileSrc" alt="" loading="lazy" decoding="async" width="48" height="64" data-test="credit-photo" @error="profileFailed = true" />
+          <span v-else class="credit__initials" data-test="credit-photo-fallback">{{ initials }}</span>
+        </span>
+        <span class="credit__info">
+          <span class="credit__name">{{ credit.name }}</span>
+          <span v-if="credit.character" class="th-muted credit__role">{{ credit.character }}</span>
+        </span>
       </button>
     </template>
 
@@ -105,7 +115,9 @@ watch([open, () => props.credit.externalId, () => props.credit.category], ([show
 <style scoped>
 .credit {
   appearance: none;
-  display: grid;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   padding: 8px 10px;
   border: 1px solid transparent;
@@ -123,6 +135,32 @@ watch([open, () => props.credit.externalId, () => props.credit.category], ([show
   background: rgba(var(--v-theme-primary), 0.09);
   border-color: rgba(var(--v-theme-primary), 0.28);
   outline: none;
+}
+.credit__portrait {
+  display: grid;
+  place-items: center;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-primary), 0.12);
+}
+.credit__portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.credit__initials {
+  color: rgb(var(--v-theme-primary));
+  font-weight: 650;
+  font-size: 0.9rem;
+}
+.credit__info {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .credit__name {
   font-weight: 650;

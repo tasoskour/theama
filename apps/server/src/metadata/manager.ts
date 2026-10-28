@@ -330,6 +330,12 @@ export class MetadataManager {
     }
     const poster = await this.d.artwork.ensure(title.posterPath, 'poster')
     const backdrop = await this.d.artwork.ensure(title.backdropPath, 'backdrop')
+    const profiles = new Map<string, string>()
+    for (const person of [...title.directors, ...title.cast]) {
+      if (person.profilePath) profiles.set(person.externalId, person.profilePath)
+    }
+    const profileFiles = new Map<string, string | null>()
+    for (const [id, path] of profiles) profileFiles.set(id, await this.d.artwork.ensure(path, 'thumb'))
     const when = this.now().toISOString()
     const existing = this.d.repo.getMatch(key)
     this.d.repo.atomic(() => {
@@ -350,7 +356,7 @@ export class MetadataManager {
         )
       }
       this.d.repo.saveMetadata(
-        { key, provider: this.d.provider.id, language: this.d.language(), title, posterFile: poster, backdropFile: backdrop },
+        { key, provider: this.d.provider.id, language: this.d.language(), title, posterFile: poster, backdropFile: backdrop, profileFiles },
         episodes,
         new Map(),
         when,

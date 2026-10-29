@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { readdir, rename, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -549,7 +550,7 @@ test('starts a player on a video with the right subtitle, remembers what was wat
   // Exercise the real preload event and dialog, with the same payload the desktop receives after saving progress.
   const offerNext = () => app.evaluate(({ BrowserWindow }, { channel, payload }) => {
     BrowserWindow.getAllWindows()[0]!.webContents.send(channel, payload)
-  }, { channel: IPC.evNextUp, payload: { ...finished.nextUp, countdownSeconds: 2 } })
+  }, { channel: IPC.evNextUp, payload: { ...finished.nextUp, offerId: randomUUID(), countdownSeconds: 2 } })
   const launchesBeforeNext = launches().length
   await offerNext()
   await expect(page.locator('[data-test="next-up"]')).toBeVisible()
@@ -567,14 +568,14 @@ test('starts a player on a video with the right subtitle, remembers what was wat
   await offerNext()
   await expect(page.locator('[data-test="next-up"]')).toBeVisible()
   await page.locator('[data-test="next-up-play"]').click()
-  await expect.poll(() => launches().length).toBe(launchesBeforeNext + 1)
+  // An injected event is not an authorized desktop continuation. The renderer cannot choose a file to autoplay.
+  await expect(page.getByText('This next-episode offer has expired', { exact: true })).toBeVisible()
   await page.waitForTimeout(2200)
-  expect(launches()).toHaveLength(launchesBeforeNext + 1)
+  expect(launches()).toHaveLength(launchesBeforeNext)
   await offerNext()
   await expect(page.locator('[data-test="next-up"]')).toBeVisible()
-  await expect.poll(() => launches().length).toBe(launchesBeforeNext + 2)
-  expect(launches().at(-1)!.args).toContain(join(mediaFolder, 'Show.S01E02.mkv'))
   await expect(page.locator('[data-test="next-up"]')).toHaveCount(0)
+  expect(launches()).toHaveLength(launchesBeforeNext)
 
   await api('PUT', `/playback/files/${firstEpisode.id}`, { watched: false })
   await expect(page.locator('[data-test="play"]')).toHaveText(/Play S01E01/)

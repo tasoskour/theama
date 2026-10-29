@@ -1,8 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { NextUp } from '@theama/contracts'
+import type { NextUpOffer } from '@theama/contracts'
 import { getBridge } from '@/api/bridge'
-import { usePlayersStore } from '@/stores/players'
 import { useTitleActionsStore } from '@/stores/titleActions'
 
 /**
@@ -10,11 +9,12 @@ import { useTitleActionsStore } from '@/stores/titleActions'
  * and how long to wait. We count down, then start it; the person can start it at once or cancel.
  */
 export const useNextUpStore = defineStore('nextUp', () => {
-  const players = usePlayersStore()
+  const bridge = getBridge()
   const actions = useTitleActionsStore()
-  const current = ref<NextUp | null>(null)
+  const current = ref<NextUpOffer | null>(null)
   const remaining = ref(0)
   let timer: ReturnType<typeof setInterval> | undefined
+  const seen = new Set<string>()
 
   const open = computed(() => current.value !== null)
 
@@ -24,16 +24,28 @@ export const useNextUpStore = defineStore('nextUp', () => {
     current.value = null
   }
 
+  function cancel(): void {
+    const offerId = current.value?.offerId
+    clear()
+    if (offerId) void bridge?.players.cancelNext(offerId).catch(() => undefined)
+  }
+
   async function playNow(): Promise<void> {
     const target = current.value
     if (!target) return
     clear()
-    const result = await players.play(target.next.fileId)
-    if (!result.ok) actions.notify(result.message ?? '', true)
+    try {
+      const result = await bridge?.players.playNext(target.offerId)
+      if (result && !result.ok) actions.notify(result.message ?? '', true)
+    } catch (err) {
+      actions.notify(err instanceof Error ? err.message : String(err), true)
+    }
   }
 
-  function show(nextUp: NextUp): void {
-    clear()
+  function show(nextUp: NextUpOffer): void {
+    if (seen.has(nextUp.offerId)) return
+    seen.add(nextUp.offerId)
+    cancel()
     current.value = nextUp
     remaining.value = nextUp.countdownSeconds
     if (nextUp.countdownSeconds <= 0) {
@@ -46,7 +58,10 @@ export const useNextUpStore = defineStore('nextUp', () => {
     }, 1000)
   }
 
-  getBridge()?.players.onNextUp(show)
+  bridge?.players.onNextUp(show)
+  bridge?.players.onNextUpCancelled((offerId) => {
+    if (current.value?.offerId === offerId) clear()
+  })
 
-  return { current, remaining, open, show, playNow, cancel: clear }
+  return { current, remaining, open, show, playNow, cancel }
 })

@@ -15,3 +15,4 @@ await build({ ...common, entryPoints: ['src/main/index.ts'], outfile: 'out/main.
 
 // Preload runs sandboxed: it must be a single self-contained CommonJS file.
 await build({ ...common, entryPoints: ['src/preload/index.ts'], outfile: 'out/preload.cjs' })
+await build({ ...common, entryPoints: ['src/preload/next-notification.ts'], outfile: 'out/next-notification.cjs' })

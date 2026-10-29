@@ -65,7 +65,7 @@ export const ProgressRequest = z.object({
   // Keep player precision for completion checks; saved resume positions are rounded by the repository.
   positionSeconds: z.number().min(0).max(1_000_000),
   durationSeconds: z.number().positive().max(1_000_000).nullable().default(null),
-  /** The player has closed: the last report of this viewing. */
+  /** Last report of this viewing: the file finished, changed, or the player closed. */
   final: z.boolean().default(false),
 })
 export type ProgressRequest = z.input<typeof ProgressRequest>

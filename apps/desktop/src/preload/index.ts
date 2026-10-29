@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type LogEntry, type NextUp, type ServiceStatus, type TheamaBridge } from '@theama/contracts'
+import { IPC, type LogEntry, type NextUpOffer, type ServiceStatus, type TheamaBridge } from '@theama/contracts'
 
 // The renderer is sandboxed with no Node access. This is its only door to the
 // system, and every call is validated again in the main process.
@@ -54,10 +54,17 @@ const bridge: TheamaBridge = {
     addCustom: () => ipcRenderer.invoke(IPC.playersAddCustom),
     remove: (id) => ipcRenderer.invoke(IPC.playersRemove, { id }),
     play: (request) => ipcRenderer.invoke(IPC.playersPlay, request),
+    playNext: (offerId) => ipcRenderer.invoke(IPC.playersPlayNext, { offerId }),
+    cancelNext: (offerId) => ipcRenderer.invoke(IPC.playersCancelNext, { offerId }),
     onNextUp: (listener) => {
-      const handler = (_e: unknown, nextUp: NextUp): void => listener(nextUp)
+      const handler = (_e: unknown, nextUp: NextUpOffer): void => listener(nextUp)
       ipcRenderer.on(IPC.evNextUp, handler)
       return () => ipcRenderer.removeListener(IPC.evNextUp, handler)
+    },
+    onNextUpCancelled: (listener) => {
+      const handler = (_e: unknown, offerId: string): void => listener(offerId)
+      ipcRenderer.on(IPC.evNextUpCancelled, handler)
+      return () => ipcRenderer.removeListener(IPC.evNextUpCancelled, handler)
     },
   },
 }

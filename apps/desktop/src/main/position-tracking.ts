@@ -72,6 +72,18 @@ export interface TrackJob {
   plan: TrackingPlan
   /** Available for launched processes, so shutdown need not wait for three failed polls. */
   exited?: Promise<void>
+  /** Native MPC end-of-stream notifications, scoped to this player instance. */
+  onEnded?(listener: () => void): () => void
+}
+
+export type PlaybackEnd = 'ended' | 'closed' | 'changed' | 'unavailable' | 'stopped'
+export interface PlaybackTracker<R> {
+  stop(): void
+  /** Final progress is saved once, even when the player remains open after EOF. */
+  finished: Promise<{ result: R | undefined; reason: PlaybackEnd }>
+  /** The source remains connected after EOF to detect an external file change. */
+  done: Promise<R | undefined>
+  readonly reason: PlaybackEnd | undefined
 }
 
 /** Forwards a sample to the backend. `final` marks the last one of this viewing. Resolves to whatever the backend answered. */
@@ -82,40 +94,41 @@ const sameName = (a: string, b: string): boolean => normal(a) === normal(b)
 const samePath = (a: string, b: string): boolean => sameName(a.replace(/\\/g, '/'), b.replace(/\\/g, '/'))
 
 interface Source {
-  /** Resolves when the player has closed, or tracking should end for another reason. */
-  run(onSample: (sample: PositionSample) => void, signal: AbortSignal): Promise<void>
+  run(onSample: (sample: PositionSample) => void, onEnded: () => void, signal: AbortSignal): Promise<PlaybackEnd>
 }
 
 const sleep = (ms: number, signal?: AbortSignal): Promise<void> => delay(ms, undefined, { signal }).catch(() => undefined)
 
 /** Polls an HTTP status page until the player goes away. */
-function pollingSource(options: TrackerOptions, read: (signal: AbortSignal) => Promise<{ sample: PositionSample | null; name: string | null; path?: string | null }>, job: Pick<TrackJob, 'fileName' | 'filePath'>): Source {
+function pollingSource(options: TrackerOptions, read: (signal: AbortSignal) => Promise<{ sample: PositionSample | null; name: string | null; path?: string | null; ended?: boolean; changed?: boolean }>, job: Pick<TrackJob, 'fileName' | 'filePath'>): Source {
   return {
-    async run(onSample, signal) {
+    async run(onSample, onEnded, signal) {
       const startedAt = Date.now()
-      let connected = false
       let identified = false
       let failures = 0
       while (!signal.aborted) {
         let pollMs = identified ? options.pollMs : Math.min(options.pollMs, 300)
         try {
-          const { sample, name, path } = await read(signal)
-          if (signal.aborted) return
-          connected = true
+          const { sample, name, path, ended, changed } = await read(signal)
+          if (signal.aborted) return 'stopped'
+          if (identified && changed) return 'changed'
           failures = 0
+          let matches: boolean | null = null
           if (path?.trim() && job.filePath) {
-            if (!samePath(path, job.filePath)) return
-            identified = true
+            matches = samePath(path, job.filePath)
           } else if (name?.trim()) {
-            if (!sameName(name, job.fileName)) return // the player moved on to another file
-            identified = true
+            matches = sameName(name, job.fileName)
           }
+          if (matches === false && identified) return 'changed'
+          // A restored playlist can briefly publish the requested filename before the new file opens.
+          // Establish identity only once that file actually supplies playback progress.
+          if (matches === true && sample) identified = true
           if (!identified) {
-            if (Date.now() - startedAt > options.connectGraceMs) return
+            if (Date.now() - startedAt > options.connectGraceMs) return 'unavailable'
             await sleep(pollMs, signal)
             continue // MPC can publish an empty file while it is opening the video.
           }
-          if (sample) {
+          if (sample && matches === true) {
             onSample(sample)
             if (sample.durationSeconds !== null && sample.durationSeconds > 0) {
               // Short files can finish between five-second polls. Sample more often near the end,
@@ -123,13 +136,15 @@ function pollingSource(options: TrackerOptions, read: (signal: AbortSignal) => P
               pollMs = Math.min(options.pollMs, Math.max(100, (sample.durationSeconds - sample.positionSeconds) * 250))
             }
           }
+          if (ended) onEnded()
         } catch {
           failures++
-          if (!connected && Date.now() - startedAt > options.connectGraceMs) return
-          if (connected && failures >= 3) return
+          if (!identified && Date.now() - startedAt > options.connectGraceMs) return 'unavailable'
+          if (identified && failures >= 3) return 'unavailable'
         }
         await sleep(pollMs, signal)
       }
+      return 'stopped'
     },
   }
 }
@@ -142,6 +157,9 @@ async function getJson(url: string, headers: Record<string, string>, signal: Abo
 
 function vlcSource(plan: Extract<TrackingPlan, { kind: 'vlc' }>, options: TrackerOptions, fileName: string): Source {
   const auth = { Authorization: `Basic ${Buffer.from(`:${plan.password}`).toString('base64')}` }
+  let previousState: string | undefined
+  let previous: PositionSample | null = null
+  let inputId: number | undefined
   return pollingSource(
     options,
     async (signal) => {
@@ -149,11 +167,20 @@ function vlcSource(plan: Extract<TrackingPlan, { kind: 'vlc' }>, options: Tracke
         state?: string
         time?: number
         length?: number
+        currentplid?: number
         information?: { category?: { meta?: { filename?: string } } }
       }
       const name = s.information?.category?.meta?.filename ?? null
       const playing = (s.state === 'playing' || s.state === 'paused') && typeof s.time === 'number'
-      return { name, sample: playing ? { positionSeconds: s.time!, durationSeconds: s.length && s.length > 0 ? s.length : null } : null }
+      const hasInput = typeof s.currentplid === 'number' && s.currentplid >= 0 && playing
+      const changed = hasInput && inputId !== undefined && s.currentplid !== inputId
+      if (hasInput && inputId === undefined && name && sameName(name, fileName)) inputId = s.currentplid
+      const ended = s.state === 'stopped' && previousState === 'playing' && previous?.durationSeconds !== null &&
+        previous !== null && previous.durationSeconds > 0 && previous.positionSeconds >= previous.durationSeconds - 2
+      const sample = playing ? { positionSeconds: s.time!, durationSeconds: s.length && s.length > 0 ? s.length : null } : null
+      previousState = s.state
+      if (sample) previous = { ...sample, durationSeconds: sample.durationSeconds ?? previous?.durationSeconds ?? null }
+      return { name, sample, ended, changed }
     },
     { fileName },
   )
@@ -190,6 +217,9 @@ function mpcSource(plan: Extract<TrackingPlan, { kind: 'mpc' }>, options: Tracke
         name: v.file,
         path: v.filePath,
         sample: playing ? { positionSeconds: v.positionMs! / 1000, durationSeconds: v.durationMs && v.durationMs > 0 ? v.durationMs / 1000 : null } : null,
+        // MPC-HC's runtime Do Nothing action can leave the graph running at its exact endpoint
+        // without sending a native play-mode/EOF notification. A paused graph never qualifies.
+        ended: v.state === 2 && v.durationMs !== null && v.durationMs > 0 && v.positionMs !== null && v.positionMs >= v.durationMs,
       }
     },
     job,
@@ -216,19 +246,20 @@ function mpvSource(plan: Extract<TrackingPlan, { kind: 'mpv' }>, options: Tracke
   }
 
   return {
-    async run(onSample, signal) {
+    async run(onSample, onEnded, signal) {
       const socket = await openPipe(signal)
-      if (!socket) return
-      await new Promise<void>((resolve) => {
+      if (!socket) return 'unavailable'
+      return new Promise<PlaybackEnd>((resolve) => {
         let position: number | null = null
         let duration: number | null = null
         let buffer = ''
+        let identified = false
         const emit = (): void => {
-          if (position !== null) onSample({ positionSeconds: position, durationSeconds: duration })
+          if (identified && position !== null) onSample({ positionSeconds: position, durationSeconds: duration })
         }
-        const finish = (): void => {
+        const finish = (reason: PlaybackEnd): void => {
           socket.destroy()
-          resolve()
+          resolve(reason)
         }
         socket.setEncoding('utf8')
         socket.on('data', (chunk: string) => {
@@ -243,7 +274,8 @@ function mpvSource(plan: Extract<TrackingPlan, { kind: 'mpv' }>, options: Tracke
             } catch {
               continue
             }
-            if (msg.event === 'shutdown') return finish()
+            if (msg.event === 'shutdown') return finish('closed')
+            if (msg.event === 'start-file' && identified) return finish('changed')
             if (msg.event !== 'property-change') continue
             if (msg.name === 'time-pos' && typeof msg.data === 'number') {
               position = msg.data
@@ -251,15 +283,22 @@ function mpvSource(plan: Extract<TrackingPlan, { kind: 'mpv' }>, options: Tracke
             } else if (msg.name === 'duration' && typeof msg.data === 'number') {
               duration = msg.data
               emit()
-            } else if (msg.name === 'filename' && typeof msg.data === 'string' && msg.data.trim() && !sameName(msg.data, fileName)) {
-              return finish() // another file is playing now
+            } else if (msg.name === 'filename' && typeof msg.data === 'string' && msg.data.trim()) {
+              if (!sameName(msg.data, fileName)) {
+                if (identified) return finish('changed')
+              } else {
+                identified = true
+                emit()
+              }
+            } else if (msg.name === 'eof-reached' && msg.data === true && identified) {
+              onEnded()
             }
           }
         })
-        socket.once('close', () => resolve())
-        socket.once('error', () => finish())
+        socket.once('close', () => resolve(signal.aborted ? 'stopped' : 'unavailable'))
+        socket.once('error', () => finish('unavailable'))
         const watch = (id: number, name: string): string => `${JSON.stringify({ command: ['observe_property', id, name] })}\n`
-        socket.write(watch(1, 'time-pos') + watch(2, 'duration') + watch(3, 'filename'))
+        socket.write(watch(1, 'time-pos') + watch(2, 'duration') + watch(3, 'filename') + watch(4, 'eof-reached'))
       })
     },
   }
@@ -278,15 +317,21 @@ function sourceFor(job: TrackJob, options: TrackerOptions): Source {
 
 /**
  * Watches one started player and forwards its position to the backend: now and then while it plays, and once
- * more (marked final) when it closes. Returns a function that stops watching, and `done`, which resolves to the
- * backend's answer to the final report (undefined if there was none). Never rejects.
+ * more (marked final) at EOF or when tracking ends. EOF saves progress while the source stays connected;
+ * `finished` supplies the confirmed next-up and `done` observes eventual shutdown or file changes. Never rejects.
  */
-export function trackPlayback<R = void>(job: TrackJob, report: ReportProgress<R>, options: TrackerOptions = DEFAULT_TRACKER_OPTIONS): { stop(): void; done: Promise<R | undefined> } {
+export function trackPlayback<R = void>(job: TrackJob, report: ReportProgress<R>, options: TrackerOptions = DEFAULT_TRACKER_OPTIONS): PlaybackTracker<R> {
   const controller = new AbortController()
-  void job.exited?.then(() => controller.abort(), () => controller.abort())
+  let reason: PlaybackEnd | undefined
+  const closed = (): void => { reason = 'closed'; controller.abort() }
+  void job.exited?.then(closed, closed)
   let last: PositionSample | null = null
   let lastReportAt = 0
   let pending: Promise<unknown> = Promise.resolve()
+  let finalReport: Promise<R | undefined> | undefined
+  let awaitingEnd = false
+  let resolveFinished!: (value: { result: R | undefined; reason: PlaybackEnd }) => void
+  const finished = new Promise<{ result: R | undefined; reason: PlaybackEnd }>((resolve) => { resolveFinished = resolve })
   const safeReport = async (sample: PositionSample, final: boolean): Promise<R | undefined> => {
     const retries = final ? (options.finalRetryDelaysMs ?? [1000, 3000]) : []
     for (let attempt = 0; attempt <= retries.length; attempt++) {
@@ -299,11 +344,28 @@ export function trackPlayback<R = void>(job: TrackJob, report: ReportProgress<R>
     return undefined
   }
 
+  const finalize = (end: PlaybackEnd): Promise<R | undefined> => {
+    if (!finalReport) {
+      const snapshot = last
+      // A true EOF can precede the last position notification by a frame (or VLC's integer second).
+      const sample = end === 'ended' && snapshot?.durationSeconds
+        ? { ...snapshot, positionSeconds: snapshot.durationSeconds } : snapshot
+      finalReport = pending.then(() => sample ? safeReport(sample, true) : undefined)
+      void finalReport.then((result) => resolveFinished({ result, reason: end }))
+    }
+    return finalReport
+  }
+  const onEnded = (): void => {
+    awaitingEnd = true
+    if (last && !controller.signal.aborted) void finalize('ended')
+  }
+  const unsubscribe = job.onEnded?.(onEnded)
+
   const done = (async () => {
     try {
-      await sourceFor(job, options).run(
+      const sourceReason = await sourceFor(job, options).run(
         (sample) => {
-          if (controller.signal.aborted || !Number.isFinite(sample.positionSeconds) || sample.positionSeconds < 0) return
+          if (finalReport || controller.signal.aborted || !Number.isFinite(sample.positionSeconds) || sample.positionSeconds < 0) return
           last = {
             positionSeconds: sample.positionSeconds,
             durationSeconds: sample.durationSeconds !== null && Number.isFinite(sample.durationSeconds) && sample.durationSeconds > 0
@@ -314,15 +376,18 @@ export function trackPlayback<R = void>(job: TrackJob, report: ReportProgress<R>
             const snapshot = last
             pending = pending.then(() => safeReport(snapshot, false))
           }
+          if (awaitingEnd) void finalize('ended')
         },
+        onEnded,
         controller.signal,
       )
+      reason ??= sourceReason
     } catch {
-      // A source that fails simply ends tracking.
+      reason ??= 'unavailable'
     }
+    unsubscribe?.()
     controller.abort()
-    await pending
-    return last ? safeReport(last, true) : undefined
+    return finalize(reason ?? 'stopped')
   })()
-  return { stop: () => controller.abort(), done }
+  return { stop: () => { reason ??= 'stopped'; controller.abort() }, done, finished, get reason() { return reason } }
 }

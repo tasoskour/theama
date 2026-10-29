@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page, type Route } from '@playwright/test'
-import type { Suggestion } from '@theama/contracts'
+import type { DownloadItem, Suggestion } from '@theama/contracts'
 import { GOOD_KEY, startFakeTmdb, type FakeTmdb } from '../../../tools/fake-tmdb/server.mjs'
 
 let app: ElectronApplication
@@ -29,6 +29,12 @@ const items: Suggestion[] = [
   { ...movie, externalId: '95396', kind: 'series', title: 'Severance', year: 2022, overview: 'Mark leads a team of office workers whose memories have been surgically divided.', genres: ['Drama'] },
   { ...movie, externalId: '700001', title: 'Obscure Gem', year: null, overview: null, rating: null },
 ]
+const downloadItems: DownloadItem[] = [
+  { hash: 'a', name: 'Twin Zeta', state: 'paused', progress: 0.2, downloadSpeed: 0, size: 1000, eta: null, kind: 'movie', own: true, addedAt: '2026-01-03T00:00:00Z' },
+  { hash: 'b', name: 'Twin Alpha', state: 'paused', progress: 0.4, downloadSpeed: 0, size: 2000, eta: null, kind: 'movie', own: true, addedAt: '2026-01-02T00:00:00Z' },
+  { hash: 'c', name: 'Twin Live', state: 'downloading', progress: 0.6, downloadSpeed: 100, size: 3000, eta: 60, kind: 'series', own: true, addedAt: '2026-01-04T00:00:00Z' },
+  { hash: 'd', name: 'Other Movie', state: 'paused', progress: 0.8, downloadSpeed: 0, size: 4000, eta: null, kind: 'movie', own: true, addedAt: '2026-01-01T00:00:00Z' },
+]
 const card = (title: string) => page.locator('[data-test="suggestion-item"]').filter({ hasText: title })
 const dialog = () => page.locator('[data-test="suggestion-dialog"]')
 const api = (path: string, body: object) => fetch(`${base}/api/v1${path}`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -41,6 +47,14 @@ async function resize(width: number, height = 850): Promise<void> {
     win.setContentSize(size.width, size.height)
   }, { width, height })
   await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(width)
+}
+
+async function navigateAwayAndBack(): Promise<void> {
+  // Include valid release-search parameters on another page to catch outgoing route watchers.
+  await page.goto(`${page.url().split('#')[0]}#/movies?kind=series&title=Other&season=9`)
+  await expect(page.locator('h1')).toHaveText('Movies')
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Downloads', exact: true }).click()
+  await expect(page.locator('h1')).toHaveText('Downloads')
 }
 
 test.beforeAll(async () => {
@@ -87,6 +101,10 @@ test.beforeAll(async () => {
     releaseRequests.push(new URL(route.request().url()))
     await route.fulfill({ status: 503, json: { error: { code: 'not_configured', message: 'Test indexer is not configured.' } } })
   })
+  await page.route(/\/api\/v1\/downloads$/, async (route) => {
+    if (route.request().method() === 'GET') await route.fulfill({ json: { reachable: true, items: downloadItems } })
+    else await route.continue()
+  })
 })
 
 test.afterAll(async () => {
@@ -113,6 +131,147 @@ test.beforeEach(async () => {
   // Reusing a hash URL does not reload Vue; reset each test's filter, preview and metadata cache.
   await page.reload()
   await expect(card('Interstellar')).toBeVisible()
+})
+
+test('Find and Favorites filters survive page navigation and reset on reload', async () => {
+  const genre = page.locator('[data-test="find-genre"]')
+  await page.locator('[data-test="suggestion-filter-movie"]').click()
+  await page.locator('[data-test="find-title"] input').fill('Remember this title')
+  await page.getByRole('combobox', { name: 'Year', exact: true }).fill('2014')
+  await page.getByRole('option', { name: '2014', exact: true }).click()
+  await genre.locator('.v-select .v-field').click()
+  await page.getByRole('option', { name: 'Drama', exact: true }).click()
+  await page.getByRole('option', { name: 'Science Fiction', exact: true }).click()
+  await page.keyboard.press('Escape')
+  await genre.getByRole('button', { name: 'All', exact: true }).click()
+
+  await navigateAwayAndBack()
+  await expect(page.locator('[data-test="tab-find"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-test="suggestion-filter-movie"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-test="find-title"] input')).toHaveValue('Remember this title')
+  await expect(page.getByRole('combobox', { name: 'Year', exact: true })).toHaveValue('2014')
+  await expect(genre.locator('.v-chip')).toHaveText(['Drama', 'Science Fiction'])
+  await expect(genre.getByRole('button', { name: 'All', exact: true })).toHaveClass(/v-btn--active/)
+
+  await page.locator('[data-test="suggestion-filter-series"]').click()
+  await page.locator('[data-test="find-season"] input').fill('2')
+  await page.locator('[data-test="find-episode"] input').fill('3')
+  await navigateAwayAndBack()
+  await expect(page.locator('[data-test="suggestion-filter-series"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-test="find-season"] input')).toHaveValue('2')
+  await expect(page.locator('[data-test="find-episode"] input')).toHaveValue('3')
+
+  await page.locator('[data-test="tab-favorites"]').click()
+  await page.locator('[data-test="favorites-filter-series"]').click()
+  await navigateAwayAndBack()
+  await expect(page.locator('[data-test="tab-favorites"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-test="favorites-filter-series"]')).toHaveAttribute('aria-pressed', 'true')
+  await page.locator('[data-test="tab-find"]').click()
+  await expect(page.locator('[data-test="find-title"] input')).toHaveValue('Remember this title')
+  await expect(genre.locator('.v-chip')).toHaveText(['Drama', 'Science Fiction'])
+
+  await page.reload()
+  await expect(page.locator('[data-test="tab-find"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-test="suggestion-filter-all"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-test="find-title"] input')).toHaveValue('')
+  await expect(genre.locator('.v-chip')).toHaveCount(0)
+  await expect(genre.getByRole('button', { name: 'Any', exact: true })).toHaveClass(/v-btn--active/)
+  await page.locator('[data-test="suggestion-filter-movie"]').click()
+  await expect(page.getByRole('combobox', { name: 'Year', exact: true })).toHaveValue('')
+  await page.locator('[data-test="suggestion-filter-series"]').click()
+  await expect(page.locator('[data-test="find-season"] input')).toHaveValue('')
+  await expect(page.locator('[data-test="find-episode"] input')).toHaveValue('')
+  await page.locator('[data-test="tab-favorites"]').click()
+  await expect(page.locator('[data-test="favorites-filter-all"]')).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('Active filters and sorting survive navigation, clearing persists, and reload restores defaults', async () => {
+  const names = page.locator('[data-test="download-list"] .card__name')
+  const search = page.locator('[data-test="downloads-search"] input')
+  const sort = page.locator('[data-test="downloads-sort"]')
+  const direction = page.locator('[data-test="downloads-sort-direction"]')
+  await page.locator('[data-test="tab-active"]').click()
+  await search.fill('Twin')
+  await page.locator('[data-test="filter-paused"]').click()
+  await sort.click()
+  await page.getByRole('option', { name: 'Name', exact: true }).click()
+  await direction.click()
+  await expect(names).toHaveText(['Twin Alpha', 'Twin Zeta'])
+
+  await navigateAwayAndBack()
+  await expect(page.locator('[data-test="tab-active"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(search).toHaveValue('Twin')
+  await expect(page.locator('[data-test="filter-paused"]')).toHaveClass(/v-chip--selected/)
+  await expect(sort).toContainText('Name')
+  await expect(direction).toHaveAttribute('aria-label', 'Ascending. Click for descending.')
+  await expect(names).toHaveText(['Twin Alpha', 'Twin Zeta'])
+  await page.locator('[data-test="tab-find"]').click()
+  await page.locator('[data-test="tab-active"]').click()
+  await expect(names).toHaveText(['Twin Alpha', 'Twin Zeta'])
+
+  await search.fill('No matching download')
+  await page.locator('[data-test="downloads-no-match"]').getByRole('button', { name: 'Clear filters' }).click()
+  await navigateAwayAndBack()
+  await expect(search).toHaveValue('')
+  await expect(page.locator('[data-test="filter-all"]')).toHaveClass(/v-chip--selected/)
+  await expect(sort).toContainText('Name')
+  await expect(direction).toHaveAttribute('aria-label', 'Ascending. Click for descending.')
+  await expect(names).toHaveText(['Other Movie', 'Twin Alpha', 'Twin Live', 'Twin Zeta'])
+
+  // Leave nondefault search and status values so reload checks every Active control.
+  await search.fill('Twin')
+  await page.locator('[data-test="filter-paused"]').click()
+  await page.reload()
+  await expect(page.locator('[data-test="tab-find"]')).toHaveAttribute('aria-selected', 'true')
+  await page.locator('[data-test="tab-active"]').click()
+  await expect(search).toHaveValue('')
+  await expect(page.locator('[data-test="filter-all"]')).toHaveClass(/v-chip--selected/)
+  await expect(sort).toContainText('Newest')
+  await expect(direction).toHaveAttribute('aria-label', 'Descending. Click for ascending.')
+  await expect(names).toHaveText(['Twin Live', 'Twin Zeta', 'Twin Alpha', 'Other Movie'])
+})
+
+test('explicit title and person links start Find without resetting Favorites or Active filters', async () => {
+  await page.locator('[data-test="suggestion-filter-series"]').click()
+  await page.locator('[data-test="find-title"] input').fill('Old title')
+  await page.locator('[data-test="find-season"] input').fill('7')
+  await page.locator('[data-test="find-episode"] input').fill('8')
+  const genre = page.locator('[data-test="find-genre"]')
+  await genre.locator('.v-select .v-field').click()
+  await page.getByRole('option', { name: 'Drama', exact: true }).click()
+  await page.keyboard.press('Escape')
+  await page.locator('[data-test="tab-favorites"]').click()
+  await page.locator('[data-test="favorites-filter-series"]').click()
+  await page.locator('[data-test="tab-active"]').click()
+  await page.locator('[data-test="downloads-search"] input').fill('Twin')
+  await page.locator('[data-test="filter-paused"]').click()
+
+  await page.goto(`${page.url().split('#')[0]}#/downloads?kind=movie&title=Interstellar&year=2014&releases=1`)
+  await expect(page.locator('[data-test="tab-find"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-test="release-title"] input')).toHaveValue('Interstellar')
+  await expect(page.locator('[data-test="release-year"] input')).toHaveValue('2014')
+  await expect.poll(() => releaseRequests.length).toBe(1)
+  await page.locator('[data-test="releases-back"]').click()
+  await expect(page.locator('[data-test="suggestion-filter-movie"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(genre.locator('.v-chip')).toHaveCount(0)
+
+  await page.goto(`${page.url().split('#')[0]}#/downloads?personId=525&personCategory=director&personName=Christopher%20Nolan`)
+  await expect(page.locator('[data-test="person-suggestions"] h2')).toHaveText('Movies and TV series directed by Christopher Nolan')
+  await expect(page.locator('[data-test="tab-find"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-test="suggestion-filter-all"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-test="find-title"] input')).toHaveValue('')
+  await expect(genre.locator('.v-chip')).toHaveCount(0)
+  await page.locator('[data-test="suggestion-filter-movie"]').click()
+  await expect(page.getByRole('combobox', { name: 'Year', exact: true })).toHaveValue('')
+  await page.locator('[data-test="suggestion-filter-series"]').click()
+  await expect(page.locator('[data-test="find-season"] input')).toHaveValue('')
+  await expect(page.locator('[data-test="find-episode"] input')).toHaveValue('')
+  await page.locator('[data-test="tab-favorites"]').click()
+  await expect(page.locator('[data-test="favorites-filter-series"]')).toHaveAttribute('aria-pressed', 'true')
+  await page.locator('[data-test="tab-active"]').click()
+  await expect(page.locator('[data-test="downloads-search"] input')).toHaveValue('Twin')
+  await expect(page.locator('[data-test="filter-paused"]')).toHaveClass(/v-chip--selected/)
+  await expect(page.locator('[data-test="download-list"] .card__name')).toHaveText(['Twin Zeta', 'Twin Alpha'])
 })
 
 test('library badges update after identification, hiding and removal', async () => {

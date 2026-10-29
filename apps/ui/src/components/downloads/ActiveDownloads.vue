@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import {
   mdiArrowDown,
@@ -18,9 +19,10 @@ import {
 } from '@mdi/js'
 import type { DownloadItem } from '@theama/contracts'
 import FilesDialog from '@/components/downloads/FilesDialog.vue'
-import { BUCKETS, SORT_KEYS, bucket, counts, filterAndSort, totalSpeed, type Filter, type SortKey } from '@/components/downloads/activeList'
+import { BUCKETS, SORT_KEYS, bucket, counts, filterAndSort, totalSpeed } from '@/components/downloads/activeList'
 import { useConnectionStore } from '@/stores/connection'
 import { useDownloadsStore } from '@/stores/downloads'
+import { useDownloadsViewStore } from '@/stores/downloadsView'
 import { useSettingsStore } from '@/stores/settings'
 import { formatBytes, formatDuration } from '@/utils/format'
 
@@ -34,10 +36,7 @@ const settings = useSettingsStore()
 const items = computed(() => downloads.list?.items ?? [])
 const unreachable = computed(() => downloads.list !== null && !downloads.list.reachable && downloads.client?.state !== 'not_configured')
 
-const search = ref('')
-const filter = ref<Filter>('all')
-const sort = ref<SortKey>('added')
-const descending = ref(true)
+const { activeSearch: search, activeFilter: filter, activeSort: sort, activeDescending: descending } = storeToRefs(useDownloadsViewStore())
 
 const tally = computed(() => counts(items.value))
 const shown = computed(() => filterAndSort(items.value, { search: search.value, filter: filter.value, sort: sort.value, descending: descending.value }))

@@ -1133,7 +1133,7 @@
     "tracking": "What Theama knows about watching",
     "autoNext": "Next episode",
     "autoNextSwitch": "Play the next episode automatically",
-    "autoNextHint": "When an episode ends, Theama comes to the front and starts the next one after a short countdown. You can cancel it or play right away. Episodes opened in MPC-HC and MPC-BE close their player automatically when they finish. Automatic next episode works with the players Theama can follow: VLC, mpv, MPC-HC and MPC-BE.",
+    "autoNextHint": "When enabled, a silent notification at the bottom left appears over fullscreen playback with a countdown, Cancel and Play now. The next episode opens in the same player window. Turn this off to stop automatic playback. If you close the player after watching at least 90%, the countdown still starts and opens the next episode in that player. Works with VLC, mpv, MPC-HC and MPC-BE.",
     "autoNextCountdown": "Countdown before it starts",
     "autoNextSeconds": "{count} second | {count} seconds",
     "autoNextImmediately": "Immediately",

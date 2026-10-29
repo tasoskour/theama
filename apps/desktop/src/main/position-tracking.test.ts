@@ -73,6 +73,66 @@ describe('planTracking', () => {
 })
 
 describe('watching VLC', () => {
+  it('recognizes a different playlist input even when both files have the same filename', async () => {
+    let item = 2
+    const { port } = await listenHttp((_req, res) => res.end(JSON.stringify({ state: 'playing', currentplid: item,
+      time: item === 2 ? 2600 : 10, length: 2700, information: { category: { meta: { filename: FILE } } } })))
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'vlc', port, password: 'p' } }, report, FAST)
+    await until('first input', () => reports.length > 0)
+    item = 3
+    await t.done
+    expect(t.reason).toBe('changed')
+    expect(reports.every((r) => r.sample.positionSeconds === 2600)).toBe(true)
+  })
+  it('finalizes at EOF while VLC stays open, ignores reset positions, and still notices another file', async () => {
+    let status = { state: 'playing', time: 2699, length: 2700, information: { category: { meta: { filename: FILE } } } }
+    const { port } = await listenHttp((_req, res) => res.end(JSON.stringify(status)))
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'vlc', port, password: 'p' } }, report, FAST)
+    await until('last second', () => reports.length > 0)
+    status = { state: 'stopped', time: 0, length: 0, information: { category: { meta: { filename: '' } } } }
+    expect((await t.finished).reason).toBe('ended')
+    expect(reports.at(-1)).toMatchObject({ final: true, sample: { positionSeconds: 2700, durationSeconds: 2700 } })
+    expect(t.reason).toBeUndefined()
+    status.information.category.meta.filename = 'Other.mkv'
+    await t.done
+    expect(t.reason).toBe('changed')
+    expect(reports.filter((r) => r.final)).toHaveLength(1)
+  })
+
+  it.each(['paused', 'playing'])('does not advance on a %s sample near the end', async (state) => {
+    let polls = 0
+    const { port } = await listenHttp((_req, res) => {
+      polls++
+      res.end(JSON.stringify({ state, time: 2699, length: 2700, information: { category: { meta: { filename: FILE } } } }))
+    })
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'vlc', port, password: 'p' } }, report, FAST)
+    await until('several polls', () => polls >= 3)
+    expect(reports.some((r) => r.final)).toBe(false)
+    t.stop()
+    await t.done
+  })
+
+  it('does not confuse an ordinary stop at 90% with EOF', async () => {
+    let state = 'playing'
+    let polls = 0
+    const { port } = await listenHttp((_req, res) => {
+      polls++
+      res.end(JSON.stringify({ state, time: 2430, length: 2700, information: { category: { meta: { filename: FILE } } } }))
+    })
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'vlc', port, password: 'p' } }, report, FAST)
+    await until('initial progress', () => reports.length > 0)
+    const before = polls
+    state = 'stopped'
+    await until('stopped status', () => polls > before + 1)
+    expect(reports.some((r) => r.final)).toBe(false)
+    t.stop()
+    await t.done
+  })
+
   it('forwards the position with the password, and sends a final report when VLC goes away', async () => {
     let time = 100
     const seenAuth: (string | undefined)[] = []
@@ -136,6 +196,88 @@ describe('watching VLC', () => {
 describe('watching MPC-HC / MPC-BE', () => {
   const variables = (file: string, position = 2600000, duration = 2700000, state = 2, path = '') =>
     `<p id="file">${file}</p><p id="filepath">${path}</p><p id="state">${state}</p><p id="position">${position}</p><p id="duration">${duration}</p>`
+
+  it('ignores playlist restoration before the requested file supplies its first playing sample', async () => {
+    let polls = 0
+    const { port } = await listenHttp((_req, res) => res.end(++polls === 1 ? variables(FILE, 0, 0, -1)
+      : polls === 2 ? variables('Restored.mkv', 0, 0, -1) : variables(FILE)))
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port } }, report, FAST)
+    await until('requested playback after restored playlist', () => reports.length > 0)
+    t.stop()
+    await t.done
+    expect(reports[0]?.sample.positionSeconds).toBe(2600)
+  })
+
+  it('recognizes a running graph held at its exact endpoint when MPC omits the native EOF notification', async () => {
+    const { port } = await listenHttp((_req, res) => res.end(variables(FILE, 8000, 8000, 2)))
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port } }, report, FAST)
+    expect((await t.finished).reason).toBe('ended')
+    expect(reports.at(-1)?.sample).toEqual({ positionSeconds: 8, durationSeconds: 8 })
+    t.stop()
+    await t.done
+  })
+
+  it('does not infer EOF from a paused graph, even at the duration boundary', async () => {
+    let polls = 0
+    const { port } = await listenHttp((_req, res) => { polls++; res.end(variables(FILE, 8000, 8000, 1)) })
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port } }, report, FAST)
+    await until('paused samples', () => polls >= 3)
+    expect(reports.some((r) => r.final)).toBe(false)
+    t.stop()
+    await t.done
+  })
+
+  it('allows the full startup grace after an empty status page followed by transient interface failures', async () => {
+    let polls = 0
+    const { port } = await listenHttp((_req, res) => {
+      polls++
+      if (polls > 1 && polls < 6) { res.writeHead(503); res.end(); return }
+      res.end(polls === 1 ? variables('', 0, 0) : variables(FILE))
+    })
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port } }, report, FAST)
+    await until('player ready after transient startup errors', () => reports.length > 0)
+    expect(polls).toBeGreaterThanOrEqual(6)
+    t.stop()
+    await t.done
+  })
+
+  it('retains an EOF notification arriving before the first identified position sample', async () => {
+    const { port } = await listenHttp((_req, res) => res.end(variables(FILE, 7900, 8000, 1)))
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port }, onEnded: (listener) => {
+      listener()
+      return () => undefined
+    } }, report, FAST)
+    expect((await t.finished).reason).toBe('ended')
+    expect(reports.at(-1)?.sample).toEqual({ positionSeconds: 8, durationSeconds: 8 })
+    t.stop()
+    await t.done
+  })
+
+  it('finalizes once on native EOF without closing the process and unregisters the listener', async () => {
+    let onEnded: (() => void) | undefined
+    let subscribed = true
+    const { port } = await listenHttp((_req, res) => res.end(variables(FILE, 2699900)))
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 1, fileName: FILE, plan: { kind: 'mpc', port }, onEnded: (listener) => {
+      onEnded = listener
+      return () => { subscribed = false }
+    } }, report, FAST)
+    await until('sample', () => reports.length > 0)
+    onEnded!()
+    onEnded!()
+    expect((await t.finished).reason).toBe('ended')
+    expect(t.reason).toBeUndefined()
+    expect(reports.at(-1)?.sample.positionSeconds).toBe(2700)
+    t.stop()
+    await t.done
+    expect(reports.filter((r) => r.final)).toHaveLength(1)
+    expect(subscribed).toBe(false)
+  })
 
   it('reads positions in milliseconds from variables.html', async () => {
     let ms = 300_000
@@ -261,6 +403,42 @@ describe('watching mpv', () => {
   }
   const change = (name: string, data: unknown): string => `${JSON.stringify({ event: 'property-change', id: 1, name, data })}\n`
 
+  it('finalizes on eof-reached while the IPC connection remains open', async () => {
+    let player: Socket | undefined
+    const pipe = await fakeMpv((socket) => {
+      player = socket
+      socket.on('error', () => undefined)
+      socket.write(change('filename', FILE) + change('duration', 2700) + change('time-pos', 2699.96))
+    })
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 5, fileName: FILE, plan: { kind: 'mpv', pipe } }, report, FAST)
+    await until('sample', () => reports.length > 0)
+    player!.write(change('eof-reached', true) + change('time-pos', null) + change('eof-reached', true))
+    expect((await t.finished).reason).toBe('ended')
+    expect(t.reason).toBeUndefined()
+    expect(reports.at(-1)?.sample.positionSeconds).toBe(2700)
+    player!.write(change('filename', 'Other.mkv'))
+    await t.done
+    expect(t.reason).toBe('changed')
+    expect(reports.filter((r) => r.final)).toHaveLength(1)
+  })
+
+  it('stops at start-file before a new file can publish positions under the old episode', async () => {
+    let player: Socket | undefined
+    const pipe = await fakeMpv((socket) => {
+      player = socket
+      socket.on('error', () => undefined)
+      socket.write(change('filename', FILE) + change('duration', 2700) + change('time-pos', 1500))
+    })
+    const { reports, report } = collector()
+    const t = trackPlayback({ fileId: 5, fileName: FILE, plan: { kind: 'mpv', pipe } }, report, FAST)
+    await until('sample', () => reports.length > 0)
+    player!.write(JSON.stringify({ event: 'start-file' }) + '\n' + change('time-pos', 9) + change('filename', FILE))
+    await t.done
+    expect(t.reason).toBe('changed')
+    expect(reports.every((r) => r.sample.positionSeconds === 1500)).toBe(true)
+  })
+
   it('subscribes to the properties, forwards time-pos, and ends with a final report when mpv quits', async () => {
     const asked: string[] = []
     const pipe = await fakeMpv((socket) => {
@@ -278,7 +456,7 @@ describe('watching mpv', () => {
     const { reports, report } = collector()
     const t = trackPlayback({ fileId: 5, fileName: FILE, plan: { kind: 'mpv', pipe } }, report, FAST)
     await t.done
-    expect(asked.map((l) => (JSON.parse(l) as { command: unknown[] }).command[2])).toEqual(['time-pos', 'duration', 'filename'])
+    expect(asked.map((l) => (JSON.parse(l) as { command: unknown[] }).command[2])).toEqual(['time-pos', 'duration', 'filename', 'eof-reached'])
     expect(reports.length).toBeGreaterThanOrEqual(2)
     expect(reports.every((r) => r.fileId === 5 && r.sample.durationSeconds === 2700)).toBe(true)
     const last = reports[reports.length - 1]!

@@ -72,16 +72,16 @@ describe('buildArgs with resuming and tracking', () => {
     expect(buildArgs('mpv', { ...base, tracking: { kind: 'mpv', pipe: 'theama-pipe' } })).toEqual(['--input-ipc-server=theama-pipe', '--', base.path])
     expect(buildArgs('mpc-hc', { ...base, tracking: { kind: 'mpc', port: 6666 } })).toEqual([base.path, '/new', '/webport', '6666'])
   })
-  it.each(['mpc-hc', 'mpc-be'] as const)('closes %s episodes in their own instance, retaining resume and subtitles', (kind) => {
-    expect(buildArgs(kind, { ...base, subtitle: 'D:\\Media\\Film.el.srt', resumeSeconds: 754, closeAfterPlayback: true, tracking: { kind: 'mpc', port: 6666 } })).toEqual([
-      base.path, '/sub', 'D:\\Media\\Film.el.srt', '/start', '754000', '/new', '/play', '/close', '/webport', '6666',
+  it.each(['mpc-hc', 'mpc-be'] as const)('keeps %s episodes open, retaining resume, subtitles and native EOF control', (kind) => {
+    expect(buildArgs(kind, { ...base, subtitle: 'D:\\Media\\Film.el.srt', resumeSeconds: 754, series: true, mpcSlave: '1234', tracking: { kind: 'mpc', port: 6666 } })).toEqual([
+      base.path, '/sub', 'D:\\Media\\Film.el.srt', '/start', '754000', '/new', '/play', '/slave', '1234', '/webport', '6666',
     ])
-    expect(buildArgs(kind, { ...base, closeAfterPlayback: true })).toEqual([base.path, '/new', '/play', '/close'])
+    expect(buildArgs(kind, { ...base, series: true })).toEqual([base.path, '/play'])
     expect(buildArgs(kind, { ...base, tracking: { kind: 'mpc', port: 6666 } })).not.toContain('/close')
   })
   it('leaves other players unchanged for episodes', () => {
     for (const kind of ['vlc', 'mpv', 'potplayer', 'custom', 'system'] as const) {
-      expect(buildArgs(kind, { ...base, closeAfterPlayback: true })).toEqual(buildArgs(kind, base))
+      expect(buildArgs(kind, { ...base, series: true })).toEqual(buildArgs(kind, base))
     }
   })
   it('never adds tracking switches for a plan that belongs to another player', () => {
@@ -247,7 +247,7 @@ describe('PlayerManager', () => {
         host: installed(exe), getPrefs: () => prefs, setPrefs: () => undefined,
         fetchLaunchInfo: async () => info, openWithSystem: async () => '',
         launch: async (_exe, args) => {
-          expect(args).toEqual([video, '/sub', subtitle, '/start', '754000', '/new', '/play', '/close', '/webport', expect.any(String)])
+          expect(args).toEqual([video, '/sub', subtitle, '/start', '754000', '/new', '/play', '/webport', expect.any(String)])
           return { exited }
         },
         track: (job) => void jobs.push(job),

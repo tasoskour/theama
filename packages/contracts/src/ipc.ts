@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ServiceAccountChoice, ServiceStatus } from './service'
 import type { UiLanguage } from './settings'
 import { LogEntry } from './logs'
-import type { NextUp } from './playback'
+import { NextUp } from './playback'
 import type { DownloadTool, DownloadToolsStatus, OpenDownloadToolResult } from './download-tools'
 
 /**
@@ -37,12 +37,17 @@ export const IPC = {
   playersAddCustom: 'players:addCustom',
   playersRemove: 'players:remove',
   playersPlay: 'players:play',
+  playersPlayNext: 'players:playNext',
+  playersCancelNext: 'players:cancelNext',
   downloadToolsStatus: 'downloadTools:status',
   downloadToolsOpen: 'downloadTools:open',
   /** Main to renderer push: the trailer was closed from inside the video (Escape). */
   evTrailerClosed: 'ev:trailer-closed',
   /** Main to renderer push: an episode ended and the next one should start after a countdown. */
   evNextUp: 'ev:next-up',
+  evNextUpCancelled: 'ev:next-up-cancelled',
+  nextNotificationAction: 'next-notification:action',
+  evNextNotification: 'ev:next-notification',
   /** Main to renderer push: service status changed. */
   evServiceStatus: 'ev:service-status',
 } as const
@@ -126,6 +131,19 @@ export const PlayRequest = z.object({
 })
 export type PlayRequest = z.infer<typeof PlayRequest>
 
+/** Desktop-only continuation token; file paths and player controls stay in the main process. */
+export const NextUpOffer = NextUp.extend({ offerId: z.string().uuid() })
+export type NextUpOffer = z.infer<typeof NextUpOffer>
+export const NextUpRequest = z.object({ offerId: z.string().uuid() })
+export const NextNotificationAction = NextUpRequest.extend({ action: z.enum(['play', 'cancel']) })
+export interface NextNotificationState {
+  offer: NextUpOffer
+  remaining: number
+  language: UiLanguage
+  busy: boolean
+  error: string | null
+}
+
 export const PlayResult = z.object({
   ok: z.boolean(),
   /** A short reason when `ok` is false: file missing, drive offline, player not found. */
@@ -196,7 +214,10 @@ export interface TheamaBridge {
     addCustom(): Promise<PlayerInfo[] | null>
     remove(id: string): Promise<PlayerInfo[]>
     play(request: PlayRequest): Promise<PlayResult>
+    playNext(offerId: string): Promise<PlayResult>
+    cancelNext(offerId: string): Promise<void>
     /** A watched episode ended and the next one is due (only when "play next episode" is on). */
-    onNextUp(listener: (nextUp: NextUp) => void): () => void
+    onNextUp(listener: (nextUp: NextUpOffer) => void): () => void
+    onNextUpCancelled(listener: (offerId: string) => void): () => void
   }
 }

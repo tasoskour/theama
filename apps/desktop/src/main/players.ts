@@ -1,10 +1,12 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
 import { win32 } from 'node:path'
-import { LaunchInfo, type PlayerInfo, type PlayerKind, type PlayResult } from '@theama/contracts'
+import { LaunchInfo, type NextUpOffer, type PlayerInfo, type PlayerKind, type PlayResult, type ProgressResult } from '@theama/contracts'
 import { assertSafeUserPath, UnsafePathError } from './path-safety'
-import { planTracking, TRACKED_KINDS, type TrackingPlan, type TrackJob } from './position-tracking'
+import { planTracking, TRACKED_KINDS, type TrackingPlan, type TrackJob, type PlaybackTracker } from './position-tracking'
+import type { MpcBridge } from './mpc-bridge'
+import { loadInPlayer, playerMatches } from './player-control'
 
 export interface CustomPlayer {
   id: string
@@ -27,8 +29,9 @@ export interface LaunchOptions {
   resumeSeconds?: number | null
   /** The local interface the player is asked to open so Theama can see how far it has got. */
   tracking?: TrackingPlan | null
-  /** Series episodes close their MPC instance after playback. */
-  closeAfterPlayback?: boolean
+  /** Keep tracked series players available for loading the next episode. */
+  series?: boolean
+  mpcSlave?: string
 }
 
 interface Definition {
@@ -46,13 +49,14 @@ const programFiles = (env: NodeJS.ProcessEnv): string[] =>
   [env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramW6432].filter((p): p is string => Boolean(p))
 
 /** MPC-HC and MPC-BE share their switches: `/sub`, `/start <ms>` and `/webport` (which also opens the web interface). */
-function mpcArgs({ path, subtitle, resumeSeconds, tracking, closeAfterPlayback }: LaunchOptions): string[] {
+function mpcArgs({ path, subtitle, resumeSeconds, tracking, series, mpcSlave }: LaunchOptions): string[] {
   return [
     path,
     ...(subtitle ? ['/sub', subtitle] : []),
     ...(resumeSeconds ? ['/start', String(resumeSeconds * 1000)] : []),
-    ...(tracking?.kind === 'mpc' || closeAfterPlayback ? ['/new'] : []),
-    ...(closeAfterPlayback ? ['/play', '/close'] : []),
+    ...(tracking?.kind === 'mpc' ? ['/new'] : []),
+    ...(series ? ['/play'] : []),
+    ...(mpcSlave ? ['/slave', mpcSlave] : []),
     ...(tracking?.kind === 'mpc' ? ['/webport', String(tracking.port)] : []),
   ]
 }
@@ -69,13 +73,14 @@ const DEFINITIONS: Definition[] = [
     locations: (env) => programFiles(env).map((p) => win32.join(p, 'VideoLAN', 'VLC', 'vlc.exe')),
     onPath: ['vlc.exe'],
     externalSubtitle: true,
-    args: ({ path, subtitle, resumeSeconds, tracking }) => [
+    args: ({ path, subtitle, resumeSeconds, tracking, series }) => [
       ...(subtitle ? [`--sub-file=${subtitle}`] : []),
       ...(resumeSeconds ? [`--start-time=${resumeSeconds}`] : []),
       // A separate instance per start, or a running VLC would take the file and never open our interface.
       ...(tracking?.kind === 'vlc'
         ? ['--no-one-instance', '--extraintf=http', '--http-host=127.0.0.1', `--http-port=${tracking.port}`, `--http-password=${tracking.password}`]
         : []),
+      ...(series && tracking?.kind === 'vlc' ? ['--no-play-and-exit'] : []),
       path,
     ],
   },
@@ -97,11 +102,12 @@ const DEFINITIONS: Definition[] = [
     ],
     onPath: ['mpv.exe'],
     externalSubtitle: true,
-    args: ({ path, subtitle, languages, resumeSeconds, tracking }) => [
+    args: ({ path, subtitle, languages, resumeSeconds, tracking, series }) => [
       ...(subtitle ? [`--sub-file=${subtitle}`] : []),
       ...(languages.length > 0 ? [`--slang=${languages.join(',')}`] : []),
       ...(resumeSeconds ? [`--start=${resumeSeconds}`] : []),
       ...(tracking?.kind === 'mpv' ? [`--input-ipc-server=${tracking.pipe}`] : []),
+      ...(series && tracking?.kind === 'mpv' ? ['--keep-open=yes'] : []),
       '--',
       path,
     ],
@@ -170,6 +176,7 @@ export function validateCustomExe(raw: string): string {
 
 export interface LaunchedPlayer {
   exited: Promise<void>
+  pid?: number
 }
 
 export interface PlayerDeps {
@@ -188,7 +195,26 @@ export interface PlayerDeps {
    * Starts watching a player that was started with a tracking interface. Absent when position tracking is
    * not wired (tests, the end-to-end fake player): then players are started without the extra switches.
    */
-  track?(job: TrackJob): void
+  track?(job: TrackJob): PlaybackTracker<ProgressResult | undefined> | void
+  createMpcBridge?(): Promise<MpcBridge>
+  loadInPlayer?: typeof loadInPlayer
+  playerMatches?: typeof playerMatches
+  onNextUp?(offer: NextUpOffer, playerPid?: number): void
+  onNextUpCancelled?(offerId: string): void
+  focusPlayer?(pid: number): Promise<void>
+  autoPlayEnabled?(): Promise<boolean>
+}
+
+interface PlaybackSession {
+  player: PlayerInfo
+  fileId: number
+  fileName: string
+  filePath: string
+  plan: TrackingPlan
+  launched: LaunchedPlayer | void
+  closed: boolean
+  mpc?: MpcBridge
+  tracker?: PlaybackTracker<ProgressResult | undefined>
 }
 
 /** The real "start a program": detached, no shell, no console window handling beyond the player's own. */
@@ -199,7 +225,7 @@ export function launchDetached(exe: string, args: string[]): Promise<LaunchedPla
     child.once('error', reject)
     child.once('spawn', () => {
       child.unref()
-      resolve({ exited })
+      resolve({ exited, pid: child.pid })
     })
   })
 }
@@ -208,6 +234,57 @@ const PREFERENCE: PlayerKind[] = ['vlc', 'mpc-hc', 'mpv', 'mpc-be', 'potplayer']
 
 export class PlayerManager {
   constructor(private readonly deps: PlayerDeps) {}
+
+  private session?: PlaybackSession
+  private offer?: { payload: NextUpOffer; session: PlaybackSession }
+  private revision = 0
+
+  cancelNext(offerId: string): void {
+    if (this.offer?.payload.offerId !== offerId) return
+    this.offer = undefined
+    this.deps.onNextUpCancelled?.(offerId)
+  }
+
+  async playNext(offerId: string): Promise<PlayResult> {
+    const offer = this.offer
+    if (!offer || offer.payload.offerId !== offerId) {
+      return { ok: false, code: 'unavailable', message: 'This next-episode offer has expired', playerName: null }
+    }
+    // Consume before any await: timer expiry, repeated clicks and EOF cannot open a second copy.
+    this.offer = undefined
+    const revision = this.revision
+    if (this.deps.autoPlayEnabled && !await this.deps.autoPlayEnabled().catch(() => false)) {
+      this.deps.onNextUpCancelled?.(offerId)
+      return { ok: false, code: 'unavailable', message: 'Automatic next episode is turned off', playerName: offer.session.player.name }
+    }
+    return this.start(offer.payload.next.fileId, offer.session.player.id, false, revision, offer.session)
+  }
+
+  private watch(session: PlaybackSession): void {
+    this.session = session
+    if (session.launched) void session.launched.exited.then(() => {
+      session.closed = true
+      session.mpc?.close()
+    })
+    const tracker = this.deps.track?.({
+      fileId: session.fileId, fileName: session.fileName, filePath: session.filePath, plan: session.plan,
+      exited: session.launched?.exited, onEnded: session.mpc ? (listener) => session.mpc!.onEnded(listener) : undefined,
+    })
+    if (!tracker) return
+    session.tracker = tracker
+    void tracker.finished.then(({ result, reason }) => {
+      if (this.session !== session || (reason !== 'ended' && reason !== 'closed') || !result?.nextUp) return
+      // A file change can happen while the final report is being retried.
+      if (tracker.reason && tracker.reason !== 'closed') return
+      const payload = { ...result.nextUp, offerId: randomUUID() }
+      this.offer = { payload, session }
+      this.deps.onNextUp?.(payload, session.launched?.pid)
+    })
+    void tracker.done.then(() => {
+      if (this.session !== session || (tracker.reason !== 'changed' && tracker.reason !== 'unavailable')) return
+      if (this.offer?.session === session) this.cancelNext(this.offer.payload.offerId)
+    })
+  }
 
   private get host(): PlayerEnv {
     return this.deps.host ?? realEnv
@@ -257,13 +334,31 @@ export class PlayerManager {
 
   /** Starts a player on a library file. The path comes from the backend, never from the caller. */
   async play(fileId: number, playerId?: string, fromStart = false): Promise<PlayResult> {
+    if (this.offer) this.cancelNext(this.offer.payload.offerId)
+    const previous = this.session
+    this.session = undefined
+    previous?.tracker?.stop()
+    previous?.mpc?.close()
+    return this.start(fileId, playerId, fromStart, ++this.revision)
+  }
+
+  dispose(): void {
+    if (this.offer) this.cancelNext(this.offer.payload.offerId)
+    this.session?.tracker?.stop()
+    this.session?.mpc?.close()
+    this.session = undefined
+    this.revision++
+  }
+
+  private async start(fileId: number, playerId: string | undefined, fromStart: boolean, revision: number, reuse?: PlaybackSession): Promise<PlayResult> {
     const fail = (code: NonNullable<PlayResult['code']>, message: string, playerName: string | null = null): PlayResult => ({ ok: false, code, message, playerName })
 
     const players = this.list()
-    const player = playerId ? players.find((p) => p.id === playerId && p.available) : players.find((p) => p.isDefault)
+    const player = reuse?.player ?? (playerId ? players.find((p) => p.id === playerId && p.available) : players.find((p) => p.isDefault))
     if (!player) return fail('no_player', 'That player is not available on this PC')
 
-    const looked = await this.deps.fetchLaunchInfo(fileId)
+    const looked = await this.deps.fetchLaunchInfo(fileId).catch(() => ({ ok: false as const, code: 'unreachable' as const, message: 'Playback service is unavailable' }))
+    if (revision !== this.revision) return fail('unavailable', 'This playback request has expired', player.name)
     if (!looked.ok) return fail(looked.code, looked.message, player.name)
     const info = looked.info
 
@@ -271,6 +366,7 @@ export class PlayerManager {
     let subtitle: string | null = null
     let tracking: TrackingPlan | null = null
     let launched: LaunchedPlayer | void = undefined
+    let mpc: MpcBridge | undefined
     try {
       path = assertSafeUserPath(info.path)
       if (info.subtitle && player.externalSubtitle) {
@@ -289,17 +385,33 @@ export class PlayerManager {
         const error = await this.deps.openWithSystem(path)
         if (error) return fail('launch_failed', error, player.name)
       } else {
-        tracking = this.canTrack(player.kind) ? await planTracking(player.kind) : null
+        tracking = reuse && !reuse.closed ? reuse.plan : this.canTrack(player.kind) ? await planTracking(player.kind) : null
         const resumeSeconds = fromStart ? null : info.resumeSeconds
-        launched = await this.deps.launch(player.exe!, buildArgs(player.kind, {
-          path, subtitle, languages: info.subtitleLanguages, resumeSeconds, tracking, closeAfterPlayback: info.kind === 'episode',
-        }))
+        const options: LaunchOptions = { path, subtitle, languages: info.subtitleLanguages, resumeSeconds, tracking, series: info.kind === 'episode' }
+        if (reuse && !reuse.closed) {
+          const matches = await (this.deps.playerMatches ?? playerMatches)(reuse.plan, reuse.fileName, reuse.filePath, true)
+          if (revision !== this.revision) return fail('unavailable', 'This playback request has expired', player.name)
+          if (reuse.closed) return this.start(fileId, player.id, fromStart, revision)
+          if (!matches) return fail('unavailable', 'The player is now playing a different file', player.name)
+          reuse.tracker?.stop()
+          await (this.deps.loadInPlayer ?? loadInPlayer)(reuse.plan, options, reuse.mpc)
+          launched = reuse.launched
+          mpc = reuse.mpc
+        } else {
+          if (tracking?.kind === 'mpc' && options.series) mpc = await this.deps.createMpcBridge?.().catch(() => undefined)
+          if (revision !== this.revision) { mpc?.close(); return fail('unavailable', 'This playback request has expired', player.name) }
+          launched = await this.deps.launch(player.exe!, buildArgs(player.kind, { ...options, mpcSlave: mpc?.slaveWindow }))
+        }
       }
     } catch (err) {
+      if (reuse?.closed && revision === this.revision) return this.start(fileId, player.id, fromStart, revision)
+      if (!reuse) mpc?.close()
       return fail('launch_failed', err instanceof Error ? err.message : 'The player could not be started', player.name)
     }
-    if (tracking) this.deps.track?.({ fileId, fileName: info.fileName, filePath: path, plan: tracking, exited: launched?.exited })
+    if (revision !== this.revision) { if (!reuse) mpc?.close(); return fail('unavailable', 'This playback request has expired', player.name) }
+    if (tracking) this.watch({ player, fileId, fileName: info.fileName, filePath: path, plan: tracking, launched, closed: false, mpc })
     await this.deps.reportLaunched(fileId).catch(() => undefined)
+    if (reuse && launched?.pid) await this.deps.focusPlayer?.(launched.pid).catch(() => undefined)
     return { ok: true, code: null, message: null, playerName: player.name }
   }
 }

@@ -38,7 +38,7 @@ rmSync(join(root, 'build', 'installer'), { recursive: true, force: true })
 for (const d of [app, join(app, 'out'), res]) mkdirSync(d, { recursive: true })
 
 // --- the app Electron runs ---------------------------------------------------------------------------------------
-for (const f of ['main.cjs', 'preload.cjs']) {
+for (const f of ['main.cjs', 'preload.cjs', 'next-notification.cjs']) {
   cpSync(need(join(root, 'apps', 'desktop', 'out', f), 'Run "yarn build" first.'), join(app, 'out', f))
 }
 writeFileSync(

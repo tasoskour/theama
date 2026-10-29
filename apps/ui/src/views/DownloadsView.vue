@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
 import { mdiClose, mdiMagnify } from '@mdi/js'
 import { useI18n } from 'vue-i18n'
-import type { GenreMode, MatchCandidate, ReleaseKind, Suggestion } from '@theama/contracts'
+import type { MatchCandidate, ReleaseKind, Suggestion } from '@theama/contracts'
 import { MetadataPersonTitlesQuery } from '@theama/contracts'
 import GenreFilter from '@/components/common/GenreFilter.vue'
 import ActiveDownloads from '@/components/downloads/ActiveDownloads.vue'
@@ -17,6 +18,7 @@ import type { SuggestionItem } from '@/components/downloads/suggestion'
 import TrailerDialog from '@/components/titles/TrailerDialog.vue'
 import { imdbLinkFor, openExternal, trailerInApp } from '@/composables/useExternalLinks'
 import { useDownloadsStore } from '@/stores/downloads'
+import { useDownloadsViewStore } from '@/stores/downloadsView'
 import { useMetadataStore } from '@/stores/metadata'
 import { useFavoritesStore } from '@/stores/favorites'
 import { releaseSearchFromRoute } from '@/utils/releaseSearch'
@@ -34,21 +36,13 @@ const person = computed(() => {
   return { ...parsed.data, name: typeof route.query.personName === 'string' ? route.query.personName : t(parsed.data.category === 'actor' ? 'detail.actor' : 'detail.director') }
 })
 
-const tab = ref<'find' | 'favorites' | 'active'>('find')
-const favoriteKind = ref<ReleaseKind | 'all'>('all')
+const { tab, favoriteKind, kind, genres, genreMode, text, year, season, episode } = storeToRefs(useDownloadsViewStore())
 const shownFavorites = computed(() => favorites.items.filter((item) => favoriteKind.value === 'all' || item.kind === favoriteKind.value))
-const kind = ref<ReleaseKind | 'all'>('all')
-const genres = ref<string[]>([])
-const genreMode = ref<GenreMode>('any')
 const suggestionGenres = ref<string[]>([])
 const genreProblem = ref<string | null>(null)
 const genreRetry = ref(0)
 const genreLoading = ref(false)
 const suggestionFilterKey = computed(() => JSON.stringify([[...genres.value].sort(), genres.value.length > 1 ? genreMode.value : 'any']))
-const text = ref('')
-const year = ref<number | null>(null)
-const season = ref('')
-const episode = ref('')
 
 /** Newest first: this year (and next, for what is announced) back to the first films. */
 const FIRST_YEAR = 1900
@@ -264,9 +258,14 @@ function backFromReleases(): void {
 
 // Deep links work both on arrival and when another search reuses this mounted view.
 watch(() => route.query, (params) => {
+  // The outgoing view can observe the next page's query before it unmounts.
+  if (route.name !== 'downloads') return
   changeKind()
   previewOpen.value = false
   trailerOpen.value = false
+  const target = releaseSearchFromRoute(params)
+  // Ordinary navigation restores the controls; explicit links start a new Find context.
+  if (!target && !person.value) return
   tab.value = 'find'
   kind.value = 'all'
   genres.value = []
@@ -275,7 +274,6 @@ watch(() => route.query, (params) => {
   year.value = null
   season.value = ''
   episode.value = ''
-  const target = releaseSearchFromRoute(params)
   if (!target) return
   kind.value = target.kind
   text.value = target.title

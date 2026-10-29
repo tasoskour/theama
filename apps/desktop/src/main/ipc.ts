@@ -10,6 +10,7 @@ import {
   PickFolderRequest,
   PlayerIdRequest,
   PlayRequest,
+  NextUpRequest,
   ServiceInstallRequest,
   SetLanguageRequest,
   TrailerBounds,
@@ -135,6 +136,8 @@ export function registerIpc(deps: IpcDeps): void {
     return exe ? deps.players.addCustom(exe) : null
   })
   handle(IPC.playersPlay, PlayRequest, ({ fileId, playerId, fromStart }) => deps.players.play(fileId, playerId, fromStart))
+  handle(IPC.playersPlayNext, NextUpRequest, ({ offerId }) => deps.players.playNext(offerId))
+  handle(IPC.playersCancelNext, NextUpRequest, ({ offerId }) => deps.players.cancelNext(offerId))
 
   handle(IPC.serviceStatus, none, () => deps.currentStatus())
   handle(IPC.serviceStart, none, () => deps.runService('start'))

@@ -2,15 +2,18 @@ import { app, BrowserWindow, dialog, Menu, net, protocol, screen, session, shell
 import { appendFileSync, existsSync } from 'node:fs'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { IPC, IndexerStatus, LaunchInfo, type DesktopSettings, type DesktopSettingsPatch, type NextUp, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
+import { IPC, IndexerStatus, LaunchInfo, type DesktopSettings, type DesktopSettingsPatch, type NextUpOffer, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
 import { defaultDataDir, resolveDataPaths } from '@theama/logs'
 import { registerIpc } from './ipc'
 import { DownloadToolsManager } from './download-tools'
 import { menuStrings } from './menu-strings'
 import { originOf } from './origin'
-import { launchDetached, PlayerManager } from './players'
+import { launchDetached, PlayerManager, type LaunchedPlayer } from './players'
 import { trackPlayback } from './position-tracking'
 import { progressReporter } from './playback-reporting'
+import { createMpcBridge } from './mpc-bridge'
+import { focusPlayer, playerWindowBounds } from './player-control'
+import { NextEpisodeNotification, nextNotificationHtml } from './next-episode-notification'
 import { TrailerView } from './trailer-view'
 import { PrefsStore } from './prefs'
 import { restoreWindowState } from './window-state'
@@ -44,6 +47,7 @@ let controller: ServiceController
 let prefs: PrefsStore
 let lastStatus: ServiceStatus | null = null
 let busy = false
+let nextNotification: NextEpisodeNotification | null = null
 
 type ServiceMenuAction = 'start' | 'stop' | 'restart' | 'install' | 'repair' | 'uninstall'
 
@@ -61,6 +65,8 @@ function connection(): ApiConnection | null {
 
 /** Development/test only: record what would be started instead of starting a real player (never honoured in a released build). */
 const testPlayerLog = dev ? process.env.THEAMA_TEST_PLAYER_LOG : undefined
+const testPlayerScript = dev ? process.env.THEAMA_TEST_PLAYER_SCRIPT : undefined
+const testPlayerNode = dev ? process.env.THEAMA_TEST_PLAYER_NODE : undefined
 
 function testPlayerHost(): { env: NodeJS.ProcessEnv; exists(path: string): boolean } | undefined {
   if (!testPlayerLog) return undefined
@@ -69,8 +75,9 @@ function testPlayerHost(): { env: NodeJS.ProcessEnv; exists(path: string): boole
   return { env, exists: (p) => p.startsWith('C:\\FAKE-PF\\') || existsSync(p) }
 }
 
-async function recordLaunch(exe: string, args: string[]): Promise<void> {
+async function recordLaunch(exe: string, args: string[]): Promise<LaunchedPlayer | void> {
   appendFileSync(testPlayerLog!, `${JSON.stringify({ exe, args })}\n`)
+  if (testPlayerScript && testPlayerNode) return launchDetached(testPlayerNode, [testPlayerScript, ...args])
 }
 
 /** Asks the backend which file to open. The path never comes from the UI: only a file id does. */
@@ -170,14 +177,28 @@ function showWindow(): void {
 }
 
 /** The episode ended: bring Theama forward and let its window run the countdown to the next one. */
-function offerNextEpisode(nextUp: NextUp): void {
+let pendingNextOffer: string | null = null
+function offerNextEpisodeInApp(nextUp: NextUpOffer): void {
+  pendingNextOffer = nextUp.offerId
   const hadWindow = mainWindow !== null
   showWindow()
   const win = mainWindow
   if (!win) return
-  const send = (): void => void win.webContents.send(IPC.evNextUp, nextUp)
+  const send = (): void => {
+    if (!win.isDestroyed() && pendingNextOffer === nextUp.offerId) win.webContents.send(IPC.evNextUp, nextUp)
+  }
   if (hadWindow && !win.webContents.isLoading()) send()
   else win.webContents.once('did-finish-load', () => setTimeout(send, 1000))
+}
+
+function offerNextEpisode(nextUp: NextUpOffer, playerPid?: number): void {
+  pendingNextOffer = nextUp.offerId
+  if (!nextNotification) { offerNextEpisodeInApp(nextUp); return }
+  void nextNotification.show(nextUp, playerPid).catch(() => {
+    if (pendingNextOffer !== nextUp.offerId) return
+    nextNotification?.hide(nextUp.offerId)
+    offerNextEpisodeInApp(nextUp)
+  })
 }
 
 function setWindowTheme(theme: 'dark' | 'light'): void {
@@ -245,6 +266,7 @@ function registerProtocol(): void {
   protocol.handle('app', (request) => {
     const url = new URL(request.url)
     if (url.host !== 'theama') return new Response('Forbidden', { status: 403 })
+    if (url.pathname === '/next-episode-notification') return new Response(nextNotificationHtml(), { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
     const rel = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)
     const file = normalize(join(uiDir, rel))
     // Never serve anything outside the UI bundle (path traversal guard).
@@ -374,15 +396,30 @@ async function main(): Promise<void> {
       if (!conn) return
       await fetch(`${conn.base}/api/v1/playback/files/${fileId}/launched`, { method: 'POST', headers: { Authorization: `Bearer ${conn.token}` } })
     },
-    // The end-to-end tests use a pretend player, so they never open a tracking interface.
-    track: testPlayerLog
-      ? undefined
-      : (job) => {
-          void trackPlayback(job, progressReporter(connection)).done.then((result) => {
-            if (result?.nextUp) offerNextEpisode(result.nextUp)
-          })
-        },
+    // Basic launch tests record arguments; the continuation test runs a local protocol peer.
+    track: testPlayerLog && !(testPlayerScript && testPlayerNode) ? undefined : (job) => trackPlayback(job, progressReporter(connection)),
+    createMpcBridge,
+    focusPlayer,
+    autoPlayEnabled: async () => {
+      const conn = connection()
+      if (!conn) return false
+      const res = await fetch(`${conn.base}/api/v1/settings`, { headers: { Authorization: `Bearer ${conn.token}` }, signal: AbortSignal.timeout(5000) })
+      if (!res.ok) return false
+      const settings = await res.json() as { autoPlayNext?: boolean }
+      return settings.autoPlayNext === true
+    },
+    onNextUp: offerNextEpisode,
+    onNextUpCancelled: (offerId) => {
+      nextNotification?.hide(offerId)
+      if (pendingNextOffer === offerId) pendingNextOffer = null
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.evNextUpCancelled, offerId)
+    },
   })
+  nextNotification = new NextEpisodeNotification({
+    preload: join(__dirname, 'next-notification.cjs'), language: () => prefs.language, playerBounds: playerWindowBounds,
+    play: (id) => players.playNext(id), cancel: (id) => players.cancelNext(id),
+  })
+  app.on('before-quit', () => { players.dispose(); nextNotification?.dispose() })
   const trailer = new TrailerView({
     // Honoured only in unpackaged builds, like the other test hooks.
     testUrl: dev ? process.env.THEAMA_TEST_TRAILER_URL : undefined,

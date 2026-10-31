@@ -193,8 +193,10 @@ function offerNextEpisodeInApp(nextUp: NextUpOffer): void {
 
 function offerNextEpisode(nextUp: NextUpOffer, playerPid?: number): void {
   pendingNextOffer = nextUp.offerId
+  logDesktop(paths.logsDir, 'info', 'Next episode offered', { next: nextUp.next.fileId, countdownSeconds: nextUp.countdownSeconds, playerPid })
   if (!nextNotification) { offerNextEpisodeInApp(nextUp); return }
-  void nextNotification.show(nextUp, playerPid).catch(() => {
+  void nextNotification.show(nextUp, playerPid).catch((err: unknown) => {
+    logDesktop(paths.logsDir, 'warn', 'The next-episode notification could not be shown', { err: err instanceof Error ? err.message : String(err) })
     if (pendingNextOffer !== nextUp.offerId) return
     nextNotification?.hide(nextUp.offerId)
     offerNextEpisodeInApp(nextUp)
@@ -397,7 +399,13 @@ async function main(): Promise<void> {
       await fetch(`${conn.base}/api/v1/playback/files/${fileId}/launched`, { method: 'POST', headers: { Authorization: `Bearer ${conn.token}` } })
     },
     // Basic launch tests record arguments; the continuation test runs a local protocol peer.
-    track: testPlayerLog && !(testPlayerScript && testPlayerNode) ? undefined : (job) => trackPlayback(job, progressReporter(connection)),
+    track: testPlayerLog && !(testPlayerScript && testPlayerNode) ? undefined : (job) => {
+      const tracker = trackPlayback(job, progressReporter(connection))
+      void tracker.finished.then(({ result, reason }) => logDesktop(paths.logsDir, 'info', 'Playback viewing finished', {
+        fileId: job.fileId, player: job.plan.kind, reason, outcome: result?.outcome ?? null, nextUp: result?.nextUp?.next.fileId ?? null,
+      }))
+      return tracker
+    },
     createMpcBridge,
     focusPlayer,
     autoPlayEnabled: async () => {
@@ -417,7 +425,12 @@ async function main(): Promise<void> {
   })
   nextNotification = new NextEpisodeNotification({
     preload: join(__dirname, 'next-notification.cjs'), language: () => prefs.language, playerBounds: playerWindowBounds,
-    play: (id) => players.playNext(id), cancel: (id) => players.cancelNext(id),
+    play: async (id) => {
+      const result = await players.playNext(id)
+      logDesktop(paths.logsDir, result.ok ? 'info' : 'warn', 'Next episode requested', { ok: result.ok, code: result.code, message: result.message })
+      return result
+    },
+    cancel: (id) => players.cancelNext(id),
   })
   app.on('before-quit', () => { players.dispose(); nextNotification?.dispose() })
   const trailer = new TrailerView({

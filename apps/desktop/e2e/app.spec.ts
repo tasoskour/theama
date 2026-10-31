@@ -304,7 +304,7 @@ test('identifies titles with TMDB: key set-up, posters, details, and choosing be
   await expect(page.getByText('Identified automatically using TMDB')).toBeVisible()
   await expect(page.getByText('Matthew McConaughey')).toBeVisible()
   await expect(page.getByRole('button', { name: /Christopher Nolan/ })).toBeVisible()
-  await page.getByRole('button', { name: /Matthew McConaughey/ }).hover()
+  await page.getByRole('button', { name: /Matthew McConaughey/ }).click()
   await expect(page.getByText('No other available movies or series with this person are in your library.')).toBeVisible()
 
   // A series: provider episode names replace the guess from the file name.

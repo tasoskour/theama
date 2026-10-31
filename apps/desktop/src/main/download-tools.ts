@@ -4,11 +4,26 @@ import { isIP } from 'node:net'
 import { win32 } from 'node:path'
 import { promisify } from 'node:util'
 import { z } from 'zod'
-import { DownloadTool, type DownloadToolsStatus, type OpenDownloadToolResult } from '@theama/contracts'
+import { DownloadTool, type DownloadToolsStatus, type OpenDownloadToolResult, type VpnLocation } from '@theama/contracts'
 
 const execFileAsync = promisify(execFile)
 const PROTECTION_URL = 'https://api.nordvpn.com/v1/helpers/ips/insights'
 const ToolList = DownloadTool.options
+
+const Insights = z.object({
+  protected: z.boolean(),
+  country: z.string().optional(),
+  country_code: z.string().length(2).optional(),
+  city: z.string().optional(),
+})
+export type Protection = { protected: boolean; location: VpnLocation | null }
+
+export function parseInsights(body: unknown): Protection {
+  const insights = Insights.parse(body)
+  // The place is only ever shown for a verified connection; a partial answer just means no place.
+  const location = insights.country ? { country: insights.country, countryCode: insights.country_code?.toUpperCase() ?? null, city: insights.city || null } : null
+  return { protected: insights.protected, location }
+}
 
 const Snapshot = z.object({
   processes: z.array(z.string()),
@@ -99,7 +114,7 @@ export interface DownloadToolsOptions {
   env?: NodeJS.ProcessEnv
   exists?: (path: string) => boolean
   snapshot?: () => Promise<NetworkSnapshot>
-  protection?: () => Promise<boolean>
+  protection?: () => Promise<Protection>
   launch?: (path: string) => Promise<void>
   ready?: (url: string) => Promise<boolean>
   sleep?: (ms: number) => Promise<void>
@@ -140,9 +155,9 @@ export class DownloadToolsManager {
           const protectedConnection = await (this.options.protection ?? (async () => {
             const res = await fetch(PROTECTION_URL, { signal: AbortSignal.timeout(5000), redirect: 'error', cache: 'no-store' })
             if (!res.ok) throw new Error('Protection check failed')
-            return z.object({ protected: z.boolean() }).parse(await res.json()).protected
+            return parseInsights(await res.json())
           }))()
-          if (protectedConnection) {
+          if (protectedConnection.protected) {
             if (vpn.reason === 'no_tunnel') {
               // A protected public connection without a supported local tunnel may be
               // NordWhisper, a router VPN, or another protocol we cannot inspect.
@@ -150,7 +165,7 @@ export class DownloadToolsManager {
             } else {
               // Do not publish a green result if the tunnel dropped during the HTTPS request.
               snapshot = await this.snapshot()
-              if (localVpnState(snapshot).reason === 'protection_failed') vpn = { state: 'connected', reason: 'verified', checkedAt: this.now() }
+              if (localVpnState(snapshot).reason === 'protection_failed') vpn = { state: 'connected', reason: 'verified', checkedAt: this.now(), location: protectedConnection.location }
               else vpn = { state: 'unknown', reason: 'route_mismatch', checkedAt: this.now() }
             }
           }

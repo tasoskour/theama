@@ -3,7 +3,7 @@ import type { SubtitleSearchHit } from '@theama/contracts'
 export interface SubtitleQuery {
   path: string
   title: string
-  language: string
+  languages: string[]
   kind: 'movie' | 'episode'
   year: number | null
   season: number | null

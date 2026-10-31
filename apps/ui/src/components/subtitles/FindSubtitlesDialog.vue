@@ -14,7 +14,9 @@ const { t, locale } = useI18n()
 const connection = useConnectionStore()
 const settings = useSettingsStore()
 const store = useSubtitlesStore()
-const language = ref('el')
+/** Matches the server's limit on languages per search. */
+const MAX_LANGUAGES = 6
+const selectedLanguages = ref<string[]>([])
 const provider = ref<SubtitleProviderId>('opensubtitles')
 const title = ref('')
 const results = ref<SubtitleSearchHit[]>([])
@@ -28,15 +30,22 @@ let generation = 0
 const providerItems = computed(() => store.providers.filter((p) => p.configured).map((p) => ({ title: subtitleProviderName(p.id), value: p.id })))
 const languages = computed(() => {
   const names = new Intl.DisplayNames([locale.value], { type: 'language' })
-  return SUBTITLE_LANGUAGES.map((code) => ({ value: code, title: names.of(code) ?? code }))
+  const full = selectedLanguages.value.length >= MAX_LANGUAGES
+  return SUBTITLE_LANGUAGES.map((code) => ({ value: code, title: names.of(code) ?? code, props: { disabled: full && !selectedLanguages.value.includes(code) } }))
 })
+/** The selection with the preferred languages from settings first, in their order, so results group the way playback prefers. */
+function orderedLanguages(): string[] {
+  const preferred = settings.settings.subtitleLanguages
+  const rank = (code: string) => { const i = preferred.indexOf(code); return i < 0 ? preferred.length : i }
+  return [...selectedLanguages.value].sort((a, b) => rank(a) - rank(b))
+}
 async function loadExisting(): Promise<void> {
   if (connection.client) existing.value = await connection.client.get(`/library/files/${props.file.id}/subtitles`, FileSubtitles)
 }
 watch([open, () => props.file.id], async ([isOpen]) => {
   const current = ++generation
   if (!isOpen) return
-  language.value = settings.settings.subtitleLanguages[0] ?? 'el'
+  selectedLanguages.value = settings.settings.subtitleLanguages.length ? [...settings.settings.subtitleLanguages] : ['el']
   title.value = props.file.title.slice(0, 200)
   results.value = []; selection.value = null; saved.value = ''; error.value = ''; searched.value = false; existing.value = null
   busy.value = true
@@ -48,13 +57,13 @@ watch([open, () => props.file.id], async ([isOpen]) => {
   } catch (err) { if (current === generation) error.value = t(subtitleErrorKey(err)) }
   finally { if (current === generation) busy.value = false }
 })
-watch([language, provider, title], () => { results.value = []; searched.value = false; selection.value = null; saved.value = '' })
+watch([selectedLanguages, provider, title], () => { results.value = []; searched.value = false; selection.value = null; saved.value = '' })
 async function search(): Promise<void> {
   if (!connection.client || busy.value) return
   const current = generation
   busy.value = true; error.value = ''; saved.value = ''; results.value = []; selection.value = null; searched.value = false
   try {
-    const response = await connection.client.post(`/library/files/${props.file.id}/subtitles/search`, { provider: provider.value, language: language.value, title: title.value.trim() }, SubtitleSearchResults)
+    const response = await connection.client.post(`/library/files/${props.file.id}/subtitles/search`, { provider: provider.value, languages: orderedLanguages(), title: title.value.trim() }, SubtitleSearchResults)
     if (current === generation) { results.value = response.results; searched.value = true }
   } catch (err) { if (current === generation) error.value = t(subtitleErrorKey(err)) }
   finally { if (current === generation) busy.value = false }
@@ -85,9 +94,14 @@ async function download(resultId: string, entryId?: string): Promise<void> {
         <p class="filename th-mono">{{ file.fileName }}</p>
         <form class="search" @submit.prevent="search">
           <v-select v-model="provider" :items="providerItems" :label="$t('subtitles.provider')" :disabled="busy || !providerItems.length" hide-details />
-          <v-select v-model="language" :items="languages" :label="$t('subtitles.language')" :disabled="busy" hide-details />
+          <v-select v-model="selectedLanguages" :items="languages" :label="$t('subtitles.language')" :disabled="busy" multiple hide-details>
+            <template #selection="{ item, index }">
+              <v-chip v-if="index < 2" size="small" label :text="item.title" class="language-chip" />
+              <span v-else-if="index === 2" class="th-muted text-caption ml-1 text-no-wrap">{{ $t('subtitles.languagesMore', { n: selectedLanguages.length - 2 }) }}</span>
+            </template>
+          </v-select>
           <v-text-field v-model="title" :label="$t('subtitles.searchTitle')" :disabled="busy" maxlength="200" hide-details />
-          <v-btn type="submit" color="primary" :disabled="busy || !providerItems.length || !title.trim() || !connection.isConnected">{{ $t('subtitles.search') }}</v-btn>
+          <v-btn type="submit" color="primary" :disabled="busy || !providerItems.length || !selectedLanguages.length || !title.trim() || !connection.isConnected">{{ $t('subtitles.search') }}</v-btn>
         </form>
         <v-alert v-if="!busy && !providerItems.length" type="info" variant="tonal">
           {{ $t('subtitles.setupHint') }}
@@ -139,6 +153,7 @@ async function download(resultId: string, entryId?: string): Promise<void> {
 .search { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 12px; align-items: center; }
 .search > .v-btn { grid-column: 1 / -1; }
 .filename { overflow-wrap: anywhere; }
+.language-chip { max-width: 7rem; margin-inline-end: 4px; }
 h3 { font-size: 1rem; margin-bottom: 8px; }
 p { margin: 0; }
 .results { padding: 0; margin: 0; list-style: none; }

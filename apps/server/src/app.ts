@@ -30,6 +30,7 @@ import {
   IdentifyRequest,
   MetadataSearchQuery,
   MetadataPersonTitlesQuery,
+  AwardsQuery,
   MetadataSuggestionsQuery,
   MetadataSuggestionDetailsQuery,
   SetCredentialsRequest,
@@ -70,6 +71,7 @@ import {
   type LibraryStatus,
   type MetadataSearchResult,
   type MetadataPersonTitlesResult,
+  type AwardsResult,
   type MetadataSuggestionsResult,
   type MetadataSuggestionDetails,
   type MetadataStatus,
@@ -102,6 +104,7 @@ import { DownloadClientError } from './downloads/qbittorrent'
 import type { DownloadMonitor } from './downloads/monitor'
 import type { FavoritesRepo } from './downloads/favorites'
 import { DownloadNotFound, FilesNotReady, InvalidFileSelection, ReleaseExpired, type DownloadsService } from './downloads/service'
+import type { AwardsService } from './metadata/awards'
 import { MetadataProblem, type MetadataManager } from './metadata/manager'
 import { normaliseTitle } from './scan/filename'
 import { ProviderError, type MetadataProvider } from './metadata/provider'
@@ -145,6 +148,7 @@ export interface AppDeps {
   scans: ScanManager
   auto: AutoScanner
   metadata: MetadataManager
+  awards: AwardsService
   credentials: CredentialStore
   subtitles: SubtitleService
   provider: MetadataProvider
@@ -164,7 +168,7 @@ function apiError(code: string, message: string, details?: unknown): ApiError {
 
 export async function buildApp(deps: AppDeps) {
   const logReader = new BackgroundReader()
-  const { config, logger, logHub, settings, serviceEvents, library, exclusions, files, titles, collections, playback, renamer, journal, backups, ffprobeFound, jobs, scans, auto, metadata, credentials, provider, downloads, downloadMonitor, artwork, events, token, startedAt } = deps
+  const { config, logger, logHub, settings, serviceEvents, library, exclusions, files, titles, collections, playback, renamer, journal, backups, ffprobeFound, jobs, scans, auto, metadata, awards, credentials, provider, downloads, downloadMonitor, artwork, events, token, startedAt } = deps
   const app = Fastify({
     loggerInstance: logger,
     logController: new LogController({ disableRequestLogging: true }),
@@ -619,6 +623,16 @@ export async function buildApp(deps: AppDeps) {
     try {
       return await metadata.personTitles(q.externalId, q.category)
     } catch (err) { return metadataFailure(err) }
+  })
+
+  app.get(`${API_PREFIX}/metadata/awards`, async (req): Promise<AwardsResult> => {
+    const q = AwardsQuery.parse(req.query)
+    try {
+      return await awards.awards(q.subject, q.externalId)
+    } catch (err) {
+      if (err instanceof ProviderError) throw new ApiProblem('provider_unavailable', err.message, 503)
+      throw err
+    }
   })
 
   app.get(`${API_PREFIX}/metadata/suggestions`, async (req): Promise<MetadataSuggestionsResult> => {

@@ -2,12 +2,14 @@ import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import {
   GENRE_SEPARATOR,
+  AwardsResult,
   GenreList,
   MetadataSearchResult,
   MetadataPersonTitlesResult,
   MetadataStatus,
   MetadataSuggestionDetails,
   MetadataSuggestionsResult,
+  type AwardsSubject,
   type MatchKind,
   type Suggestion,
   type GenreMode,
@@ -86,6 +88,15 @@ export const useMetadataStore = defineStore('metadata', () => {
     } catch (err) { return failure(err) as { ok: false; code: string; message: string } }
   }
 
+  /** Awards and nominations for a title or a person; the server remembers answers for a day. */
+  async function awards(subject: AwardsSubject, externalId: string, signal?: AbortSignal): Promise<({ ok: true } & AwardsResult) | { ok: false; code: string; message: string }> {
+    if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
+    try {
+      const res = await connection.client.get('/metadata/awards', AwardsResult, { subject, externalId }, signal ? { signal } : undefined)
+      return { ok: true, ...res }
+    } catch (err) { return failure(err) as { ok: false; code: string; message: string } }
+  }
+
   /** One page of a suggestions section (what is new, or a year's most popular). The server remembers pages, so asking again is cheap. */
   async function suggestions(
     section: SuggestionSection,
@@ -141,5 +152,5 @@ export const useMetadataStore = defineStore('metadata', () => {
     if (e.type === 'metadata.status') status.value = e.status
   })
 
-  return { status, error, load, saveKey, retry, search, genres, personTitles, suggestions, suggestionDetails }
+  return { status, error, load, saveKey, retry, search, genres, personTitles, awards, suggestions, suggestionDetails }
 })

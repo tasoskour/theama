@@ -128,9 +128,9 @@ test('shows cached cast and director photos with initials for missing or broken 
   await expect(actor()).toContainText('Matthew McConaughey')
 })
 
-test('loads on focus and hover, shows both top sections, scrolls, and retains library navigation', async ({ browserName: _browserName }, testInfo) => {
+test('loads on click, shows both top sections, scrolls, and retains library navigation', async ({ browserName: _browserName }, testInfo) => {
   expect(personRequests).toHaveLength(0)
-  await actor().focus()
+  await actor().click()
   await expect(popup().locator('[data-test="credit-top-title"]')).toHaveCount(20)
   await expect(popup()).toContainText('TMDB 8.4/10')
   expect(personRequests[0]!.searchParams.get('category')).toBe('actor')
@@ -139,7 +139,7 @@ test('loads on focus and hover, shows both top sections, scrolls, and retains li
   await page.screenshot({ path: testInfo.outputPath('person-popup.png') })
   await page.keyboard.press('Escape')
   await expect(popup()).toHaveCount(0)
-  await director().hover()
+  await director().click()
   await expect(popup().locator('[data-test="credit-top-title"]')).toHaveCount(20)
   expect(personRequests.at(-1)!.searchParams.get('category')).toBe('director')
   await popup().locator('[data-test="credit-related-title"]').click()
@@ -149,7 +149,7 @@ test('loads on focus and hover, shows both top sections, scrolls, and retains li
 
 test('explicit movie and series actions search releases directly without metadata search', async () => {
   for (const kind of ['movie', 'series'] as const) {
-    await actor().focus()
+    await actor().click()
     const row = popup().locator(`[data-test="credit-top-${kind}"] [data-test="credit-top-title"]`).first()
     await row.locator('[data-test="credit-releases"]').click()
     await expect.poll(() => releaseRequests.length).toBe(kind === 'movie' ? 1 : 2)
@@ -171,7 +171,7 @@ test('explicit movie and series actions search releases directly without metadat
 })
 
 test('director suggestions retain the person through filtering, previews and release navigation', async () => {
-  await director().focus()
+  await director().click()
   await popup().locator('[data-test="credit-top-movie"] [data-test="credit-releases"]').first().click()
   await page.locator('[data-test="releases-back"]').click()
   const suggestions = page.locator('[data-test="person-suggestions"]')
@@ -192,7 +192,7 @@ test('director suggestions retain the person through filtering, previews and rel
 })
 
 test('failed person suggestions do not fall back to general titles', async () => {
-  await actor().focus()
+  await actor().click()
   await popup().locator('[data-test="credit-top-movie"] [data-test="credit-releases"]').first().click()
   personHandler = async (route) => { await route.fulfill({ status: 503, json: { error: { code: 'unavailable', message: 'Person lookup offline' } } }) }
   await page.locator('[data-test="releases-back"]').click()
@@ -204,7 +204,7 @@ test('failed person suggestions do not fall back to general titles', async () =>
 })
 
 test('reloading a person link preserves its scoped suggestions after connecting', async () => {
-  await actor().focus()
+  await actor().click()
   await popup().locator('[data-test="credit-top-movie"] [data-test="credit-releases"]').first().click()
   await expect(page.locator('[data-test="releases-back"]')).toBeVisible()
   await page.reload()
@@ -218,7 +218,7 @@ test('reloading a person link preserves its scoped suggestions after connecting'
 
 test('errors retain library links, retry succeeds, and empty sections are explained', async () => {
   personHandler = async (route) => { await route.fulfill({ status: 503, json: { error: { code: 'unavailable', message: 'Provider offline' } } }) }
-  await actor().focus()
+  await actor().click()
   await expect(popup().locator('[data-test="credit-error"]')).toContainText('Provider offline')
   await expect(popup().locator('[data-test="credit-related-title"]')).toBeVisible()
   personHandler = async (route) => { await route.fulfill({ json: { items: [] } }) }
@@ -238,10 +238,10 @@ test('a dismissed lookup cannot overwrite a different popup and the popup fits a
       await route.fulfill({ status: 503, json: { error: { code: 'unavailable', message: 'Late error' } } }).catch(() => undefined)
     } else await route.fulfill({ json: { items } })
   }
-  await actor().focus()
+  await actor().click()
   await expect(popup().locator('[data-test="credit-loading"]')).toBeVisible()
   await page.keyboard.press('Escape')
-  await director().focus()
+  await director().click()
   await expect(popup().locator('[data-test="credit-top-title"]')).toHaveCount(20)
   finish()
   await expect(popup().locator('[data-test="credit-error"]')).toHaveCount(0)

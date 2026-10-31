@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DownloadToolsManager, localVpnState, prowlarrAddress, toolLocations, type DownloadToolsOptions, type NetworkSnapshot } from './download-tools'
+import { DownloadToolsManager, localVpnState, parseInsights, prowlarrAddress, toolLocations, type DownloadToolsOptions, type NetworkSnapshot } from './download-tools'
 
 function network(overrides: Partial<NetworkSnapshot> = {}): NetworkSnapshot {
   return {
@@ -10,7 +10,7 @@ function network(overrides: Partial<NetworkSnapshot> = {}): NetworkSnapshot {
 }
 function setup(overrides: Partial<DownloadToolsOptions> = {}) {
   const snapshot = vi.fn(async () => network())
-  const protection = vi.fn(async () => true)
+  const protection = vi.fn(async () => ({ protected: true, location: { country: 'Germany', countryCode: 'DE', city: 'Frankfurt' } }))
   const launch = vi.fn(async (_path: string) => undefined)
   const openBrowser = vi.fn(async () => undefined)
   const ready = vi.fn(async () => true)
@@ -23,14 +23,14 @@ describe('NordVPN connection evidence', () => {
   it('verifies an active, routed tunnel only after the online check and a second local check', async () => {
     const { manager, protection, snapshot } = setup()
     const status = await manager.status()
-    expect(status.vpn).toEqual({ state: 'connected', reason: 'verified', checkedAt: 12345 })
+    expect(status.vpn).toEqual({ state: 'connected', reason: 'verified', checkedAt: 12345, location: { country: 'Germany', countryCode: 'DE', city: 'Frankfurt' } })
     expect(protection).toHaveBeenCalledOnce()
     expect(snapshot).toHaveBeenCalledTimes(2)
     expect(status.tools.qbittorrent.running).toBe(true) // No Web UI requests are used.
   })
 
   it('never treats an open NordVPN app or service as a connection', async () => {
-    const protection = vi.fn(async () => false)
+    const protection = vi.fn(async () => ({ protected: false, location: null }))
     const { manager } = setup({ protection, snapshot: async () => network({
       processes: ['NordVPNApp', 'nordvpn-service', 'qbittorrent'],
       adapters: [{ index: 22, name: 'NordLynx', description: 'NordLynx Tunnel', up: false }],
@@ -73,7 +73,7 @@ describe('NordVPN connection evidence', () => {
   })
 
   it('does not verify an unprotected public connection', async () => {
-    const { manager } = setup({ protection: async () => false })
+    const { manager } = setup({ protection: async () => ({ protected: false, location: null }) })
     expect((await manager.status()).vpn).toMatchObject({ state: 'unknown', reason: 'protection_failed' })
   })
 
@@ -89,6 +89,21 @@ describe('NordVPN connection evidence', () => {
       expect((await manager.status()).vpn.state).toBe('unknown')
       expect(http.mock.calls[0]?.[0]).toBe('https://api.nordvpn.com/v1/helpers/ips/insights')
     } finally { http.mockRestore() }
+  })
+
+  it('never reports a place unless the connection is verified', async () => {
+    const dropped = setup()
+    dropped.snapshot.mockResolvedValueOnce(network()).mockResolvedValueOnce(network({ internetRoutes: [14, 14] }))
+    expect((await dropped.manager.status()).vpn.location).toBeUndefined()
+    const unprotected = setup({ protection: async () => ({ protected: false, location: { country: 'Germany', countryCode: 'DE', city: null } }) })
+    expect((await unprotected.manager.status()).vpn.location).toBeUndefined()
+  })
+
+  it('reads the place from the insights response and tolerates a missing one', () => {
+    expect(parseInsights({ protected: true, country: 'Germany', country_code: 'de', city: 'Frankfurt' }))
+      .toEqual({ protected: true, location: { country: 'Germany', countryCode: 'DE', city: 'Frankfurt' } })
+    expect(parseInsights({ protected: true })).toEqual({ protected: true, location: null })
+    expect(parseInsights({ protected: true, country: 'Germany', city: '' }).location).toEqual({ country: 'Germany', countryCode: null, city: null })
   })
 
   it('reports unknown process state if Windows probing fails', async () => {

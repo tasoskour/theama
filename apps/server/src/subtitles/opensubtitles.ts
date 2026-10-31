@@ -81,7 +81,8 @@ export class OpenSubtitlesProvider implements SubtitleProvider {
   }
   async search(q: SubtitleQuery): Promise<SubtitleCandidate[]> {
     const hash = await withTimeout(movieHash(q.path)).catch(() => null)
-    const params: Record<string, string> = { languages: q.language, type: q.kind === 'movie' ? 'movie' : 'episode' }
+    // OpenSubtitles asks for alphabetical order so equivalent searches share a cache entry.
+    const params: Record<string, string> = { languages: [...q.languages].sort().join(','), type: q.kind === 'movie' ? 'movie' : 'episode' }
     if (q.imdbId) params.imdb_id = q.imdbId.replace(/^tt/, '')
     else if (q.tmdbId) params[q.kind === 'episode' ? 'parent_tmdb_id' : 'tmdb_id'] = q.tmdbId
     else params.query = q.title.toLowerCase()
@@ -96,7 +97,7 @@ export class OpenSubtitlesProvider implements SubtitleProvider {
       format: SubtitleFormat.safeParse(win32.extname(file.file_name).slice(1).toLowerCase()).data ?? null,
       hashMatch: a.moviehash_match ?? false, forced: a.foreign_parts_only ?? false, sdh: a.hearing_impaired ?? false,
       downloads: a.download_count ?? null, rating: a.ratings != null && Number.isFinite(Number(a.ratings)) ? Number(a.ratings) : null,
-    }))).filter((r) => r.language === q.language)
+    }))).filter((r) => q.languages.includes(r.language))
   }
   async download(candidate: SubtitleCandidate): Promise<SubtitlePayload> {
     const response = decode(DownloadResponse, await this.request('/download', { file_id: Number(candidate.remoteId) }))

@@ -37,7 +37,8 @@
     "loggedOut": "Έγινε αποσύνδεση. Το κλειδί API παραμένει ρυθμισμένο.",
     "working": "Επικοινωνία με τον πάροχο υποτίτλων",
     "provider": "Πάροχος",
-    "language": "Γλώσσα υποτίτλων",
+    "language": "Γλώσσες υποτίτλων",
+    "languagesMore": "+{n} ακόμη",
     "searchTitle": "Τίτλος αναζήτησης",
     "search": "Αναζήτηση υποτίτλων",
     "setupHint": "Ρυθμίστε έναν πάροχο υποτίτλων για να ξεκινήσετε την αναζήτηση.",
@@ -317,6 +318,20 @@
     "collections": "Συλλογές"
   },
   "detail": {
+    "awards": {
+      "title": "Βραβεία",
+      "wins": "{count} βραβείο | {count} βραβεία",
+      "nominations": "{count} υποψηφιότητα | {count} υποψηφιότητες",
+      "won": "Βραβεύτηκε",
+      "nominated": "Υποψήφιο",
+      "forWork": "για {work}",
+      "showAll": "Εμφάνιση και των {count}",
+      "showLess": "Λιγότερα",
+      "loading": "Φόρτωση βραβείων…",
+      "none": "Δεν βρέθηκαν βραβεία για αυτό το πρόσωπο.",
+      "unavailable": "Τα βραβεία δεν μπόρεσαν να φορτωθούν αυτή τη στιγμή.",
+      "source": "Πηγή: Wikidata"
+    },
     "personTitles": "Ταινίες και σειρές με {name}",
     "actorSuggestions": "Ταινίες και σειρές με τον/την {name}",
     "directorSuggestions": "Ταινίες και σειρές σε σκηνοθεσία {name}",
@@ -749,13 +764,18 @@
     "tools": {
       "heading": "VPN και εφαρμογές λήψεων",
       "vpn": {
-        "connected": "Η σύνδεση NordVPN επαληθεύτηκε",
-        "disconnected": "Το NordVPN είναι αποσυνδεδεμένο",
-        "unknown": "Δεν ήταν δυνατή η επαλήθευση της σύνδεσης",
-        "unsupported": "Ο έλεγχος VPN δεν υποστηρίζεται σε αυτή την πλατφόρμα"
+        "connected": "Προστασία VPN ενεργή",
+        "disconnected": "Το VPN είναι αποσυνδεδεμένο",
+        "unknown": "Το VPN δεν επαληθεύτηκε",
+        "unsupported": "Ο έλεγχος VPN δεν υποστηρίζεται σε αυτή την πλατφόρμα",
+        "checking": "Έλεγχος της σύνδεσης VPN…"
       },
-      "warning": "Το qBittorrent ενδέχεται να εκτελείται χωρίς επαληθευμένη σύνδεση VPN. Ανοίξτε το NordVPN και συνδεθείτε σε έναν διακομιστή.",
-      "remoteWarning": "Η τοπική σύνδεση NordVPN δεν μπορεί να επαληθεύσει την προστασία ενός απομακρυσμένου qBittorrent.",
+      "warning": "Το qBittorrent ίσως εκτελείται χωρίς προστασία",
+      "remoteWarning": "Το απομακρυσμένο qBittorrent δεν καλύπτεται από το VPN αυτού του υπολογιστή",
+      "fix": "Ανοίξτε το NordVPN και συνδεθείτε σε έναν διακομιστή.",
+      "location": "Συνδεδεμένο μέσω {place}",
+      "details": "Λεπτομέρειες",
+      "hideDetails": "Απόκρυψη λεπτομερειών",
       "reason": {
         "verified": "Η σήραγγα και ο έλεγχος προστασίας NordVPN επαληθεύτηκαν.",
         "no_tunnel": "Δεν βρέθηκε ενεργή σήραγγα NordVPN με έγκυρη διεύθυνση δικτύου.",
@@ -768,6 +788,11 @@
         "remote": "Αυτή η διεύθυνση qBittorrent δεν είναι τοπική σε αυτόν τον υπολογιστή. Ελέγξτε το VPN στον υπολογιστή που εκτελεί το qBittorrent."
       },
       "open": {
+        "nordvpn": "NordVPN",
+        "qbittorrent": "qBittorrent",
+        "prowlarr": "Prowlarr"
+      },
+      "openLabel": {
         "nordvpn": "Άνοιγμα NordVPN",
         "qbittorrent": "Άνοιγμα qBittorrent",
         "prowlarr": "Άνοιγμα Prowlarr"

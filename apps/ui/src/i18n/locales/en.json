@@ -37,7 +37,8 @@
     "loggedOut": "Signed out. The API key is still configured.",
     "working": "Contacting subtitle provider",
     "provider": "Provider",
-    "language": "Subtitle language",
+    "language": "Subtitle languages",
+    "languagesMore": "+{n} more",
     "searchTitle": "Search title",
     "search": "Search subtitles",
     "setupHint": "Configure a subtitle provider to start searching.",
@@ -317,6 +318,20 @@
     "collections": "Collections"
   },
   "detail": {
+    "awards": {
+      "title": "Awards",
+      "wins": "{count} win | {count} wins",
+      "nominations": "{count} nomination | {count} nominations",
+      "won": "Won",
+      "nominated": "Nominated",
+      "forWork": "for {work}",
+      "showAll": "Show all {count}",
+      "showLess": "Show less",
+      "loading": "Loading awards…",
+      "none": "No awards found for this person.",
+      "unavailable": "Awards could not be loaded right now.",
+      "source": "Source: Wikidata"
+    },
     "personTitles": "Movies and TV series with {name}",
     "actorSuggestions": "Movies and TV series featuring {name}",
     "directorSuggestions": "Movies and TV series directed by {name}",
@@ -749,13 +764,18 @@
     "tools": {
       "heading": "VPN and download apps",
       "vpn": {
-        "connected": "NordVPN connection verified",
-        "disconnected": "NordVPN is disconnected",
-        "unknown": "Connection could not be verified",
-        "unsupported": "VPN checks are unavailable on this platform"
+        "connected": "VPN protected",
+        "disconnected": "VPN disconnected",
+        "unknown": "VPN not verified",
+        "unsupported": "VPN checks are unavailable on this platform",
+        "checking": "Checking your VPN connection…"
       },
-      "warning": "qBittorrent may be running without a verified VPN connection. Open NordVPN and connect to a server.",
-      "remoteWarning": "The local NordVPN connection cannot verify protection for a remote qBittorrent instance.",
+      "warning": "qBittorrent may be running unprotected",
+      "remoteWarning": "A remote qBittorrent is not covered by this PC's VPN",
+      "fix": "Open NordVPN and connect to a server.",
+      "location": "Connected through {place}",
+      "details": "Details",
+      "hideDetails": "Hide details",
       "reason": {
         "verified": "The tunnel and NordVPN protection check passed.",
         "no_tunnel": "No active NordVPN tunnel with a valid network address was found.",
@@ -768,6 +788,11 @@
         "remote": "This qBittorrent address is not local to this PC. Check the VPN on the computer running qBittorrent."
       },
       "open": {
+        "nordvpn": "NordVPN",
+        "qbittorrent": "qBittorrent",
+        "prowlarr": "Prowlarr"
+      },
+      "openLabel": {
         "nordvpn": "Open NordVPN",
         "qbittorrent": "Open qBittorrent",
         "prowlarr": "Open Prowlarr"

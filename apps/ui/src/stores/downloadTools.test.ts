@@ -58,7 +58,8 @@ describe('download tools polling', () => {
     await store.refresh()
     let finish!: (value: DownloadToolsStatus) => void
     bridge.status.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
-    await vi.advanceTimersByTimeAsync(VPN_STALE_MS)
+    // The check that hangs starts on the next ten second tick; it expires VPN_STALE_MS after that.
+    await vi.advanceTimersByTimeAsync(10_000 + VPN_STALE_MS)
     expect(store.vpnState).toBe('unknown')
     expect(store.vpnReason).toBe('stale')
     expect(store.qbRunning).toBeNull()
@@ -69,14 +70,71 @@ describe('download tools polling', () => {
     store.stop()
   })
 
-  it('clears verification on a failed check', async () => {
+  it('keeps the last result after one failed check and clears it after a repeat', async () => {
     const store = useDownloadToolsStore()
     await store.refresh()
+    bridge.status.mockRejectedValueOnce(new Error('IPC unavailable'))
+    await store.refresh()
+    expect(store.vpnState).toBe('connected')
     bridge.status.mockRejectedValueOnce(new Error('IPC unavailable'))
     await store.refresh()
     expect(store.vpnState).toBe('unknown')
     expect(store.vpnReason).toBe('check_failed')
     expect(store.qbRunning).toBeNull()
+  })
+
+  it('shows the loader only before the first result and not for later background checks', async () => {
+    const store = useDownloadToolsStore()
+    expect(store.initializing).toBe(true)
+    store.start()
+    await store.refresh()
+    expect(store.initializing).toBe(false)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(bridge.status).toHaveBeenCalledTimes(2)
+    expect(store.initializing).toBe(false)
+    expect(store.manualChecking).toBe(false)
+    store.stop()
+  })
+
+  it('keeps showing the last verified result while returning to the screen re-checks', async () => {
+    const store = useDownloadToolsStore()
+    store.start()
+    await store.refresh()
+    store.stop()
+    await vi.advanceTimersByTimeAsync(VPN_STALE_MS * 4)
+    let finish!: (value: DownloadToolsStatus) => void
+    bridge.status.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    store.start()
+    expect(store.checking).toBe(true)
+    expect(store.vpnState).toBe('connected')
+    expect(store.initializing).toBe(false)
+    finish({ ...verified(), vpn: { state: 'disconnected', reason: 'no_tunnel', checkedAt: Date.now() } })
+    await store.refresh()
+    expect(store.vpnState).toBe('disconnected')
+    store.stop()
+  })
+
+  it('does not replace the result when a poll finds nothing new', async () => {
+    const store = useDownloadToolsStore()
+    await store.refresh()
+    const first = store.status
+    await vi.advanceTimersByTimeAsync(5)
+    await store.refresh()
+    expect(store.status).toBe(first)
+  })
+
+  it('spins the refresh button only for a manual check and exposes the place when verified', async () => {
+    const store = useDownloadToolsStore()
+    const place = { country: 'Germany', countryCode: 'DE', city: 'Frankfurt' }
+    bridge.status.mockImplementation(async () => ({ ...verified(), vpn: { ...verified().vpn, location: place } }))
+    const action = store.recheck()
+    expect(store.manualChecking).toBe(true)
+    await action
+    expect(store.manualChecking).toBe(false)
+    expect(store.vpnLocation).toEqual(place)
+    bridge.status.mockImplementation(async () => ({ ...verified(), vpn: { state: 'disconnected', reason: 'no_tunnel', checkedAt: Date.now(), location: place } }))
+    await store.refresh()
+    expect(store.vpnLocation).toBeNull()
   })
 
   it('ignores results arriving after leaving and checks again on returning', async () => {

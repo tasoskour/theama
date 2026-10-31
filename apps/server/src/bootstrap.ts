@@ -20,6 +20,7 @@ import { RenameService } from './files/rename'
 import { PlaybackRepo } from './playback/store'
 import { ArtworkCache } from './metadata/artwork'
 import { CredentialStore } from './metadata/credentials'
+import { AwardsService } from './metadata/awards'
 import { MetadataManager } from './metadata/manager'
 import { MetadataRepo } from './metadata/store'
 import { TmdbProvider } from './metadata/tmdb'
@@ -129,6 +130,10 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     resetProvider: () => provider.reset(),
     logger,
   })
+  const awards = new AwardsService({
+    ...(config.wikidataEndpoint ? { endpoint: config.wikidataEndpoint } : {}),
+    language: () => (settings.get().metadataLanguage === 'el' ? 'el-GR' : 'en-US'),
+  })
   const scans = new ScanManager({
     library,
     exclusions,
@@ -196,6 +201,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     scans,
     auto,
     metadata,
+    awards,
     credentials,
     subtitles,
     provider,
@@ -245,6 +251,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       logger.info({ reason }, 'Shutting down')
       auto.stop()
       downloadMonitor.stop()
+      awards.close()
       await Promise.all([backups.stop(), metadata.stop(), scans.close()])
       events.stop()
       await app.close()

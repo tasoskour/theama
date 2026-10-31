@@ -2,9 +2,11 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { mdiArrowLeft, mdiClose, mdiMagnify } from '@mdi/js'
-import type { Release, ReleaseKind, ReleaseSource, Resolution } from '@theama/contracts'
+import type { DownloadTool, Release, ReleaseKind, ReleaseSource, Resolution } from '@theama/contracts'
 import { useDownloadsStore } from '@/stores/downloads'
+import { useDownloadToolsStore } from '@/stores/downloadTools'
 import { formatBytes } from '@/utils/format'
+import { toolLogos } from './toolLogos'
 
 type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined }
 
@@ -13,6 +15,7 @@ defineEmits<{ back: [] }>()
 
 const { t, locale } = useI18n()
 const downloads = useDownloadsStore()
+const tools = useDownloadToolsStore()
 
 // The search that is on screen. The fields below are edited freely and only replace it on Search.
 const active = ref<Query>(props.query)
@@ -22,7 +25,7 @@ const season = ref('')
 const episode = ref('')
 
 const loading = ref(false)
-const error = ref<{ code: string; message: string } | null>(null)
+const error = ref<{ code: string; message: string; tool: DownloadTool } | null>(null)
 const source = ref<ReleaseSource | null>(null)
 const items = ref<Release[]>([])
 const received = ref(0)
@@ -72,7 +75,7 @@ async function run(): Promise<void> {
     source.value = res.value.source
     received.value = res.value.received
   } else {
-    error.value = { code: res.code, message: res.message }
+    error.value = { code: res.code, message: res.message, tool: failedTool(res.message, downloads.indexer ? 'prowlarr' : 'qbittorrent') }
   }
 }
 
@@ -115,10 +118,25 @@ async function add(r: Release): Promise<void> {
     sent.value = new Set([...sent.value, r.id])
     snackbar.value = t('downloads.releases.sent')
   } else if (res.code === 'release_expired') {
-    error.value = { code: res.code, message: t('downloads.releases.expired') }
+    error.value = { code: res.code, message: t('downloads.releases.expired'), tool: 'qbittorrent' }
   } else {
-    error.value = { code: res.code, message: res.message }
+    error.value = { code: res.code, message: res.message, tool: failedTool(res.message, 'qbittorrent') }
   }
+}
+
+/** The server names the app it could not reach; otherwise it is the one this step talks to. */
+function failedTool(message: string, fallback: DownloadTool): DownloadTool {
+  if (/prowlarr/i.test(message)) return 'prowlarr'
+  return /qbittorrent/i.test(message) ? 'qbittorrent' : fallback
+}
+
+/** Starts the app that did not answer, then looks again. A download is left for the person to click once more. */
+async function openFailed(): Promise<void> {
+  const failed = error.value
+  if (!failed || !(await tools.open(failed.tool))) return
+  await downloads.load()
+  if (error.value === failed && items.value.length === 0) void run()
+  else error.value = null
 }
 
 function facts(r: Release): string[] {
@@ -190,7 +208,23 @@ const heading = computed(() => {
       <template v-if="error.code === 'not_configured'">
         <router-link to="/settings/downloads">{{ $t('downloads.find.openSettings') }}</router-link>
       </template>
-      <template #append><v-btn variant="text" size="small" @click="run">{{ $t('common.retry') }}</v-btn></template>
+      <template #append>
+        <v-btn
+          v-if="tools.available && error.code === 'unreachable'"
+          variant="tonal"
+          size="small"
+          class="mr-1"
+          :loading="tools.opening[error.tool] === true"
+          :disabled="tools.opening[error.tool] === true"
+          :aria-label="$t(`downloads.tools.openLabel.${error.tool}`)"
+          data-test="release-open-tool"
+          @click="openFailed"
+        >
+          <img :src="toolLogos[error.tool]" alt="" width="18" height="18" class="mr-2">
+          {{ $t(`downloads.tools.openLabel.${error.tool}`) }}
+        </v-btn>
+        <v-btn variant="text" size="small" @click="run">{{ $t('common.retry') }}</v-btn>
+      </template>
     </v-alert>
 
     <p v-if="filtered" class="th-muted" data-test="release-filtered">{{ $t('downloads.releases.filteredOut') }}</p>

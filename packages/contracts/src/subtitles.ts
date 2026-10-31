@@ -14,7 +14,8 @@ export const SubtitleCredentialsRequest = z.object({ apiKey: z.string().trim().m
 export const SubtitleLoginRequest = z.object({ username: z.string().trim().min(1).max(200), password: z.string().min(1).max(1000) })
 export const SubtitleSearchRequest = z.object({
   provider: SubtitleProviderId,
-  language: z.string().regex(/^[a-z]{2}$/),
+  /** Most wanted first; results are grouped in this order. */
+  languages: z.array(z.string().regex(/^[a-z]{2}$/)).min(1).max(6).transform((l) => [...new Set(l)]),
   title: z.string().trim().min(1).max(200),
 })
 export type SubtitleSearchRequest = z.infer<typeof SubtitleSearchRequest>

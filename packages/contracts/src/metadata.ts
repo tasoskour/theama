@@ -180,6 +180,31 @@ export type MetadataPersonTitlesQuery = z.infer<typeof MetadataPersonTitlesQuery
 export const MetadataPersonTitlesResult = z.object({ items: z.array(Suggestion) })
 export type MetadataPersonTitlesResult = z.infer<typeof MetadataPersonTitlesResult>
 
+/** What awards are looked up for: a movie, a series, or a person (actor or director). Ids are TMDB ids. */
+export const AwardsSubject = z.enum(['movie', 'series', 'person'])
+export type AwardsSubject = z.infer<typeof AwardsSubject>
+
+export const AwardsQuery = z.object({ subject: AwardsSubject, externalId: z.string().regex(/^\d{1,12}$/) })
+export type AwardsQuery = z.infer<typeof AwardsQuery>
+
+export const Award = z.object({
+  /** The award and category as Wikidata names it, e.g. "Academy Award for Best Picture". */
+  name: z.string(),
+  result: z.enum(['won', 'nominated']),
+  year: z.number().int().nullable(),
+  /** For a person: the film or series the award was for, when known. */
+  forWork: z.string().nullable(),
+})
+export type Award = z.infer<typeof Award>
+
+export const AwardsResult = z.object({
+  wins: z.number().int().nonnegative(),
+  nominations: z.number().int().nonnegative(),
+  /** Wins first, then nominations, newest first. May be capped; the counts are not. */
+  items: z.array(Award),
+})
+export type AwardsResult = z.infer<typeof AwardsResult>
+
 export const IdentifyRequest = z.object({
   key: z.string().min(1).max(1000),
   externalId: z.string().min(1).max(40),

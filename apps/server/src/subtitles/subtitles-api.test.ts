@@ -26,7 +26,7 @@ const configure = async (provider: 'opensubtitles' | 'subdl') => {
   return SubtitleProviders.parse(await res.json())
 }
 async function search(id: number, provider: 'opensubtitles' | 'subdl' = 'opensubtitles') {
-  const res = await send('POST', `/library/files/${id}/subtitles/search`, { provider, language: 'el', title: id === ids.movie ? 'Film' : 'Show' })
+  const res = await send('POST', `/library/files/${id}/subtitles/search`, { provider, languages: ['el'], title: id === ids.movie ? 'Film' : 'Show' })
   expect(res.status).toBe(200)
   return SubtitleSearchResults.parse(await res.json()).results[0]!
 }
@@ -59,9 +59,9 @@ afterAll(async () => {
 describe('authenticated subtitle API', () => {
   it('requires authentication, validates inputs and reports missing setup', async () => {
     expect((await fetch(`${base}/subtitles/providers`)).status).toBe(401)
-    const request = { provider: 'opensubtitles', language: 'el', title: 'Film' }
+    const request = { provider: 'opensubtitles', languages: ['el'], title: 'Film' }
     expect((await send('POST', `/library/files/${ids.movie}/subtitles/search`, request)).status).toBe(409)
-    expect((await send('POST', `/library/files/${ids.movie}/subtitles/search`, { ...request, language: '../el' })).status).toBe(400)
+    expect((await send('POST', `/library/files/${ids.movie}/subtitles/search`, { ...request, languages: ['../el'] })).status).toBe(400)
     expect((await send('PUT', '/subtitles/providers/unknown/credentials', { apiKey: 'x' })).status).toBe(400)
     expect((await send('POST', '/library/files/999999/subtitles/search', request)).status).toBe(404)
   })
@@ -114,7 +114,7 @@ describe('authenticated subtitle API', () => {
   })
   it('reports provider quota failures without leaking upstream responses', async () => {
     fake.state.mode = 'quota'
-    const res = await send('POST', `/library/files/${ids.movie}/subtitles/search`, { provider: 'opensubtitles', language: 'el', title: 'Film' })
+    const res = await send('POST', `/library/files/${ids.movie}/subtitles/search`, { provider: 'opensubtitles', languages: ['el'], title: 'Film' })
     expect(res.status).toBe(429)
     expect(await res.json()).toMatchObject({ error: { code: 'subtitle_quota' } })
   })

@@ -8,6 +8,7 @@ import { TitleDetail, type EpisodeInfo, type EpisodeStatus, type ExternalLinkReq
 import { ApiRequestError } from '@/api/client'
 import AddToCollectionMenu from '@/components/collections/AddToCollectionMenu.vue'
 import FileFacts from '@/components/titles/FileFacts.vue'
+import AwardsList from '@/components/titles/AwardsList.vue'
 import CreditPopover from '@/components/titles/CreditPopover.vue'
 import RenameDialog from '@/components/files/RenameDialog.vue'
 import IdentifyDialog from '@/components/titles/IdentifyDialog.vue'
@@ -107,6 +108,11 @@ const tmdbLink = computed<ExternalLinkRequest | null>(() => {
   return m?.provider === 'tmdb' && s && s.kind !== 'video' && /^\d+$/.test(m.externalId)
     ? { service: 'tmdb', kind: s.kind, id: m.externalId }
     : null
+})
+const awardsSubject = computed(() => {
+  const m = meta.value
+  const s = summary.value
+  return m?.provider === 'tmdb' && s && s.kind !== 'video' && /^\d+$/.test(m.externalId) ? { subject: s.kind, externalId: m.externalId } : null
 })
 const imdbLink = computed<ExternalLinkRequest | null>(() => imdbLinkFor(meta.value?.imdbId))
 const trailerLink = computed<ExternalLinkRequest | null>(() =>
@@ -537,6 +543,8 @@ const metaChips = computed(() => {
         :initial-year="summary.year"
         @identified="onIdentified"
       />
+
+      <AwardsList v-if="awardsSubject" :subject="awardsSubject.subject" :external-id="awardsSubject.externalId" heading-level="h2" hide-when-empty />
 
       <section v-if="detail?.credits.length" class="cast" :aria-label="$t('detail.castAndCrew')">
         <h2 class="th-display files__title">{{ $t('detail.castAndCrew') }}</h2>

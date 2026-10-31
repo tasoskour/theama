@@ -12,7 +12,7 @@ import { SubdlProvider } from './subdl'
 
 const Credentials = z.object({ apiKey: z.string().min(1), username: z.string().optional(), password: z.string().optional() })
 type Credentials = z.infer<typeof Credentials>
-export interface SubtitleFile extends Omit<SubtitleQuery, 'language'> { available: boolean; guessedTitle?: string }
+export interface SubtitleFile extends Omit<SubtitleQuery, 'languages'> { available: boolean; guessedTitle?: string }
 export interface SubtitleServiceDeps {
   store: CredentialStore
   file(id: number): SubtitleFile | null
@@ -108,7 +108,8 @@ export class SubtitleService {
     const edited = requestedTitle !== file.title.trim().toLocaleLowerCase() && requestedTitle !== file.guessedTitle?.trim().toLocaleLowerCase()
     const candidates = await this.providers[request.provider].search({ ...file, ...request, ...(edited ? { imdbId: null, tmdbId: null } : {}) })
     for (const [id, r] of this.results) if (r.expires <= this.now()) this.results.delete(id)
-    const results = candidates.sort((a, b) => Number(b.hashMatch) - Number(a.hashMatch) || releaseSimilarity(file.path, b.release) - releaseSimilarity(file.path, a.release)).slice(0, 100).map((candidate) => {
+    const rank = (language: string) => request.languages.indexOf(language)
+    const results = candidates.sort((a, b) => rank(a.language) - rank(b.language) || Number(b.hashMatch) - Number(a.hashMatch) || releaseSimilarity(file.path, b.release) - releaseSimilarity(file.path, a.release)).slice(0, 100).map((candidate) => {
       while (this.results.size >= 300) this.results.delete(this.results.keys().next().value!)
       const id = randomUUID()
       this.results.set(id, { fileId, path: file.path, provider: request.provider, candidate, expires: this.now() + SUBTITLE_RESULT_TTL })

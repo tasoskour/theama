@@ -33,7 +33,7 @@ test.beforeAll(async () => {
     ipcMain.removeHandler('downloadTools:open')
     ipcMain.handle('downloadTools:status', () => {
       fake.calls++
-      return { vpn: { state: fake.state, reason: fake.state === 'connected' ? 'verified' : fake.state === 'disconnected' ? 'no_tunnel' : 'check_failed', checkedAt: Date.now() }, tools: {
+      return { vpn: { state: fake.state, reason: fake.state === 'connected' ? 'verified' : fake.state === 'disconnected' ? 'no_tunnel' : 'check_failed', checkedAt: Date.now(), location: fake.state === 'connected' ? { country: 'Germany', countryCode: 'DE', city: 'Frankfurt' } : null }, tools: {
         nordvpn: { installed: true, running: true }, qbittorrent: { installed: true, running: fake.running }, prowlarr: { installed: true, running: false },
       } }
     })
@@ -74,7 +74,7 @@ test.beforeEach(async () => {
 test('shows connection warnings and all three launch buttons without blocking downloads', async () => {
   await navigate('/downloads')
   const panel = page.locator('[data-test="download-tools"]')
-  await expect(panel.locator('[data-test="vpn-status"]')).toContainText('NordVPN is disconnected')
+  await expect(panel.locator('[data-test="vpn-status"]')).toContainText('VPN disconnected')
   await expect(panel.locator('[data-test="vpn-warning"]')).toBeVisible()
   for (const tool of ['nordvpn', 'qbittorrent', 'prowlarr']) {
     await panel.locator(`[data-test="open-${tool}"]`).click()
@@ -83,18 +83,19 @@ test('shows connection warnings and all three launch buttons without blocking do
   await expect(page.locator('[data-test="find-title"]')).toBeEnabled()
   await fake({ state: 'connected' })
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
-  await expect(panel.locator('[data-test="vpn-status"]')).toContainText('NordVPN connection verified')
+  await expect(panel.locator('[data-test="vpn-status"]')).toContainText('VPN protected')
+  await expect(panel.locator('[data-test="vpn-status"]')).toContainText('Germany')
   await expect(panel.locator('[data-test="vpn-warning"]')).toHaveCount(0)
   await fake({ state: 'unknown' })
   await panel.locator('[data-test="vpn-refresh"]').click()
-  await expect(panel.locator('[data-test="vpn-status"]')).toContainText('Connection could not be verified')
+  await expect(panel.locator('[data-test="vpn-status"]')).toContainText('VPN not verified')
   await expect(panel.locator('[data-test="vpn-warning"]')).toBeVisible()
 })
 
 test('shows status with qBittorrent closed, warns after launch, and exposes failures', async () => {
   await fake({ state: 'disconnected', running: false })
   await page.locator('[data-test="vpn-refresh"]').click()
-  await expect(page.locator('[data-test="vpn-status"]')).toContainText('NordVPN is disconnected')
+  await expect(page.locator('[data-test="vpn-status"]')).toContainText('VPN disconnected')
   await expect(page.locator('[data-test="vpn-warning"]')).toHaveCount(0)
   await page.locator('[data-test="open-qbittorrent"]').click()
   await expect(page.locator('[data-test="vpn-warning"]')).toBeVisible()
@@ -111,8 +112,24 @@ test('does not claim local VPN verification protects a remote qBittorrent instan
   await fake({ state: 'connected', running: false })
   await navigate('/settings/downloads')
   await expect(page.locator('[data-test="vpn-warning"]')).toContainText('remote qBittorrent')
-  await expect(page.locator('[data-test="vpn-status"]')).toContainText('Connection could not be verified')
+  await expect(page.locator('[data-test="vpn-status"]')).toContainText('VPN not verified')
   await page.unroute('**/api/v1/downloads/status')
+})
+
+test('offers to open the app that could not be reached and searches again once it is open', async () => {
+  let up = false
+  await page.route(/\/api\/v1\/downloads\/releases\?/, async (route) => up
+    ? route.fulfill({ json: { source: 'prowlarr', received: 0, items: [] } })
+    : route.fulfill({ status: 503, json: { error: { code: 'unreachable', message: 'Could not reach Prowlarr at http://localhost:9696 (fetch failed)' } } }))
+  await navigate('/downloads?kind=movie&title=Film&releases=1')
+  const open = page.locator('[data-test="release-open-tool"]')
+  await expect(page.locator('[data-test="release-error"]')).toContainText('Could not reach Prowlarr')
+  await expect(open).toHaveText('Open Prowlarr')
+  up = true
+  await open.click()
+  await expect(page.locator('[data-test="release-error"]')).toHaveCount(0)
+  expect(await app.evaluate(() => (globalThis as unknown as { downloadToolsFake: FakeTools }).downloadToolsFake.opened)).toEqual(['prowlarr'])
+  await page.unroute(/\/api\/v1\/downloads\/releases\?/)
 })
 
 test('keeps the panel on Downloads Settings only, with accessible English and Greek warnings', async () => {
@@ -123,7 +140,7 @@ test('keeps the panel on Downloads Settings only, with accessible English and Gr
     expect(res.ok).toBe(true)
     await expect(page.locator('html')).toHaveAttribute('lang', language)
     await expect(page.locator('[data-test="vpn-warning"]')).toBeVisible()
-    if (language === 'el') await expect(page.locator('[data-test="open-nordvpn"]')).toHaveText('Άνοιγμα NordVPN')
+    if (language === 'el') await expect(page.locator('[data-test="open-nordvpn"]')).toHaveAttribute('aria-label', 'Άνοιγμα NordVPN')
     const audit = await new AxeBuilder({ page }).setLegacyMode().include('[data-test="download-tools"]').analyze()
     expect(audit.violations).toEqual([])
   }

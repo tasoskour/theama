@@ -44,17 +44,17 @@ export async function startFakeSubtitles() {
       if (state.expireToken && req.headers.authorization) { state.expireToken = false; return json(401, { message: 'Expired' }) }
       if (url.pathname.endsWith('/download')) return json(200, { link: state.mode === 'external' ? 'http://127.0.0.1:9/stolen' : `${origin}/file/release.srt`, file_name: 'release.srt' })
       if (url.pathname.endsWith('/subtitles')) {
-        const language = (url.searchParams.get('languages') ?? 'el').toLowerCase()
+        const languages = (url.searchParams.get('languages') ?? 'el').toLowerCase().split(',')
         const episode = url.searchParams.get('episode_number')
         const release = episode ? `Show.S01E${episode.padStart(2, '0')}.1080p.WEB-DL` : 'Film.2020.1080p.BluRay'
-        if (subdl) return json(200, { status: true, subtitles: [
+        if (subdl) return json(200, { status: true, subtitles: languages.flatMap((language) => [
           { release_name: release, language: language === 'el' ? 'Greek' : language, hi: false, full_season: false, url: '/subtitle/release.zip' },
           { release_name: 'Season Pack', language, full_season: true, url: '/subtitle/pack.zip' },
-        ] })
-        return json(200, { data: [false, true].map((hash, i) => ({ attributes: {
+        ]) })
+        return json(200, { data: languages.flatMap((language, l) => [false, true].map((hash, i) => ({ attributes: {
           release: hash ? release : 'Different.Release', language, moviehash_match: hash,
-          foreign_parts_only: false, hearing_impaired: false, download_count: 10 + i, ratings: '8.5', files: [{ file_id: i + 1, file_name: 'release.srt' }],
-        } })) })
+          foreign_parts_only: false, hearing_impaired: false, download_count: 10 + i, ratings: '8.5', files: [{ file_id: l * 2 + i + 1, file_name: 'release.srt' }],
+        } }))) })
       }
       json(404, {})
     } catch { res.writeHead(500); res.end() }

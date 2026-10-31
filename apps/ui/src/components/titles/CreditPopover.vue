@@ -4,6 +4,7 @@ import type { Suggestion, TitleCredit } from '@theama/contracts'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
 import { useLatestRequest } from '@/composables/useRefresh'
+import AwardsList from './AwardsList.vue'
 import PosterArt from './PosterArt.vue'
 
 const props = defineProps<{ credit: TitleCredit }>()
@@ -43,7 +44,7 @@ watch([open, () => props.credit.externalId, () => props.credit.category], ([show
 </script>
 
 <template>
-  <v-menu v-model="open" open-on-hover open-on-focus open-on-click :close-on-content-click="false" :open-delay="120" :close-delay="180" location="top start" max-width="40rem">
+  <v-menu v-model="open" :close-on-content-click="false" location="top start" max-width="40rem">
     <template #activator="{ props: menuProps }">
       <button v-bind="menuProps" type="button" class="credit" :data-test="`credit-${credit.category}`">
         <span class="credit__portrait" aria-hidden="true">
@@ -62,6 +63,8 @@ watch([open, () => props.credit.externalId, () => props.credit.category], ([show
       <v-card-subtitle>{{ $t(credit.category === 'director' ? 'detail.director' : 'detail.actor') }}</v-card-subtitle>
       <v-divider class="mt-3" />
       <div class="credit-popover__content" data-test="credit-content">
+        <AwardsList subject="person" :external-id="credit.externalId" />
+        <v-divider />
         <h3 class="credit-popover__heading">{{ $t('detail.otherAvailableTitles') }}</h3>
         <p v-if="credit.relatedTitles.length === 0" class="th-muted credit-popover__empty">{{ $t('detail.noOtherTitles') }}</p>
         <v-list v-else density="compact" class="credit-popover__list" :aria-label="$t('detail.otherAvailableTitles')">

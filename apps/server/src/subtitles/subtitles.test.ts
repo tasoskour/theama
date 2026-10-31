@@ -34,7 +34,7 @@ beforeEach(() => {
 })
 async function result(provider: 'opensubtitles' | 'subdl' = 'opensubtitles') {
   await service.setKey(provider, SUBTITLE_TEST_KEY)
-  return (await service.search(1, { provider, language: 'el', title: 'Film' })).results[0]!
+  return (await service.search(1, { provider, languages: ['el'], title: 'Film' })).results[0]!
 }
 
 describe('subtitle content and matching', () => {
@@ -77,7 +77,7 @@ describe('subtitle providers and saving', () => {
     file = { ...file, kind: 'episode', season: 2, episode: 3 }
     for (const provider of ['opensubtitles', 'subdl'] as const) {
       await service.setKey(provider, SUBTITLE_TEST_KEY)
-      const response = await service.search(1, { provider, language: 'el', title: 'Corrected show' })
+      const response = await service.search(1, { provider, languages: ['el'], title: 'Corrected show' })
       expect(response.results.length).toBeGreaterThan(0)
       const request = fake.state.requests.at(-1)!
       expect(request.query).toMatchObject({ season_number: '2', episode_number: '3' })
@@ -89,6 +89,15 @@ describe('subtitle providers and saving', () => {
     const hit = await result('subdl')
     expect(fake.state.requests.at(-1)!.query).toMatchObject({ imdb_id: 'tt1234567', languages: 'EL', full_season: '0' })
     expect(await service.download(1, hit.id)).toMatchObject({ state: 'saved' })
+  })
+  it('searches several languages in one request and groups results in the order asked for', async () => {
+    for (const provider of ['opensubtitles', 'subdl'] as const) {
+      await service.setKey(provider, SUBTITLE_TEST_KEY)
+      const { results } = await service.search(1, { provider, languages: ['fr', 'el'], title: 'Film' })
+      expect(fake.state.requests.at(-1)!.query.languages).toBe(provider === 'subdl' ? 'FR,EL' : 'el,fr')
+      expect(results.map((r) => r.language)).toEqual(provider === 'subdl' ? ['fr', 'el'] : ['fr', 'fr', 'el', 'el'])
+      if (provider === 'opensubtitles') expect(results.map((r) => r.hashMatch)).toEqual([true, false, true, false])
+    }
   })
   it('lets users select an archive entry without downloading or consuming quota twice', async () => {
     const hit = await result('subdl')
@@ -104,10 +113,10 @@ describe('subtitle providers and saving', () => {
   it('renews an expired login once, persists credentials and removes the account on logout', async () => {
     await service.setKey('opensubtitles', SUBTITLE_TEST_KEY)
     await service.login('viewer', SUBTITLE_TEST_PASSWORD)
-    await service.search(1, { provider: 'opensubtitles', language: 'el', title: 'Film' })
+    await service.search(1, { provider: 'opensubtitles', languages: ['el'], title: 'Film' })
     const before = fake.state.logins
     fake.state.expireToken = true
-    await service.search(1, { provider: 'opensubtitles', language: 'el', title: 'Film' })
+    await service.search(1, { provider: 'opensubtitles', languages: ['el'], title: 'Film' })
     expect(fake.state.logins).toBe(before + 1)
     expect(service.secrets()).toContain(SUBTITLE_TEST_PASSWORD)
     expect(JSON.stringify(service.status())).not.toContain(SUBTITLE_TEST_KEY)
@@ -120,9 +129,9 @@ describe('subtitle providers and saving', () => {
     await expect(service.setKey('opensubtitles', 'wrong-key')).rejects.toMatchObject({ apiCode: 'subtitle_forbidden' })
     expect(service.status().providers[0]!.configured).toBe(true)
     fake.state.mode = 'quota'
-    await expect(service.search(1, { provider: 'opensubtitles', language: 'el', title: 'Film' })).rejects.toMatchObject({ apiCode: 'subtitle_quota' })
+    await expect(service.search(1, { provider: 'opensubtitles', languages: ['el'], title: 'Film' })).rejects.toMatchObject({ apiCode: 'subtitle_quota' })
     fake.state.mode = 'unavailable'
-    await expect(service.search(1, { provider: 'opensubtitles', language: 'el', title: 'Film' })).rejects.toMatchObject({ apiCode: 'subtitle_provider_unavailable' })
+    await expect(service.search(1, { provider: 'opensubtitles', languages: ['el'], title: 'Film' })).rejects.toMatchObject({ apiCode: 'subtitle_provider_unavailable' })
   })
   it('binds results to their file, expiry and original path', async () => {
     const hit = await result()

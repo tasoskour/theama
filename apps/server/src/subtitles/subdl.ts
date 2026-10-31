@@ -35,7 +35,7 @@ export class SubdlProvider implements SubtitleProvider {
   }
   async test(): Promise<void> { await this.request({ imdb_id: 'tt0133093', languages: 'EN' }) }
   async search(q: SubtitleQuery): Promise<SubtitleCandidate[]> {
-    const params: Record<string, string> = { languages: q.language.toUpperCase(), type: q.kind === 'movie' ? 'movie' : 'tv', full_season: '0', subs_per_page: '30', releases: '1', client: 'custom_integration' }
+    const params: Record<string, string> = { languages: q.languages.map((l) => l.toUpperCase()).join(','), type: q.kind === 'movie' ? 'movie' : 'tv', full_season: '0', subs_per_page: '30', releases: '1', client: 'custom_integration' }
     if (q.imdbId) params.imdb_id = q.imdbId
     else if (q.tmdbId) params.tmdb_id = q.tmdbId
     else params.film_name = q.title
@@ -43,9 +43,17 @@ export class SubdlProvider implements SubtitleProvider {
     if (q.season !== null) params.season_number = String(q.season)
     if (q.episode !== null) params.episode_number = String(q.episode)
     const response = await this.request(params)
-    return response.subtitles.filter((r) => !r.full_season && (toLanguageCode(r.language ?? r.lang) ?? (r.language ?? r.lang ?? q.language).toLowerCase()) === q.language
-      && (q.season === null || r.season == null || q.season === r.season) && (q.episode === null || r.episode == null || q.episode === r.episode)).map((r) => ({
-      remoteId: r.url, release: r.release_name || r.name || 'SubDL', language: q.language,
+    // An entry without a language can only be attributed when a single language was asked for.
+    const language = (r: (typeof response.subtitles)[number]) => {
+      const tag = r.language ?? r.lang
+      return tag ? toLanguageCode(tag) ?? tag.toLowerCase() : q.languages.length === 1 ? q.languages[0]! : null
+    }
+    return response.subtitles.flatMap((r) => {
+      const code = language(r)
+      return code && !r.full_season && q.languages.includes(code)
+        && (q.season === null || r.season == null || q.season === r.season) && (q.episode === null || r.episode == null || q.episode === r.episode) ? [{ ...r, code }] : []
+    }).map((r) => ({
+      remoteId: r.url, release: r.release_name || r.name || 'SubDL', language: r.code,
       format: SubtitleFormat.safeParse(win32.extname(r.url).slice(1).toLowerCase()).data ?? null,
       hashMatch: false, forced: false, sdh: r.hi ?? false, downloads: null, rating: null,
     }))

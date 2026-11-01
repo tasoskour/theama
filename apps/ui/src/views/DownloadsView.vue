@@ -9,6 +9,7 @@ import { MetadataPersonTitlesQuery } from '@theama/contracts'
 import GenreFilter from '@/components/common/GenreFilter.vue'
 import ActiveDownloads from '@/components/downloads/ActiveDownloads.vue'
 import DownloadToolsPanel from '@/components/downloads/DownloadToolsPanel.vue'
+import OpenToolDialog from '@/components/downloads/OpenToolDialog.vue'
 import ReleaseList from '@/components/downloads/ReleaseList.vue'
 import SuggestionGrid from '@/components/downloads/SuggestionGrid.vue'
 import PersonSuggestions from '@/components/downloads/PersonSuggestions.vue'
@@ -300,6 +301,7 @@ watch(() => route.query, (params) => {
     </header>
 
     <DownloadToolsPanel />
+    <OpenToolDialog />
 
     <v-alert v-if="favorites.error" type="warning" variant="tonal" class="mb-4" data-test="favorites-error">
       {{ $t('downloads.favorites.error', { message: favorites.error }) }}

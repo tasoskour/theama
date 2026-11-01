@@ -116,19 +116,45 @@ test('does not claim local VPN verification protects a remote qBittorrent instan
   await page.unroute('**/api/v1/downloads/status')
 })
 
-test('offers to open the app that could not be reached and searches again once it is open', async () => {
+test('marks each app as running or closed in the tools bar', async () => {
+  await fake({ running: false })
+  await page.locator('[data-test="vpn-refresh"]').click()
+  await expect(page.locator('[data-test="tool-state-prowlarr"]')).toHaveAttribute('data-state', 'stopped')
+  await expect(page.locator('[data-test="tool-state-qbittorrent"]')).toHaveAttribute('data-state', 'stopped')
+  await expect(page.locator('[data-test="open-qbittorrent"]')).toHaveAttribute('aria-label', 'Open qBittorrent (not running)')
+  await fake({ running: true })
+  await page.locator('[data-test="vpn-refresh"]').click()
+  await expect(page.locator('[data-test="tool-state-qbittorrent"]')).toHaveAttribute('data-state', 'running')
+})
+
+test('asks to open the app that could not be reached and searches again once it is open', async () => {
   let up = false
   await page.route(/\/api\/v1\/downloads\/releases\?/, async (route) => up
     ? route.fulfill({ json: { source: 'prowlarr', received: 0, items: [] } })
     : route.fulfill({ status: 503, json: { error: { code: 'unreachable', message: 'Could not reach Prowlarr at http://localhost:9696 (fetch failed)' } } }))
   await navigate('/downloads?kind=movie&title=Film&releases=1')
-  const open = page.locator('[data-test="release-open-tool"]')
-  await expect(page.locator('[data-test="release-error"]')).toContainText('Could not reach Prowlarr')
-  await expect(open).toHaveText('Open Prowlarr')
+  const confirm = page.locator('[data-test="open-tool-confirm"]')
+  await expect(page.getByRole('dialog')).toContainText('Prowlarr is not running')
+  await expect(page.locator('[data-test="release-error"]')).toHaveCount(0)
+  await expect(confirm).toHaveText('Open Prowlarr')
+  const audit = await new AxeBuilder({ page }).setLegacyMode().include('.v-overlay__content').analyze()
+  expect(audit.violations).toEqual([])
   up = true
-  await open.click()
+  await confirm.click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.locator('[data-test="release-none"]')).toBeVisible()
   await expect(page.locator('[data-test="release-error"]')).toHaveCount(0)
   expect(await app.evaluate(() => (globalThis as unknown as { downloadToolsFake: FakeTools }).downloadToolsFake.opened)).toEqual(['prowlarr'])
+  await page.unroute(/\/api\/v1\/downloads\/releases\?/)
+})
+
+test('shows the error with the same offer when the person declines to open the app', async () => {
+  await page.route(/\/api\/v1\/downloads\/releases\?/, (route) => route.fulfill({ status: 503, json: { error: { code: 'unreachable', message: 'Could not reach Prowlarr at http://localhost:9696 (fetch failed)' } } }))
+  await navigate('/downloads?kind=movie&title=Declined&releases=1')
+  await page.locator('[data-test="open-tool-cancel"]').click()
+  await expect(page.locator('[data-test="release-error"]')).toContainText('Prowlarr is not running')
+  await expect(page.locator('[data-test="release-open-tool"]')).toHaveText('Open Prowlarr')
+  expect(await app.evaluate(() => (globalThis as unknown as { downloadToolsFake: FakeTools }).downloadToolsFake.opened)).toEqual([])
   await page.unroute(/\/api\/v1\/downloads\/releases\?/)
 })
 
@@ -140,7 +166,7 @@ test('keeps the panel on Downloads Settings only, with accessible English and Gr
     expect(res.ok).toBe(true)
     await expect(page.locator('html')).toHaveAttribute('lang', language)
     await expect(page.locator('[data-test="vpn-warning"]')).toBeVisible()
-    if (language === 'el') await expect(page.locator('[data-test="open-nordvpn"]')).toHaveAttribute('aria-label', 'Άνοιγμα NordVPN')
+    if (language === 'el') await expect(page.locator('[data-test="open-nordvpn"]')).toHaveAttribute('aria-label', 'Άνοιγμα NordVPN (εκτελείται)')
     const audit = await new AxeBuilder({ page }).setLegacyMode().include('[data-test="download-tools"]').analyze()
     expect(audit.violations).toEqual([])
   }

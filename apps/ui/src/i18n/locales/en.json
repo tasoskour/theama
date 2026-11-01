@@ -797,6 +797,27 @@
         "qbittorrent": "Open qBittorrent",
         "prowlarr": "Open Prowlarr"
       },
+      "state": {
+        "running": "running",
+        "stopped": "not running"
+      },
+      "notRunning": {
+        "nordvpn": "NordVPN is not running.",
+        "qbittorrent": "qBittorrent is not running, so the release could not be sent to it.",
+        "prowlarr": "Prowlarr is not running, so releases could not be searched."
+      },
+      "prompt": {
+        "title": {
+          "nordvpn": "NordVPN is not running",
+          "qbittorrent": "qBittorrent is not running",
+          "prowlarr": "Prowlarr is not running"
+        },
+        "body": {
+          "nordvpn": "Open NordVPN and connect before downloading.",
+          "qbittorrent": "qBittorrent does the downloading. Open it now? Then click Download again.",
+          "prowlarr": "Theama searches for releases through Prowlarr. Open it now? The search runs again once it is ready."
+        }
+      },
       "refresh": "Check connection",
       "error": {
         "not_installed": "The app was not found in its usual installation folders. Install it there, or open it manually.",

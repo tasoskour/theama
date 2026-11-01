@@ -43,7 +43,9 @@ export const useDownloadToolsStore = defineStore('downloadTools', () => {
   const stale = computed(() => !status.value || now.value - (checking.value ? inFlightSince.value : checkedAt.value) >= VPN_STALE_MS)
   const vpnState = computed(() => failed.value || stale.value ? 'unknown' : status.value!.vpn.state)
   const vpnReason = computed(() => failed.value ? 'check_failed' : stale.value ? 'stale' : status.value!.vpn.reason)
-  const qbRunning = computed(() => failed.value || stale.value ? null : status.value?.tools.qbittorrent.running ?? null)
+  /** Whether the app's process was seen in the last current check; null while that is not known. */
+  const running = (tool: DownloadTool): boolean | null => failed.value || stale.value ? null : status.value?.tools[tool].running ?? null
+  const qbRunning = computed(() => running('qbittorrent'))
   const vpnLocation = computed<VpnLocation | null>(() => vpnState.value === 'connected' ? status.value?.vpn.location ?? null : null)
 
   function refresh(): Promise<void> {
@@ -130,5 +132,41 @@ export const useDownloadToolsStore = defineStore('downloadTools', () => {
     }
   }
 
-  return { status, checking, manualChecking, initializing, opening, problem, available, vpnState, vpnReason, vpnLocation, qbRunning, start, stop, refresh, recheck, open }
+  // One question at a time, shared by every screen that found the app closed; a second ask for it joins the first.
+  const prompt = ref<DownloadTool | null>(null)
+  let answer: { promise: Promise<boolean>; resolve: (opened: boolean) => void } | null = null
+
+  function ask(tool: DownloadTool): Promise<boolean> {
+    if (!available) return Promise.resolve(false)
+    if (answer && prompt.value === tool) return answer.promise
+    answer?.resolve(false)
+    let resolve!: (opened: boolean) => void
+    const promise = new Promise<boolean>((done) => { resolve = done })
+    answer = { promise, resolve }
+    prompt.value = tool
+    problem.value = null
+    return answer.promise
+  }
+
+  function settle(opened: boolean): void {
+    const pendingAnswer = answer
+    answer = null
+    prompt.value = null
+    pendingAnswer?.resolve(opened)
+  }
+
+  /** Opens the app being asked about. A failed launch keeps the question open with the reason. */
+  async function confirm(): Promise<void> {
+    const tool = prompt.value
+    if (!tool) return
+    const pendingAnswer = answer
+    if (await open(tool) && answer === pendingAnswer) settle(true)
+  }
+
+  function dismiss(): void {
+    if (prompt.value) problem.value = null
+    settle(false)
+  }
+
+  return { status, checking, manualChecking, initializing, opening, problem, available, vpnState, vpnReason, vpnLocation, qbRunning, prompt, running, start, stop, refresh, recheck, open, ask, confirm, dismiss }
 })

@@ -75,8 +75,28 @@ async function run(): Promise<void> {
     source.value = res.value.source
     received.value = res.value.received
   } else {
-    error.value = { code: res.code, message: res.message, tool: failedTool(res.message, downloads.indexer ? 'prowlarr' : 'qbittorrent') }
+    await failed({ code: res.code, message: res.message, tool: failedTool(res.message, downloads.indexer ? 'prowlarr' : 'qbittorrent') }, true)
   }
+}
+
+/**
+ * A closed app is offered to be opened instead of shown as an error. Once it is open a search runs again;
+ * a download is left for the person to click once more. Declining shows the error with the same offer.
+ */
+async function failed(problem: { code: string; message: string; tool: DownloadTool }, search: boolean): Promise<void> {
+  if (problem.code !== 'unreachable' || !tools.available) {
+    error.value = problem
+    return
+  }
+  const mine = generation
+  const opened = await tools.ask(problem.tool)
+  if (mine !== generation) return
+  if (!opened) {
+    error.value = { ...problem, message: t(`downloads.tools.notRunning.${problem.tool}`) }
+    return
+  }
+  await downloads.load()
+  if (mine === generation && search) void run()
 }
 
 // A new query (another title picked) starts a new search; the list lives only as long as it is on screen.
@@ -120,7 +140,7 @@ async function add(r: Release): Promise<void> {
   } else if (res.code === 'release_expired') {
     error.value = { code: res.code, message: t('downloads.releases.expired'), tool: 'qbittorrent' }
   } else {
-    error.value = { code: res.code, message: res.message, tool: failedTool(res.message, 'qbittorrent') }
+    await failed({ code: res.code, message: res.message, tool: failedTool(res.message, 'qbittorrent') }, false)
   }
 }
 

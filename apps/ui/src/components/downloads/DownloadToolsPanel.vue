@@ -8,7 +8,7 @@ import { useDownloadsStore } from '@/stores/downloads'
 import { toolLogos } from './toolLogos'
 
 defineProps<{ settings?: boolean }>()
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const tools = useDownloadToolsStore()
 const downloads = useDownloadsStore()
 const remote = computed(() => !isLocalDownloadAddress(downloads.client?.url))
@@ -41,6 +41,12 @@ function visibility(): void {
 }
 function focus(): void {
   if (document.visibilityState !== 'hidden') { tools.start(); void tools.refresh() }
+}
+/** Names the app and, once known, whether it is open: the dot on the logo says the same. */
+function label(tool: DownloadTool): string {
+  const action = t(`downloads.tools.openLabel.${tool}`)
+  const running = tools.running(tool)
+  return running === null ? action : `${action} (${t(`downloads.tools.state.${running ? 'running' : 'stopped'}`)})`
 }
 async function open(tool: DownloadTool): Promise<void> {
   if (await tools.open(tool)) await downloads.load()
@@ -97,12 +103,21 @@ onBeforeUnmount(() => {
             class="app"
             :loading="tools.opening[tool] === true"
             :disabled="tools.opening[tool] === true"
-            :aria-label="$t(`downloads.tools.openLabel.${tool}`)"
-            :title="$t(`downloads.tools.openLabel.${tool}`)"
+            :aria-label="label(tool)"
+            :title="label(tool)"
             :data-test="`open-${tool}`"
             @click="open(tool)"
           >
-            <img :src="toolLogos[tool]" alt="" class="app__logo" width="18" height="18">
+            <span class="app__icon">
+              <img :src="toolLogos[tool]" alt="" class="app__logo" width="18" height="18">
+              <span
+                v-if="tools.running(tool) !== null"
+                class="app__state"
+                :class="{ 'app__state--on': tools.running(tool) }"
+                :data-state="tools.running(tool) ? 'running' : 'stopped'"
+                :data-test="`tool-state-${tool}`"
+              />
+            </span>
             <span class="app__label">{{ $t(`downloads.tools.open.${tool}`) }}</span>
           </v-btn>
           <v-btn
@@ -197,7 +212,24 @@ onBeforeUnmount(() => {
   gap: 2px;
   margin-left: auto;
 }
-.app__logo { display: block; flex: none; }
+.app__icon { position: relative; display: block; flex: none; }
+.app__logo { display: block; }
+/* Open: a filled green dot. Closed: an empty ring, so the two differ by shape as well as colour. */
+.app__state {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+  background: rgb(var(--v-theme-surface-light));
+  box-shadow: 0 0 0 1.5px rgb(var(--v-theme-surface-light));
+}
+.app__state--on {
+  border-color: rgb(var(--v-theme-success));
+  background: rgb(var(--v-theme-success));
+}
 .app__label { margin-left: 8px; }
 
 .details {

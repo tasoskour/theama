@@ -185,6 +185,40 @@ describe('download tools polling', () => {
   })
 })
 
+describe('asking to open a closed app', () => {
+  it('opens the app on confirm and resolves every caller that asked about it', async () => {
+    const store = useDownloadToolsStore()
+    const first = store.ask('prowlarr')
+    const second = store.ask('prowlarr')
+    expect(store.prompt).toBe('prowlarr')
+    await store.confirm()
+    expect(await Promise.all([first, second])).toEqual([true, true])
+    expect(bridge.open).toHaveBeenCalledExactlyOnceWith('prowlarr')
+    expect(store.prompt).toBeNull()
+  })
+
+  it('stays open with the reason when the launch fails, and resolves false when dismissed', async () => {
+    const store = useDownloadToolsStore()
+    const answer = store.ask('qbittorrent')
+    bridge.open.mockResolvedValueOnce({ ok: false, code: 'not_installed' })
+    await store.confirm()
+    expect(store.prompt).toBe('qbittorrent')
+    expect(store.problem).toBe('not_installed')
+    store.dismiss()
+    expect(await answer).toBe(false)
+    expect(store.prompt).toBeNull()
+    expect(store.problem).toBeNull()
+  })
+
+  it('reports each app as running, closed or unknown', async () => {
+    const store = useDownloadToolsStore()
+    expect(store.running('prowlarr')).toBeNull()
+    await store.refresh()
+    expect(store.running('qbittorrent')).toBe(true)
+    expect(store.running('prowlarr')).toBe(false)
+  })
+})
+
 describe('qBittorrent host classification', () => {
   it.each(['http://localhost:8080', 'http://127.0.0.1:8080', 'http://[::1]:8080', null])('accepts local address %s', (url) => {
     expect(isLocalDownloadAddress(url)).toBe(true)

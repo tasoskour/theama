@@ -1,3 +1,4 @@
+import { dismissInitialSetup } from './setup-helper'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -21,6 +22,7 @@ test.beforeAll(async () => {
   delete env.ELECTRON_RUN_AS_NODE
   app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], cwd: join(import.meta.dirname, '..'), env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)) as Record<string, string> })
   page = await app.firstWindow()
+  await dismissInitialSetup(page)
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 })
   base = `http://127.0.0.1:${(JSON.parse(readFileSync(join(dataDir, 'runtime.json'), 'utf8')) as { port: number }).port}`

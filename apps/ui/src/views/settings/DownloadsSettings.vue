@@ -6,6 +6,7 @@ import { useDownloadsStore } from '@/stores/downloads'
 import { useLibraryStore } from '@/stores/library'
 import { useSettingsStore } from '@/stores/settings'
 import DownloadToolsPanel from '@/components/downloads/DownloadToolsPanel.vue'
+import SetupHelpLink from '@/components/setup/SetupHelpLink.vue'
 
 const { t } = useI18n()
 const connection = useConnectionStore()
@@ -121,12 +122,21 @@ onMounted(() => {
   void downloads.load()
   if (!library.loaded) void library.load()
 })
+
+defineExpose({ async saveForSetup(): Promise<boolean> {
+  if (qbSaving.value || pSaving.value) return false
+  if (showQbForm.value && (qbUser.value.trim() || qbPass.value || qbEditing.value || qbUrl.value.trim() !== 'http://localhost:8080')) await saveQb()
+  if (qbProblem.value) return false
+  if (showPForm.value && (pKey.value.trim() || pEditing.value || pUrl.value.trim() !== 'http://localhost:9696')) await saveP()
+  return pProblem.value === null
+} })
 </script>
 
 <template>
   <section>
     <h2 class="th-display section-title">{{ $t('settings.sections.downloads') }}</h2>
     <p class="intro">{{ $t('downloads.intro') }}</p>
+    <SetupHelpLink topic="downloads" />
     <DownloadToolsPanel settings />
 
     <div class="field th-form-section" data-test="qb-section">

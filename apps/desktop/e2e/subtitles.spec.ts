@@ -1,3 +1,4 @@
+import { dismissInitialSetup } from './setup-helper'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -24,10 +25,14 @@ test.beforeAll(async () => {
   delete env.ELECTRON_RUN_AS_NODE
   app = await electron.launch({ args: ['.', `--user-data-dir=${profile}`], cwd: join(import.meta.dirname, '..'), env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)) as Record<string, string> })
   page = await app.firstWindow()
+  await dismissInitialSetup(page)
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 })
   // Add test media through the authenticated API; the provider configuration and downloads below use the UI.
   const runtime = JSON.parse(readFileSync(join(root, 'data', 'runtime.json'), 'utf8')) as { port: number }
   const token = readFileSync(join(root, 'data', 'secrets', 'api-token'), 'utf8').trim()
+  // This scenario verifies Greek downloads; choose its language rather than relying on multilingual defaults.
+  const prefs = await fetch(`http://127.0.0.1:${runtime.port}/api/v1/settings`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subtitleLanguages: ['el'] }) })
+  expect(prefs.status).toBe(200)
   const added = await fetch(`http://127.0.0.1:${runtime.port}/api/v1/library/sources`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ path: media, libraryType: 'auto' }) })
   expect(added.status).toBe(201)
 })

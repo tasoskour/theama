@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SetupResourceId } from './setup-resources'
 import { ServiceAccountChoice, ServiceStatus } from './service'
 import type { UiLanguage } from './settings'
 import { LogEntry } from './logs'
@@ -66,6 +67,7 @@ export const SetLanguageRequest = z.object({ language: z.enum(['en', 'el']) })
 export const PickFolderRequest = z.object({ title: z.string().max(200).optional() })
 export const PathRequest = z.object({ path: z.string().min(1).max(32_000) })
 export const ExternalLinkRequest = z.discriminatedUnion('service', [
+  z.object({ service: z.literal('setup'), resource: SetupResourceId }),
   z.object({ service: z.literal('tmdb'), kind: z.enum(['movie', 'series']), id: z.string().regex(/^\d+$/) }),
   z.object({ service: z.literal('imdb'), id: z.string().regex(/^tt\d{5,12}$/) }),
   z.object({ service: z.literal('youtube'), id: z.string().regex(/^[A-Za-z0-9_-]{11}$/) }),
@@ -180,7 +182,7 @@ export interface TheamaBridge {
   setWindowTheme(theme: WindowTheme): Promise<void>
   openPath(path: string): Promise<void>
   showItemInFolder(path: string): Promise<void>
-  /** Opens a known metadata/video destination in the default browser. Arbitrary URLs are not accepted. */
+  /** Opens a known provider, video, or setup destination in the default browser. Arbitrary URLs are not accepted. */
   openExternal(request: ExternalLinkRequest): Promise<void>
   trailer: {
     /** Plays a YouTube trailer inside the app, on the given area of the window. */

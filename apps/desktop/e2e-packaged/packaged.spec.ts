@@ -1,3 +1,4 @@
+import { dismissInitialSetup } from '../e2e/setup-helper'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -30,6 +31,7 @@ test.beforeAll(async () => {
   Object.assign(env, { THEAMA_DATA_DIR: dataDir, THEAMA_PORT: '0', THEAMA_CONTROLLER: 'process' })
   app = await electron.launch({ executablePath: exe, args: [`--user-data-dir=${userData}`], env })
   page = await app.firstWindow()
+  await dismissInitialSetup(page)
 })
 
 test.afterAll(async () => {

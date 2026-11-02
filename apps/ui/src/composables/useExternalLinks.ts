@@ -1,9 +1,10 @@
-import type { ExternalLinkRequest } from '@theama/contracts'
+import { SETUP_RESOURCES, type ExternalLinkRequest } from '@theama/contracts'
 
 /** The desktop app can play a trailer inside the page; a browser tab can only link to YouTube. */
 export const trailerInApp = typeof window !== 'undefined' && window.theama !== undefined
 
 export function externalUrl(link: ExternalLinkRequest): string {
+  if (link.service === 'setup') return SETUP_RESOURCES[link.resource]
   if (link.service === 'tmdb') return `https://www.themoviedb.org/${link.kind === 'series' ? 'tv' : 'movie'}/${link.id}`
   if (link.service === 'imdb') return `https://www.imdb.com/title/${link.id}/`
   if (link.service === 'opensubtitles') return 'https://www.opensubtitles.com/en/consumers'

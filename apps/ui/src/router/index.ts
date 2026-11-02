@@ -5,10 +5,13 @@ declare module 'vue-router' {
   interface RouteMeta {
     /** i18n key of the page title shown in the window title. */
     titleKey?: string
+    /** Setup help must remain readable without a backend connection. */
+    offline?: boolean
   }
 }
 
 const routes: RouteRecordRaw[] = [
+  { path: '/setup', name: 'setup', component: () => import('@/views/SetupWizardView.vue'), meta: { titleKey: 'setup.title', offline: true } },
   { path: '/', name: 'home', component: () => import('@/views/HomeView.vue'), meta: { titleKey: 'nav.home' } },
   { path: '/movies', name: 'movies', component: () => import('@/views/MoviesView.vue'), meta: { titleKey: 'nav.movies' } },
   { path: '/series', name: 'series', component: () => import('@/views/SeriesView.vue'), meta: { titleKey: 'nav.series' } },
@@ -39,6 +42,7 @@ const routes: RouteRecordRaw[] = [
     meta: { titleKey: 'nav.settings' },
     redirect: '/settings/general',
     children: [
+      { path: 'setup', name: 'settings-setup', component: () => import('@/views/settings/SetupGuideView.vue'), meta: { titleKey: 'setup.guideTitle', offline: true } },
       { path: 'general', name: 'settings-general', component: () => import('@/views/settings/GeneralSettings.vue') },
       { path: 'library', name: 'settings-library', component: () => import('@/views/settings/LibrarySettings.vue') },
       {

@@ -37,6 +37,19 @@ function setup(id: SubtitleProviderId): void {
   void openExternal({ service: id }).catch(() => { error.value = t('subtitles.errors.generic') })
 }
 onMounted(() => run(() => store.load(), null))
+
+defineExpose({ async saveForSetup(): Promise<boolean> {
+  if (busy.value) return false
+  for (const id of SubtitleProviderId.options) {
+    if (keys[id].trim()) await save(id)
+    if (error.value) return false
+  }
+  if (username.value.trim() || password.value) {
+    if (!username.value.trim() || !password.value) { error.value = t('subtitles.errors.generic'); return false }
+    await login()
+  }
+  return !error.value
+} })
 </script>
 
 <template>

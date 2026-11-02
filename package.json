@@ -13,6 +13,7 @@
     "packages/*"
   ],
   "scripts": {
+    "docs:setup": "tsx tools/setup-docs.ts",
     "dev": "node tools/dev.mjs",
     "build": "yarn workspaces foreach -A --topological run build",
     "typecheck": "yarn workspaces foreach -A --topological run typecheck",

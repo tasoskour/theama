@@ -8,6 +8,8 @@ A private, cinematic library for the movies, series and personal videos on your 
 
 ## Quick start (development)
 
+**New to Theama?** Follow the [complete setup guide](docs/13-setup-guide.md) · [Πλήρης οδηγός στα Ελληνικά](docs/13-setup-guide.el.md). The app also includes a skippable first-use wizard and a permanent **Settings → Setup Guide** with download links, API-key instructions, configuration checks and troubleshooting. Run `yarn docs:setup` after editing the shared guide content; `yarn docs:setup --check` verifies the generated documentation.
+
 Requires Node.js ≥ 22 (tested on 24) and Yarn (Classic ≥ 1.22 on PATH is enough; the repo pins Yarn 4.18.1).
 
 ```bash

@@ -156,7 +156,7 @@ watch([open, () => props.credit.externalId, () => props.credit.category], ([show
   object-fit: cover;
 }
 .credit__initials {
-  color: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-on-surface));
   font-weight: 650;
   font-size: 0.9rem;
 }

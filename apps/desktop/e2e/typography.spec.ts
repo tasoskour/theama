@@ -1,3 +1,4 @@
+import { dismissInitialSetup } from './setup-helper'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -64,6 +65,7 @@ test.beforeAll(async () => {
   Object.assign(env, { THEAMA_DATA_DIR: dataDir, THEAMA_PORT: '0', THEAMA_CONTROLLER: 'dev', THEAMA_FFPROBE: 'none', THEAMA_TMDB_API_BASE: fake.url, THEAMA_TMDB_IMAGE_BASE: fake.imageUrl })
   app = await electron.launch({ args: ['.', `--user-data-dir=${profile}`], cwd: join(import.meta.dirname, '..'), env })
   page = await app.firstWindow()
+  await dismissInitialSetup(page)
   page.on('pageerror', (error) => errors.push(error.message))
   cdp = await page.context().newCDPSession(page)
   await page.emulateMedia({ reducedMotion: 'reduce' })

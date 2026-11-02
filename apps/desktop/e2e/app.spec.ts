@@ -1,3 +1,4 @@
+import { dismissInitialSetup } from './setup-helper'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { readdir, rename, rm } from 'node:fs/promises'
@@ -42,6 +43,7 @@ test.beforeAll(async () => {
     env: Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined)) as Record<string, string>,
   })
   page = await app.firstWindow()
+  await dismissInitialSetup(page)
   page.on('pageerror', (e) => console.log('[pageerror]', e.message))
 })
 

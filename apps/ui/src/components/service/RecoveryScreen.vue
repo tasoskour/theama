@@ -8,6 +8,7 @@ import { useServiceStore } from '@/stores/service'
 import ServiceInstallDialog from './ServiceInstallDialog.vue'
 import LogList from '@/components/logs/LogList.vue'
 import type { ServiceAccountChoice } from '@theama/contracts'
+import SetupHelpLink from '@/components/setup/SetupHelpLink.vue'
 
 const { t } = useI18n()
 const connection = useConnectionStore()
@@ -57,6 +58,7 @@ async function install(account: ServiceAccountChoice | null): Promise<void> {
     <v-icon :icon="mdiServerNetworkOff" size="3.5rem" color="warning" />
     <h1 class="th-display title">{{ $t('recovery.title') }}</h1>
     <p class="th-muted lead">{{ $t('recovery.body') }}</p>
+    <SetupHelpLink topic="service" />
     <v-alert type="info" variant="tonal" class="state" density="comfortable">{{ message }}</v-alert>
 
     <div class="actions">

@@ -9,9 +9,18 @@ import { i18n, setLanguage } from './i18n'
 import { router } from './router'
 import { vuetify } from './theme/vuetify'
 import { useConnectionStore } from './stores/connection'
+import { useSetupStore } from './stores/setup'
 
 const app = createApp(App)
 app.use(createPinia()).use(router).use(i18n).use(vuetify)
+// Capture first-use state before mounting creates stores that cache default preferences.
+const setup = useSetupStore()
+void router.isReady().then(async () => {
+  if (setup.autoStart && router.currentRoute.value.path === '/') {
+    setup.start()
+    await router.replace('/setup')
+  }
+})
 setLanguage(i18n.global.locale.value)
 app.mount('#app')
 

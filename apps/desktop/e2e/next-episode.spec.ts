@@ -1,3 +1,4 @@
+import { dismissInitialSetup } from './setup-helper'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -39,6 +40,7 @@ test.beforeAll(async () => {
   app = await electron.launch({ args: ['.', `--user-data-dir=${profile}`], cwd: join(import.meta.dirname, '..'),
     env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)) as Record<string, string> })
   page = await app.firstWindow()
+  await dismissInitialSetup(page)
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 })
   const runtime = JSON.parse(readFileSync(join(root, 'data', 'runtime.json'), 'utf8')) as { port: number }
   apiBase = `http://127.0.0.1:${runtime.port}/api/v1`

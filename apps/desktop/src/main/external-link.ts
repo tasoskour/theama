@@ -1,7 +1,8 @@
-import type { ExternalLinkRequest } from '@theama/contracts'
+import { SETUP_RESOURCES, type ExternalLinkRequest } from '@theama/contracts'
 
 /** Builds known public destinations; the renderer never supplies arbitrary URLs. */
 export function externalLinkUrl(link: ExternalLinkRequest): string {
+  if (link.service === 'setup') return SETUP_RESOURCES[link.resource]
   if (link.service === 'tmdb') {
     const section = link.kind === 'series' ? 'tv' : 'movie'
     return `https://www.themoviedb.org/${section}/${link.id}`

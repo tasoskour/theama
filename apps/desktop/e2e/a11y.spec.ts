@@ -1,3 +1,4 @@
+import { dismissInitialSetup } from './setup-helper'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -48,6 +49,7 @@ test.beforeAll(async () => {
   })
   app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], cwd: join(import.meta.dirname, '..'), env })
   page = await app.firstWindow()
+  await dismissInitialSetup(page)
   await page.emulateMedia({ reducedMotion: 'reduce' }) // no half-finished fades while the audit looks at colours
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setContentSize(1360, 2400)) // tall: as little as possible below the fold
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 90_000 })
@@ -160,6 +162,7 @@ function pages(lang: 'en' | 'el') {
     { name: 'search', route: '/search', ready: () => expect(page.getByRole('textbox')).toBeVisible() },
     { name: 'collections', route: '/collections', ready: () => expect(page.getByRole('link', { name: /Weekend picks/ }).first()).toBeVisible() },
     { name: 'settings: general', route: '/settings/general', ready: () => expect(page.getByRole('heading', { level: 2 }).first()).toBeVisible() },
+    { name: 'settings: setup guide', route: '/settings/setup', ready: () => expect(page.locator('#guide-welcome')).toBeVisible() },
     { name: 'settings: library', route: '/settings/library', ready: () => expect(page.locator('li.source').first()).toBeVisible() },
     { name: 'settings: metadata', route: '/settings/metadata', ready: () => expect(page.locator('[data-test="metadata-counts"]')).toBeVisible() },
     { name: 'settings: playback', route: '/settings/playback', ready: () => expect(page.locator('[data-test="player-row"]').first()).toBeVisible() },

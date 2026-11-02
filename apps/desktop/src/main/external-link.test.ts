@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { ExternalLinkRequest } from '@theama/contracts'
+import { ExternalLinkRequest, SETUP_RESOURCES } from '@theama/contracts'
 import { externalLinkUrl, isTrailerPageAllowed, TRAILER_REFERRER, trailerEmbedUrl } from './external-link'
 
 describe('externalLinkUrl', () => {
+  it('opens only the fixed setup resources', () => {
+    for (const [resource, url] of Object.entries(SETUP_RESOURCES)) {
+      expect(externalLinkUrl(ExternalLinkRequest.parse({ service: 'setup', resource }))).toBe(url)
+    }
+    expect(() => ExternalLinkRequest.parse({ service: 'setup', resource: 'file:///C:/secret' })).toThrow()
+    expect(() => ExternalLinkRequest.parse({ service: 'setup', resource: 'https://example.com' })).toThrow()
+  })
   it('builds canonical provider and trailer links', () => {
     expect(externalLinkUrl(ExternalLinkRequest.parse({ service: 'tmdb', kind: 'movie', id: '157336' }))).toBe(
       'https://www.themoviedb.org/movie/157336',

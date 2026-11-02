@@ -28,6 +28,7 @@ export const useDownloadsStore = defineStore('downloads', () => {
   const connection = useConnectionStore()
   const client = ref<DownloadClientStatus | null>(null)
   const indexer = ref<IndexerStatus | null>(null)
+  const statusError = ref(false)
   /** Configured providers can be retried even when they are temporarily unreachable. */
   const canFindReleases = computed(() =>
     (client.value !== null && client.value.state !== 'not_configured') ||
@@ -65,8 +66,10 @@ export const useDownloadsStore = defineStore('downloads', () => {
       if (connection.client !== api || revision !== settingsRevision) return
       client.value = c
       indexer.value = i
+      statusError.value = false
       if (listAtStart === listRevision) list.value = l
     } catch {
+      statusError.value = true
       // The settings page shows "unknown" until the service answers.
     }
   }
@@ -168,5 +171,5 @@ export const useDownloadsStore = defineStore('downloads', () => {
     if (e.type === 'downloads.changed') { listRevision++; list.value = e.list }
   })
 
-  return { client, indexer, canFindReleases, list, setPaused, files, selectFiles, remove, load, saveClient, saveIndexer, findReleases, download }
+  return { client, indexer, statusError, canFindReleases, list, setPaused, files, selectFiles, remove, load, saveClient, saveIndexer, findReleases, download }
 })

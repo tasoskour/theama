@@ -1,3 +1,4 @@
+import { dismissInitialSetup } from './setup-helper'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -45,6 +46,7 @@ test.beforeAll(async () => {
   })
   app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], cwd: join(import.meta.dirname, '..'), env })
   page = await app.firstWindow()
+  await dismissInitialSetup(page)
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`))
   page.on('console', (m) => {
     if (m.type() === 'error' || /three|webgl|shader/i.test(m.text())) problems.push(`console ${m.type()}: ${m.text()}`)

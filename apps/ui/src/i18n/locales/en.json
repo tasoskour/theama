@@ -426,7 +426,8 @@
       "playback": "Playback",
       "files": "File organization",
       "advanced": "Advanced",
-      "downloads": "Downloads"
+      "downloads": "Downloads",
+      "setup": "Setup Guide"
     },
     "advancedTabs": {
       "service": "Service",
@@ -1259,5 +1260,54 @@
     "cancelRestore": "Cancel the restore",
     "restartByHand": "Restart the Theama service to apply it.",
     "restarted": "Restarting the service…"
+  },
+  "setup": {
+    "title": "Set up Theama",
+    "guideTitle": "Setup Guide",
+    "start": "Start setup",
+    "resume": "Resume setup",
+    "reviewSetup": "Review setup",
+    "restart": "Restart wizard",
+    "refresh": "Refresh status",
+    "search": "Search setup instructions",
+    "contents": "Setup contents",
+    "noResults": "No instructions match your search.",
+    "progress": "Setup progress",
+    "stepCount": "Step {current} of {total}",
+    "optional": "Optional feature",
+    "baseline": "Getting started",
+    "optionalHint": "This feature is optional. Skip it if you do not need it.",
+    "baselineHint": "This helps the basic library experience. You can still skip it and return later.",
+    "configure": "Configure",
+    "instructions": "Setup instructions and download links",
+    "storageWarning": "Local profile storage is unavailable. Wizard progress is remembered only for this session; saved configuration uses its normal storage.",
+    "linkError": "The browser could not open this link. Try again or use the address shown by the link.",
+    "saveHint": "Each form saves through the existing settings. Save and continue also submits credentials entered in this step. Skipping never deletes saved configuration.",
+    "backendRequired": "Connect the backend before configuring this step. You can read the instructions or skip it for now.",
+    "saveError": "Could not save this step. Check the form errors and try again, or skip this step to continue later.",
+    "incompleteHint": "Incomplete and unavailable items are listed below. Optional features do not prevent you from finishing.",
+    "back": "Back",
+    "saveContinue": "Save and continue",
+    "finish": "Finish setup",
+    "skip": "Skip this step",
+    "later": "Finish later",
+    "revisit": "Revisit",
+    "status": {
+      "configured": "Configured",
+      "attention": "Needs attention",
+      "not_configured": "Not configured",
+      "skipped": "Skipped",
+      "unavailable": "Status unavailable"
+    },
+    "steps": {
+      "welcome": "Welcome and language",
+      "service": "Backend and service",
+      "library": "Media folders",
+      "playback": "Video player",
+      "metadata": "TMDB metadata",
+      "subtitles": "Subtitles",
+      "downloads": "Downloads and search",
+      "review": "Final review"
+    }
   }
 }

@@ -7,6 +7,14 @@ import { usePlayersStore } from '@/stores/players'
 import { useSettingsStore } from '@/stores/settings'
 import SubtitleProviderSettings from '@/components/subtitles/SubtitleProviderSettings.vue'
 import { SUBTITLE_LANGUAGES } from '@/utils/subtitles'
+import SetupHelpLink from '@/components/setup/SetupHelpLink.vue'
+
+withDefaults(defineProps<{ setupSection?: 'all' | 'players' | 'subtitles' }>(), { setupSection: 'all' })
+const subtitleForm = ref<{ saveForSetup(): Promise<boolean> } | null>(null)
+defineExpose({ async saveForSetup(): Promise<boolean> {
+  if (settings.saving || players.error) return false
+  return (await subtitleForm.value?.saveForSetup()) ?? true
+} })
 
 /** Languages offered for subtitles (ISO 639-1); the backend understands many spellings of each. */
 const LANGUAGE_CODES = SUBTITLE_LANGUAGES
@@ -57,8 +65,9 @@ async function addLanguage(code: string | null): Promise<void> {
   <section>
     <h2 class="th-display section-title">{{ $t('settings.sections.playback') }}</h2>
     <p class="intro">{{ $t('playback.intro') }}</p>
+    <SetupHelpLink :topic="setupSection === 'subtitles' ? 'subtitles' : 'playback'" />
 
-    <div class="field th-form-section">
+    <div v-if="setupSection !== 'subtitles'" class="field th-form-section">
       <span id="players-label" class="label">{{ $t('playback.players') }}</span>
       <v-alert v-if="!players.canPlay" type="info" variant="tonal" density="compact">{{ $t('play.needsAppHint') }}</v-alert>
       <template v-else>
@@ -86,7 +95,7 @@ async function addLanguage(code: string | null): Promise<void> {
       </template>
     </div>
 
-    <div class="field th-form-section">
+    <div v-if="setupSection !== 'players'" class="field th-form-section">
       <span id="langs-label" class="label">{{ $t('playback.subtitleLanguages') }}</span>
       <ol class="langs" aria-labelledby="langs-label">
         <li v-for="(code, i) in chosen" :key="code" class="lang">
@@ -117,9 +126,9 @@ async function addLanguage(code: string | null): Promise<void> {
       <p class="th-muted hint">{{ $t('playback.subtitleHint') }}</p>
     </div>
 
-    <SubtitleProviderSettings />
+    <SubtitleProviderSettings v-if="setupSection !== 'players'" ref="subtitleForm" />
 
-    <div class="field th-form-section">
+    <div v-if="setupSection !== 'subtitles'" class="field th-form-section">
       <span class="label">{{ $t('playback.autoNext') }}</span>
       <v-switch
         :model-value="settings.settings.autoPlayNext"
@@ -144,7 +153,7 @@ async function addLanguage(code: string | null): Promise<void> {
       <p class="th-muted hint">{{ $t('playback.autoNextHint') }}</p>
     </div>
 
-    <div class="field th-form-section">
+    <div v-if="setupSection !== 'subtitles'" class="field th-form-section">
       <span class="label">{{ $t('playback.tracking') }}</span>
       <p class="th-muted hint">{{ $t('playback.trackingText') }}</p>
     </div>

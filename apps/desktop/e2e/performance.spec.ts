@@ -1,3 +1,4 @@
+import { dismissInitialSetup } from './setup-helper'
 import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -16,6 +17,7 @@ test('large grids keep cards bounded and restore keyboard focus after details', 
   try {
     app = await electron.launch({ args: ['.', `--user-data-dir=${join(directory, 'profile')}`], cwd: join(import.meta.dirname, '..'), env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)) as Record<string, string> })
     const page = await app.firstWindow()
+    await dismissInitialSetup(page)
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     await page.waitForSelector('[data-poster-card]')

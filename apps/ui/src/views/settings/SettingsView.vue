@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   mdiCogOutline,
+  mdiBookOpenPageVariantOutline,
   mdiDownloadOutline,
   mdiFolderMultipleOutline,
   mdiMultimedia,
@@ -10,6 +11,7 @@ import {
 } from '@mdi/js'
 
 const SECTIONS = [
+  { to: '/settings/setup', key: 'setup', icon: mdiBookOpenPageVariantOutline },
   { to: '/settings/general', key: 'general', icon: mdiCogOutline },
   { to: '/settings/library', key: 'library', icon: mdiFolderMultipleOutline },
   { to: '/settings/metadata', key: 'metadata', icon: mdiMultimedia },

@@ -5,6 +5,7 @@ import type { MetadataLanguage } from '@theama/contracts'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
 import { useSettingsStore } from '@/stores/settings'
+import SetupHelpLink from '@/components/setup/SetupHelpLink.vue'
 
 const { t } = useI18n()
 const connection = useConnectionStore()
@@ -73,12 +74,19 @@ async function removeKey(): Promise<void> {
 async function setLanguage(value: MetadataLanguage): Promise<void> {
   if (await settings.update({ metadataLanguage: value })) snackbar.value = t('settings.general.saved')
 }
+
+defineExpose({ async saveForSetup(): Promise<boolean> {
+  if (saving.value) return false
+  if (key.value.trim()) await saveKey()
+  return problem.value === null
+} })
 </script>
 
 <template>
   <section>
     <h2 class="th-display section-title">{{ $t('settings.sections.metadata') }}</h2>
     <p class="intro">{{ $t('metadata.intro') }}</p>
+    <SetupHelpLink topic="metadata" />
 
     <div class="field th-form-section">
       <div class="label-row">

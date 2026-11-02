@@ -1,3 +1,4 @@
+import { dismissInitialSetup } from './setup-helper'
 import type { TheamaBridge } from '@theama/contracts'
 import type { WebContentsView } from 'electron'
 import { mkdtempSync } from 'node:fs'
@@ -42,6 +43,7 @@ test.beforeAll(async () => {
     env: Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined)) as Record<string, string>,
   })
   page = await app.firstWindow()
+  await dismissInitialSetup(page)
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 })
   await app.evaluate(({ shell }) => {
     const opened: string[] = []

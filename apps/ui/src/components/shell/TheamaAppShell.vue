@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
+import { useRoute } from 'vue-router'
 import BrandLogo from './BrandLogo.vue'
 import ConnectionChip from './ConnectionChip.vue'
 import NavigationBackButton from './NavigationBackButton.vue'
@@ -13,6 +14,7 @@ import { useImmersive } from '@/composables/useImmersive'
 import { useConnectionStore } from '@/stores/connection'
 import { useNextUpStore } from '@/stores/nextUp'
 import { useTitleActionsStore } from '@/stores/titleActions'
+import { useSetupStore } from '@/stores/setup'
 
 // Only fetched when the immersive mode is on; Standard never loads the 3D code.
 const ImmersiveBackdrop = defineAsyncComponent(() => import('@/components/immersive/ImmersiveBackdrop.vue'))
@@ -21,6 +23,8 @@ const display = useDisplay()
 const immersive = useImmersive()
 const mobile = computed(() => display.smAndDown.value)
 const connection = useConnectionStore()
+const route = useRoute()
+const setup = useSetupStore()
 const titleActions = useTitleActionsStore()
 useGlobalShortcuts()
 useNextUpStore() // listens for "an episode ended" from the desktop app
@@ -56,16 +60,21 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
   </v-app-bar>
 
   <v-main class="main">
-    <RecoveryScreen v-if="showRecovery" />
-    <div v-else-if="splash" class="splash" role="status" :aria-label="$t('connection.connecting')">
+    <RecoveryScreen v-if="showRecovery && !route.meta.offline" />
+    <div v-else-if="splash && !route.meta.offline" class="splash" role="status" :aria-label="$t('connection.connecting')">
       <BrandLogo :size="72" :wordmark="false" />
       <v-progress-linear indeterminate color="primary" class="splash__bar" rounded />
     </div>
-    <router-view v-else v-slot="{ Component, route }">
+    <template v-else>
+    <div v-if="setup.resumable && !route.meta.offline" class="setup-reminder">
+      <v-btn variant="text" to="/settings/setup">{{ $t('setup.resume') }}</v-btn>
+    </div>
+    <router-view v-slot="{ Component, route: viewRoute }">
       <transition name="th-fade" mode="out-in">
-        <component :is="Component" :key="route.matched[0]?.path ?? route.path" />
+        <component :is="Component" :key="viewRoute.matched[0]?.path ?? viewRoute.path" />
       </transition>
     </router-view>
+    </template>
   </v-main>
 
   <TheamaBottomNavigation v-if="mobile" />
@@ -89,6 +98,7 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
   min-height: 100vh;
   min-height: 100dvh;
 }
+.setup-reminder { padding: 8px 24px 0; }
 .splash {
   display: grid;
   place-items: center;

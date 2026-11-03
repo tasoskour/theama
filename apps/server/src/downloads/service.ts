@@ -140,18 +140,26 @@ export class DownloadsService {
   async findReleases(q: ReleaseQuery): Promise<ReleaseList> {
     const source = q.source ?? (this.indexerConnection() ? 'prowlarr' : 'qbittorrent')
     const text = searchText(q)
-    let hits: IndexerHit[]
+    let hits: IndexerHit[] = []
+    let kept: (RawRelease & { link: string })[] = []
     if (source === 'prowlarr') {
-      hits = await this.prowlarr.search(text)
+      const alternate = alternateSearchText(q)
+      const attempts: { query: string; category?: 2000 | 5000 }[] = [
+        { query: text },
+        { query: text, category: q.kind === 'movie' ? 2000 : 5000 },
+      ]
+      if (alternate && alternate.toLowerCase() !== text.toLowerCase()) attempts.push({ query: alternate })
+      let firstNonempty: IndexerHit[] | null = null
+      for (const attempt of attempts) {
+        hits = await this.prowlarr.search(attempt.query, attempt.category)
+        if (firstNonempty === null && hits.length > 0) firstNonempty = hits
+        kept = matchingReleases(hits, q)
+        if (kept.length > 0) break
+      }
+      if (kept.length === 0 && firstNonempty !== null) hits = firstNonempty
     } else {
       hits = (await this.qbittorrent.search(text)).map((h) => ({ ...h, indexer: h.site }))
-    }
-    const kept: (RawRelease & { link: string })[] = []
-    for (const h of hits) {
-      if (!isDownloadLink(h.link)) continue
-      const parsed = parseRelease(h.title)
-      if (!q.unmatched && !matchesQuery(h.title, parsed, q)) continue
-      kept.push({ title: h.title, size: h.size, seeders: h.seeders, leechers: h.leechers, indexer: h.indexer, link: h.link, ...parsed })
+      kept = matchingReleases(hits, q)
     }
     const items = rankReleases(kept).slice(0, MAX_RELEASES).map(({ link, ...release }): Release => ({ id: this.remember(link), ...release }))
     this.options.logger.info({ source, query: text, received: hits.length, kept: kept.length }, 'Release search finished')
@@ -285,4 +293,25 @@ export function searchText(q: ReleaseQuery): string {
   if (q.kind === 'movie') return q.year === undefined ? q.title : `${q.title} ${q.year}`
   if (q.season === undefined) return q.title
   return `${q.title} S${pad(q.season)}${q.episode === undefined ? '' : `E${pad(q.episode)}`}`
+}
+
+/** A final text-search variation for indexers that distinguish spaces from release-name punctuation. */
+function alternateSearchText(q: ReleaseQuery): string | null {
+  const title = q.title.replace(/[.\s]+$/, '')
+  if (!title) return null
+  if (q.kind === 'movie') return q.year === undefined || /\b(?:19|20)\d{2}$/.test(title) ? null : `${title}.${q.year}`
+  if (/\bS\d{1,2}(?:E\d{1,3})?$/i.test(title)) return null
+  const season = q.season ?? 1
+  return `${title}.S${pad(season)}${q.season !== undefined && q.episode !== undefined ? `E${pad(q.episode)}` : ''}`
+}
+
+function matchingReleases(hits: IndexerHit[], q: ReleaseQuery): (RawRelease & { link: string })[] {
+  const kept: (RawRelease & { link: string })[] = []
+  for (const h of hits) {
+    if (!isDownloadLink(h.link)) continue
+    const parsed = parseRelease(h.title)
+    if (!q.unmatched && !matchesQuery(h.title, parsed, q)) continue
+    kept.push({ title: h.title, size: h.size, seeders: h.seeders, leechers: h.leechers, indexer: h.indexer, link: h.link, ...parsed })
+  }
+  return kept
 }

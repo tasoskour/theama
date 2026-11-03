@@ -58,6 +58,10 @@ const shown = computed(() => {
   return items.value.filter((i) => (!resolution.value || i.resolution === resolution.value) && i.seeders >= least)
 })
 const filtered = computed(() => items.value.length > 0 && shown.value.length === 0)
+const emptyMessageKey = computed(() => {
+  if (source.value === 'prowlarr') return received.value === 0 ? 'downloads.releases.nothingReceivedProwlarr' : 'downloads.releases.noneMatchedProwlarr'
+  return received.value === 0 ? 'downloads.releases.nothingReceived' : 'downloads.releases.noneMatched'
+})
 
 async function run(): Promise<void> {
   const mine = ++generation
@@ -249,7 +253,7 @@ const heading = computed(() => {
 
     <p v-if="filtered" class="th-muted" data-test="release-filtered">{{ $t('downloads.releases.filteredOut') }}</p>
     <div v-if="!loading && !error && items.length === 0">
-      <p class="th-muted" data-test="release-none">{{ $t(received === 0 ? 'downloads.releases.nothingReceived' : 'downloads.releases.noneMatched', { count: received, source: source ? $t(`downloads.releases.name.${source}`) : '' }) }}</p>
+      <p class="th-muted" data-test="release-none">{{ $t(emptyMessageKey, { count: received, source: source ? $t(`downloads.releases.name.${source}`) : '' }) }}</p>
       <v-btn v-if="received > 0 && !unmatched" variant="tonal" size="small" data-test="release-show-unmatched" @click="showUnmatched(true)">{{ $t('downloads.releases.showUnmatched') }}</v-btn>
     </div>
 

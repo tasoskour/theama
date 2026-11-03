@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { IndexerStatus, ReleaseList } from '@theama/contracts'
 import { startServer, type RunningServer } from '../bootstrap'
 import { loadConfig } from '../config'
@@ -71,12 +71,14 @@ function fakeQBittorrent(opts: { plugins: boolean }) {
 /** Prowlarr with a mixed bag of results (a usenet one, a dead link, a good magnet). */
 function fakeProwlarr() {
   const queries: string[] = []
+  const state = { response: null as ((url: URL) => unknown[]) | null }
   const server = createServer((req, res) => {
     const url = new URL(req.url!, 'http://x')
     if (req.headers['x-api-key'] !== 'prowlarr-key-123') return void res.writeHead(401).end()
     if (url.pathname === '/api/v1/system/status') return void res.writeHead(200).end(JSON.stringify({ version: '1.30.2' }))
     if (url.pathname === '/api/v1/search') {
       queries.push(url.search)
+      if (state.response) return void res.writeHead(200).end(JSON.stringify(state.response(url)))
       return void res.writeHead(200).end(
         JSON.stringify([
           { title: 'Dune.2021.2160p.UHD.BluRay.x265', size: 20e9, seeders: 120, leechers: 10, indexer: 'IdxA', protocol: 'torrent', magnetUrl: MAGNET },
@@ -89,8 +91,10 @@ function fakeProwlarr() {
     }
     res.writeHead(404).end()
   })
-  return { server, queries }
+  return { server, queries, state }
 }
+
+const prowlarrHit = (title: string) => ({ title, size: 4e9, seeders: 20, leechers: 2, indexer: 'IdxA', protocol: 'torrent', magnetUrl: MAGNET })
 
 let dir: string
 let server: RunningServer
@@ -124,6 +128,11 @@ afterAll(async () => {
   qb.server.close()
   prowlarr.server.close()
   await rm(dir, { recursive: true, force: true })
+})
+
+afterEach(() => {
+  prowlarr.state.response = null
+  prowlarr.queries.length = 0
 })
 
 describe('before anything is set up', () => {
@@ -176,6 +185,82 @@ describe('Prowlarr', () => {
     expect(list.items.map((i) => i.title)).toEqual(['Dune.2021.2160p.UHD.BluRay.x265', 'Dune.2021.1080p.WEB-DL'])
     expect(prowlarr.queries[0]).toContain('query=Dune+2021')
     expect(prowlarr.queries[0]).not.toContain('categories')
+    expect(prowlarr.queries).toHaveLength(1)
+  })
+
+  it('retries with the Movies category when broad results do not match', async () => {
+    prowlarr.state.response = (url) => url.searchParams.get('categories') === '2000'
+      ? [prowlarrHit('Dune.2021.1080p')]
+      : [prowlarrHit('Another.Movie.2021')]
+    const list = ReleaseList.parse(await (await releases('kind=movie&title=Dune&year=2021')).json())
+    expect(list.items.map((item) => item.title)).toEqual(['Dune.2021.1080p'])
+    expect(prowlarr.queries.map((query) => new URLSearchParams(query).get('categories'))).toEqual([null, '2000'])
+    expect(prowlarr.queries.map((query) => new URLSearchParams(query).get('query'))).toEqual(['Dune 2021', 'Dune 2021'])
+  })
+
+  it('uses the TV category for a series and stops when it finds a match', async () => {
+    prowlarr.state.response = (url) => url.searchParams.get('categories') === '5000' ? [prowlarrHit('Amphibia.S01.1080p')] : []
+    const list = ReleaseList.parse(await (await releases('kind=series&title=Amphibia')).json())
+    expect(list.items.map((item) => item.title)).toEqual(['Amphibia.S01.1080p'])
+    expect(prowlarr.queries.map((query) => new URLSearchParams(query).get('categories'))).toEqual([null, '5000'])
+  })
+
+  it('tries a dotted S01 query when a series has no season', async () => {
+    prowlarr.state.response = (url) => url.searchParams.get('query') === 'Amphibia.S01' ? [prowlarrHit('Amphibia.S01.1080p')] : []
+    const list = ReleaseList.parse(await (await releases('kind=series&title=Amphibia')).json())
+    expect(list.items.map((item) => item.title)).toEqual(['Amphibia.S01.1080p'])
+    expect(prowlarr.queries.map((query) => new URLSearchParams(query).get('query'))).toEqual(['Amphibia', 'Amphibia', 'Amphibia.S01'])
+    expect(new URLSearchParams(prowlarr.queries[2]).has('categories')).toBe(false)
+  })
+
+  it('uses the specified season and episode in the dotted retry', async () => {
+    prowlarr.state.response = (url) => url.searchParams.get('query') === 'Severance.S02E03' ? [prowlarrHit('Severance.S02E03.1080p')] : []
+    const list = ReleaseList.parse(await (await releases('kind=series&title=Severance&season=2&episode=3')).json())
+    expect(list.items.map((item) => item.title)).toEqual(['Severance.S02E03.1080p'])
+    expect(prowlarr.queries.map((query) => new URLSearchParams(query).get('query'))).toEqual(['Severance S02E03', 'Severance S02E03', 'Severance.S02E03'])
+  })
+
+  it('uses an explicit season and does not duplicate a season already in the title', async () => {
+    prowlarr.state.response = (url) => url.searchParams.get('query') === 'Amphibia.S02' ? [prowlarrHit('Amphibia.S02.1080p')] : []
+    const found = ReleaseList.parse(await (await releases('kind=series&title=Amphibia&season=2')).json())
+    expect(found.items.map((item) => item.title)).toEqual(['Amphibia.S02.1080p'])
+    expect(prowlarr.queries.map((query) => new URLSearchParams(query).get('query'))).toEqual(['Amphibia S02', 'Amphibia S02', 'Amphibia.S02'])
+
+    prowlarr.queries.length = 0
+    prowlarr.state.response = () => []
+    const empty = ReleaseList.parse(await (await releases('kind=series&title=Amphibia.S02')).json())
+    expect(empty.items).toEqual([])
+    expect(prowlarr.queries).toHaveLength(2)
+  })
+
+  it('uses a dotted movie year and keeps unrelated hits available to show anyway', async () => {
+    prowlarr.state.response = (url) => url.searchParams.get('query') === 'Dune.2021'
+      ? [prowlarrHit('Dune.2021.1080p')]
+      : [prowlarrHit('Another.Movie.2021')]
+    const found = ReleaseList.parse(await (await releases('kind=movie&title=Dune&year=2021')).json())
+    expect(found.items.map((item) => item.title)).toEqual(['Dune.2021.1080p'])
+    expect(prowlarr.queries.map((query) => new URLSearchParams(query).get('query'))).toEqual(['Dune 2021', 'Dune 2021', 'Dune.2021'])
+
+    prowlarr.queries.length = 0
+    prowlarr.state.response = (url) => url.searchParams.has('categories') || url.searchParams.get('query') === 'Dune.2021'
+      ? []
+      : [prowlarrHit('Another.Movie.2021')]
+    const empty = ReleaseList.parse(await (await releases('kind=movie&title=Dune&year=2021')).json())
+    expect(empty.items).toEqual([])
+    expect(empty.received).toBe(1)
+    expect(prowlarr.queries).toHaveLength(3)
+
+    prowlarr.queries.length = 0
+    const shown = ReleaseList.parse(await (await releases('kind=movie&title=Dune&year=2021&unmatched=true')).json())
+    expect(shown.items.map((item) => item.title)).toEqual(['Another.Movie.2021'])
+    expect(prowlarr.queries).toHaveLength(1)
+  })
+
+  it('makes no alternate request for a movie without a year', async () => {
+    prowlarr.state.response = () => []
+    const list = ReleaseList.parse(await (await releases('kind=movie&title=Dune')).json())
+    expect(list.items).toEqual([])
+    expect(prowlarr.queries.map((query) => new URLSearchParams(query).get('categories'))).toEqual([null, '2000'])
   })
 
   it('can still be told to use the qBittorrent plugins', async () => {

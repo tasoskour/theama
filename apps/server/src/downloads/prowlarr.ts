@@ -48,13 +48,10 @@ export class ProwlarrClient {
     return SystemStatus.parse(await this.getJson('api/v1/system/status')).version
   }
 
-  /**
-   * Searches torrent indexers only, in every category: a category filter hides releases an indexer files oddly (an
-   * animated show under "Other", say), and what is not the title asked for is dropped by the caller anyway.
-   * Indexers can be slow, so this has a longer timeout than a status call.
-   */
-  async search(query: string): Promise<IndexerHit[]> {
+  /** Searches torrent indexers, optionally within a top-level Movies or TV category. */
+  async search(query: string, category?: 2000 | 5000): Promise<IndexerHit[]> {
     const params = new URLSearchParams({ query, type: 'search', limit: '100' })
+    if (category !== undefined) params.set('categories', String(category))
     const raw = await this.getJson(`api/v1/search?${params}`, Math.max(this.timeout, 30_000))
     if (!Array.isArray(raw)) throw new DownloadClientError('unavailable', 'Prowlarr sent an unexpected answer')
     const hits: IndexerHit[] = []

@@ -943,6 +943,8 @@
       "unknownSize": "Unknown size",
       "nothingReceived": "The search came back empty: {source} returned no results at all. Check that its sites or plugins are working (in qBittorrent: View → Search Engine → Search plugins, and try the same search there).",
       "noneMatched": "{count} results came back, but none looked like this title, so they were hidden. Try another spelling or add the year.",
+      "nothingReceivedProwlarr": "Prowlarr found no usable releases. Try another spelling, season, or year, or test the search in Prowlarr.",
+      "noneMatchedProwlarr": "{count} releases came back, but none matched this title. Try another spelling, season, or year, or show them anyway.",
       "name": {
         "prowlarr": "Prowlarr",
         "qbittorrent": "qBittorrent"

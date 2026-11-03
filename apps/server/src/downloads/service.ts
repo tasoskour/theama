@@ -6,7 +6,7 @@ import type { CredentialStore } from '../metadata/credentials'
 import { toItem } from './items'
 import { ProwlarrClient, isDownloadLink, type IndexerHit, type ProwlarrConnection } from './prowlarr'
 import { DownloadClientError, QBittorrentClient, type DownloadClientErrorKind, type QBittorrentConnection, type QBittorrentOptions } from './qbittorrent'
-import { matchesQuery, parseRelease, rankReleases, type RawRelease } from './release'
+import { isCollectionPack, matchesQuery, parseRelease, rankReleases, type RawRelease } from './release'
 
 const StoredConnection = z.object({ url: z.string(), username: z.string(), password: z.string() })
 const StoredIndexer = z.object({ url: z.string(), apiKey: z.string() })
@@ -16,6 +16,7 @@ const RELEASE_CACHE_SIZE = 1000
 const RELEASE_CACHE_MS = 30 * 60_000
 /** Anything beyond this is noise; the list is already ranked. */
 const MAX_RELEASES = 60
+const MAX_COLLECTION_PACKS = 20
 
 /** The tag every download added from Theama carries, so they can be told apart from the person's own. */
 export const THEAMA_TAG = 'theama'
@@ -133,37 +134,49 @@ export class DownloadsService {
     return status
   }
 
-  /**
-   * Looks for releases of a title. Prowlarr is preferred when set up (its results are better); otherwise the search
-   * plugins inside qBittorrent are used. Hits that are not the title asked for are dropped, the rest ranked.
-   */
+  /** Searches Prowlarr for individual releases and, for movies, likely collection packs. */
   async findReleases(q: ReleaseQuery): Promise<ReleaseList> {
-    const source = q.source ?? (this.indexerConnection() ? 'prowlarr' : 'qbittorrent')
     const text = searchText(q)
     let hits: IndexerHit[] = []
     let kept: (RawRelease & { link: string })[] = []
-    if (source === 'prowlarr') {
-      const alternate = alternateSearchText(q)
-      const attempts: { query: string; category?: 2000 | 5000 }[] = [
-        { query: text },
-        { query: text, category: q.kind === 'movie' ? 2000 : 5000 },
-      ]
-      if (alternate && alternate.toLowerCase() !== text.toLowerCase()) attempts.push({ query: alternate })
-      let firstNonempty: IndexerHit[] | null = null
-      for (const attempt of attempts) {
-        hits = await this.prowlarr.search(attempt.query, attempt.category)
-        if (firstNonempty === null && hits.length > 0) firstNonempty = hits
-        kept = matchingReleases(hits, q)
-        if (kept.length > 0) break
-      }
-      if (kept.length === 0 && firstNonempty !== null) hits = firstNonempty
-    } else {
-      hits = (await this.qbittorrent.search(text)).map((h) => ({ ...h, indexer: h.site }))
+    const alternate = alternateSearchText(q)
+    const attempts: { query: string; category?: 2000 | 5000 }[] = [
+      { query: text },
+      { query: text, category: q.kind === 'movie' ? 2000 : 5000 },
+    ]
+    if (alternate && alternate.toLowerCase() !== text.toLowerCase()) attempts.push({ query: alternate })
+    let firstNonempty: IndexerHit[] | null = null
+    for (const attempt of attempts) {
+      hits = await this.prowlarr.search(attempt.query, attempt.category)
+      if (firstNonempty === null && hits.length > 0) firstNonempty = hits
       kept = matchingReleases(hits, q)
+      if (kept.length > 0) break
     }
-    const items = rankReleases(kept).slice(0, MAX_RELEASES).map(({ link, ...release }): Release => ({ id: this.remember(link), ...release }))
-    this.options.logger.info({ source, query: text, received: hits.length, kept: kept.length }, 'Release search finished')
-    return { source, items, received: hits.length }
+    if (kept.length === 0 && firstNonempty !== null) hits = firstNonempty
+
+    let packHits: IndexerHit[] = []
+    let packs: (RawRelease & { link: string })[] = []
+    if (q.kind === 'movie') {
+      const collectionName = q.collectionName ?? q.title
+      const packQuery = q.collectionName ?? `${q.title} collection`
+      try {
+        packHits = await this.prowlarr.search(packQuery)
+        packs = collectionPacks(packHits, collectionName, q.title)
+        if (packs.length === 0) {
+          packHits = await this.prowlarr.search(packQuery, 2000)
+          packs = collectionPacks(packHits, collectionName, q.title)
+        }
+      } catch (err) {
+        if (kept.length === 0) throw err
+        this.options.logger.warn({ err, query: packQuery }, 'Collection pack search failed')
+      }
+    }
+    const selectedPacks = rankReleases(packs, q.sort).slice(0, MAX_COLLECTION_PACKS)
+    const packLinks = new Set(selectedPacks.map((p) => p.link))
+    const selectedSingles = rankReleases(kept.filter((item) => !packLinks.has(item.link)), q.sort).slice(0, MAX_RELEASES)
+    const items = [...selectedPacks, ...selectedSingles].map(({ link, ...release }): Release => ({ id: this.remember(link), ...release }))
+    this.options.logger.info({ query: text, received: hits.length + packHits.length, kept: items.length }, 'Release search finished')
+    return { source: 'prowlarr', items, received: hits.length + packHits.length }
   }
 
   /** Hands a release found by `findReleases` to qBittorrent. Only those links are ever accepted, never a typed-in one. */
@@ -310,8 +323,16 @@ function matchingReleases(hits: IndexerHit[], q: ReleaseQuery): (RawRelease & { 
   for (const h of hits) {
     if (!isDownloadLink(h.link)) continue
     const parsed = parseRelease(h.title)
+    if (q.kind === 'movie' && (isCollectionPack(h.title, q.title) || (q.collectionName && isCollectionPack(h.title, q.collectionName)))) continue
     if (!q.unmatched && !matchesQuery(h.title, parsed, q)) continue
     kept.push({ title: h.title, size: h.size, seeders: h.seeders, leechers: h.leechers, indexer: h.indexer, link: h.link, ...parsed })
   }
   return kept
+}
+
+function collectionPacks(hits: IndexerHit[], name: string, movieTitle: string): (RawRelease & { link: string })[] {
+  return hits.flatMap((h) => {
+    if (!isDownloadLink(h.link) || !(isCollectionPack(h.title, name) || isCollectionPack(h.title, movieTitle))) return []
+    return [{ title: h.title, size: h.size, seeders: h.seeders, leechers: h.leechers, indexer: h.indexer, link: h.link, ...parseRelease(h.title), collectionPack: true }]
+  })
 }

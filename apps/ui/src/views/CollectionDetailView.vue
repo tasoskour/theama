@@ -128,7 +128,7 @@ function deleteCollection(): Promise<void> {
 
 const summary = computed(() => detail.value?.summary ?? null)
 const members = computed(() => (detail.value?.members ?? []).map((member) => {
-  const target = collectionReleaseTarget(member, detail.value!.summary.kind)
+  const target = collectionReleaseTarget(member, detail.value!.summary.kind, detail.value!.summary.kind === 'official' ? detail.value!.summary.name : undefined)
   return { ...member, releaseRoute: target ? releaseSearchRoute(target) : null }
 }))
 const heroStyle = computed(() => {

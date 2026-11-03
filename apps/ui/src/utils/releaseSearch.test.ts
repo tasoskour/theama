@@ -7,6 +7,7 @@ describe('release search deep links', () => {
   it('round-trips movies, seasons, episodes and specials through route parameters', () => {
     for (const target of [
       { kind: 'movie' as const, title: 'Mad Max 2', year: 1981 },
+      { kind: 'movie' as const, title: 'Mad Max 2', year: 1981, collectionName: 'Mad Max Collection' },
       { kind: 'series' as const, title: 'Severance', season: 2 },
       { kind: 'series' as const, title: 'Severance', season: 1, episode: 2 },
       { kind: 'series' as const, title: 'Severance', season: 0, episode: 0 },
@@ -48,6 +49,7 @@ describe('missing collection members', () => {
 
   it('searches official movies by title and known year', () => {
     expect(collectionReleaseTarget(member, 'official')).toEqual({ kind: 'movie', title: 'Mad Max 2', year: 1981 })
+    expect(collectionReleaseTarget(member, 'official', 'Mad Max Collection')).toEqual({ kind: 'movie', title: 'Mad Max 2', year: 1981, collectionName: 'Mad Max Collection' })
     expect(collectionReleaseTarget({ ...member, year: null }, 'official')).toEqual({ kind: 'movie', title: 'Mad Max 2' })
   })
 

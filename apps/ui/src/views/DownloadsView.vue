@@ -24,7 +24,7 @@ import { useMetadataStore } from '@/stores/metadata'
 import { useFavoritesStore } from '@/stores/favorites'
 import { releaseSearchFromRoute } from '@/utils/releaseSearch'
 
-type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined }
+type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined; collectionName?: string | undefined }
 
 const route = useRoute()
 const { t } = useI18n()
@@ -66,7 +66,7 @@ let searchGeneration = 0
 let searchController: AbortController | undefined
 onBeforeUnmount(() => { searchGeneration += 1; searchController?.abort() })
 
-const setUp = computed(() => downloads.client?.state !== 'not_configured' || downloads.indexer?.state !== 'not_configured')
+const setUp = computed(() => downloads.canFindReleases)
 const hasKey = computed(() => metadata.status?.configured === true)
 const noKey = computed(() => metadata.status !== null && !hasKey.value)
 watch([hasKey, genreRetry], async ([configured], _previous, onCleanup) => {

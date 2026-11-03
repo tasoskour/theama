@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ReleaseQuery } from '@theama/contracts'
-import { matchesQuery, parseRelease, rankReleases, type RawRelease } from './release'
+import { isCollectionPack, matchesQuery, parseRelease, rankReleases, type RawRelease } from './release'
 import { searchText } from './service'
 
 describe('parseRelease', () => {
@@ -54,10 +54,11 @@ describe('matchesQuery', () => {
     expect(fits('Severance 1080p', q)).toBe(false)
   })
 
-  it('a season request wants packs, not single episodes', () => {
+  it('a season request includes its episodes as well as packs', () => {
     const q = show('Severance', 1)
     expect(fits('Severance.S01.1080p', q)).toBe(true)
-    expect(fits('Severance.S01E04.1080p', q)).toBe(false)
+    expect(fits('Severance.S01E04.1080p', q)).toBe(true)
+    expect(fits('Severance.S02E04.1080p', q)).toBe(false)
   })
 })
 
@@ -73,6 +74,26 @@ describe('rankReleases', () => {
       r({ title: '1080-many', seeders: 90, resolution: '1080p' }),
     ])
     expect(ranked.map((x) => x.title)).toEqual(['1080-many', '1080-few', '720-many', 'dead'])
+  })
+  it('sorts by seeders when selected and breaks ties by quality then title', () => {
+    const ranked = rankReleases([
+      r({ title: 'z', seeders: 80, resolution: '1080p' }),
+      r({ title: 'b', seeders: 80, resolution: '2160p' }),
+      r({ title: 'a', seeders: 80, resolution: '2160p' }),
+      r({ title: 'many', seeders: 100, resolution: '720p' }),
+    ], 'seeders')
+    expect(ranked.map((x) => x.title)).toEqual(['many', 'a', 'b', 'z'])
+  })
+})
+
+describe('collection pack names', () => {
+  it('requires the collection title and a multi-film marker', () => {
+    expect(isCollectionPack('Scary.Movie.Complete.Collection.1080p', 'Scary Movie')).toBe(true)
+    expect(isCollectionPack('Scary.Movie.1-5.1080p', 'Scary Movie Collection')).toBe(true)
+    expect(isCollectionPack('Scary.Movie.Trilogy.1080p', 'Scary Movie')).toBe(true)
+    expect(isCollectionPack('Scary.Movie.2000.1080p', 'Scary Movie')).toBe(false)
+    expect(isCollectionPack('Scary.Movie.2000.Complete.1080p', 'Scary Movie')).toBe(false)
+    expect(isCollectionPack('Another.Movie.Collection.1080p', 'Scary Movie')).toBe(false)
   })
 })
 

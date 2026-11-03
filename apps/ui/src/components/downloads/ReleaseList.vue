@@ -2,13 +2,14 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { mdiArrowLeft, mdiClose, mdiMagnify } from '@mdi/js'
-import type { DownloadTool, Release, ReleaseKind, ReleaseSource, Resolution } from '@theama/contracts'
+import type { DownloadTool, Release, ReleaseKind, Resolution } from '@theama/contracts'
 import { useDownloadsStore } from '@/stores/downloads'
 import { useDownloadToolsStore } from '@/stores/downloadTools'
 import { formatBytes } from '@/utils/format'
 import { toolLogos } from './toolLogos'
+import { groupReleases, type ReleaseGroup } from './releaseGroups'
 
-type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined }
+type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined; collectionName?: string | undefined }
 
 const props = defineProps<{ query: Query }>()
 defineEmits<{ back: [] }>()
@@ -26,11 +27,11 @@ const episode = ref('')
 
 const loading = ref(false)
 const error = ref<{ code: string; message: string; tool: DownloadTool } | null>(null)
-const source = ref<ReleaseSource | null>(null)
 const items = ref<Release[]>([])
 const received = ref(0)
 const resolution = ref<Resolution | null>(null)
 const minSeeders = ref('')
+const sort = ref<'quality' | 'seeders'>('quality')
 /** Asks the server to keep results that do not look like the title. Off for every new title. */
 const unmatched = ref(false)
 const adding = ref<string | null>(null)
@@ -58,10 +59,18 @@ const shown = computed(() => {
   return items.value.filter((i) => (!resolution.value || i.resolution === resolution.value) && i.seeders >= least)
 })
 const filtered = computed(() => items.value.length > 0 && shown.value.length === 0)
-const emptyMessageKey = computed(() => {
-  if (source.value === 'prowlarr') return received.value === 0 ? 'downloads.releases.nothingReceivedProwlarr' : 'downloads.releases.noneMatchedProwlarr'
-  return received.value === 0 ? 'downloads.releases.nothingReceived' : 'downloads.releases.noneMatched'
-})
+const emptyMessageKey = computed(() => received.value === 0 ? 'downloads.releases.nothingReceivedProwlarr' : 'downloads.releases.noneMatchedProwlarr')
+const groups = computed(() => groupReleases(shown.value, active.value.kind))
+function groupLabel(group: ReleaseGroup): string {
+  switch (group.type) {
+    case 'collection': return t('downloads.releases.groups.collections')
+    case 'movie': return t('downloads.releases.groups.movies')
+    case 'complete': return t('downloads.releases.groups.completeSeries')
+    case 'season': return t('downloads.releases.groups.seasonPacks', { season: group.season })
+    case 'episode': return t('downloads.releases.groups.episode', { season: group.season, episode: group.episode })
+    case 'other': return t('downloads.releases.groups.other')
+  }
+}
 
 async function run(): Promise<void> {
   const mine = ++generation
@@ -70,16 +79,14 @@ async function run(): Promise<void> {
   loading.value = true
   error.value = null
   items.value = []
-  resolution.value = null
-  const res = await downloads.findReleases({ ...active.value, unmatched: unmatched.value }, controller.signal)
+  const res = await downloads.findReleases({ ...active.value, sort: sort.value, unmatched: unmatched.value }, controller.signal)
   if (mine !== generation) return
   loading.value = false
   if (res.ok) {
     items.value = res.value.items
-    source.value = res.value.source
     received.value = res.value.received
   } else {
-    await failed({ code: res.code, message: res.message, tool: failedTool(res.message, downloads.indexer ? 'prowlarr' : 'qbittorrent') }, true)
+    await failed({ code: res.code, message: res.message, tool: failedTool(res.message, 'prowlarr') }, true)
   }
 }
 
@@ -109,6 +116,7 @@ watch(
   (q) => {
     active.value = q
     fill(q)
+    resolution.value = null
     unmatched.value = false
     sent.value = new Set()
     void run()
@@ -127,8 +135,9 @@ function apply(): void {
   if (!text) return
   const kind = props.query.kind
   active.value = kind === 'movie'
-    ? { kind, title: text, year: num(year.value) }
+    ? { kind, title: text, year: num(year.value), ...(text === props.query.title ? { collectionName: props.query.collectionName } : {}) }
     : { kind, title: text, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) }
+  resolution.value = null
   sent.value = new Set()
   void run()
 }
@@ -169,7 +178,8 @@ function facts(r: Release): string[] {
   if (r.quality) out.push(r.quality)
   if (r.codec) out.push(r.codec)
   out.push(r.size > 0 ? formatBytes(r.size, locale.value) : t('downloads.releases.unknownSize'))
-  if (r.pack) out.push(t('downloads.releases.pack'))
+  if (r.collectionPack) out.push(t('downloads.releases.collectionUnverified'))
+  else if (r.pack) out.push(t(r.season === null ? 'downloads.releases.completeSeriesPack' : 'downloads.releases.pack'))
   return out
 }
 
@@ -211,6 +221,17 @@ const heading = computed(() => {
     </form>
 
     <div class="rel__filters">
+      <v-select
+        v-model="sort"
+        :items="[{ title: $t('downloads.releases.sort.quality'), value: 'quality' }, { title: $t('downloads.releases.sort.seeders'), value: 'seeders' }]"
+        :label="$t('downloads.releases.sort.label')"
+        density="compact"
+        variant="outlined"
+        hide-details
+        class="rel__sort"
+        data-test="release-sort"
+        @update:model-value="run"
+      />
       <v-chip-group v-if="resolutions.length > 1" v-model="resolution" column class="rel__chips" :aria-label="$t('detail.facts.resolution')">
         <v-chip v-for="r in resolutions" :key="r" :value="r" filter variant="tonal" size="small">{{ r }}</v-chip>
       </v-chip-group>
@@ -253,30 +274,35 @@ const heading = computed(() => {
 
     <p v-if="filtered" class="th-muted" data-test="release-filtered">{{ $t('downloads.releases.filteredOut') }}</p>
     <div v-if="!loading && !error && items.length === 0">
-      <p class="th-muted" data-test="release-none">{{ $t(emptyMessageKey, { count: received, source: source ? $t(`downloads.releases.name.${source}`) : '' }) }}</p>
+      <p class="th-muted" data-test="release-none">{{ $t(emptyMessageKey, { count: received }) }}</p>
       <v-btn v-if="received > 0 && !unmatched" variant="tonal" size="small" data-test="release-show-unmatched" @click="showUnmatched(true)">{{ $t('downloads.releases.showUnmatched') }}</v-btn>
     </div>
 
-    <ul v-if="shown.length > 0" class="releases" role="list" data-test="release-list">
-      <li v-for="r in shown" :key="r.id" class="release">
-        <div class="release__main">
-          <span class="release__title">{{ r.title }}</span>
-          <span class="release__facts th-muted">
-            {{ facts(r).join(' · ') }}<template v-if="r.indexer"> · {{ r.indexer }}</template>
-          </span>
-        </div>
-        <span class="release__seeders th-muted">{{ $t('downloads.releases.seeders', r.seeders) }}</span>
-        <v-btn
-          :color="sent.has(r.id) ? 'success' : 'primary'"
-          :variant="sent.has(r.id) ? 'tonal' : 'flat'"
-          size="small"
-          :loading="adding === r.id"
-          :disabled="adding !== null || sent.has(r.id)"
-          data-test="release-download"
-          @click="add(r)"
-        >{{ sent.has(r.id) ? $t('downloads.releases.sent') : $t('downloads.releases.download') }}</v-btn>
-      </li>
-    </ul>
+    <div v-if="groups.length > 0" data-test="release-list">
+      <section v-for="group in groups" :key="group.key" class="rel__group" :aria-label="groupLabel(group)" :data-test="`release-group-${group.key}`">
+        <h3 class="rel__group-title">{{ groupLabel(group) }}</h3>
+        <ul class="releases" role="list">
+          <li v-for="r in group.items" :key="r.id" class="release">
+            <div class="release__main">
+              <span class="release__title">{{ r.title }}</span>
+              <span class="release__facts th-muted">
+                {{ facts(r).join(' · ') }}<template v-if="r.indexer"> · {{ r.indexer }}</template>
+              </span>
+            </div>
+            <span class="release__seeders th-muted">{{ $t('downloads.releases.seeders', r.seeders) }}</span>
+            <v-btn
+              :color="sent.has(r.id) ? 'success' : 'primary'"
+              :variant="sent.has(r.id) ? 'tonal' : 'flat'"
+              size="small"
+              :loading="adding === r.id"
+              :disabled="adding !== null || sent.has(r.id)"
+              data-test="release-download"
+              @click="add(r)"
+            >{{ sent.has(r.id) ? $t('downloads.releases.sent') : $t('downloads.releases.download') }}</v-btn>
+          </li>
+        </ul>
+      </section>
+    </div>
 
     <v-snackbar :model-value="snackbar !== ''" :timeout="2400" color="surface-bright" @update:model-value="snackbar = ''">{{ snackbar }}</v-snackbar>
   </section>
@@ -331,6 +357,16 @@ const heading = computed(() => {
 .rel__seeders-filter {
   flex: 0 1 9rem;
   margin-left: auto;
+}
+.rel__sort {
+  flex: 0 1 12rem;
+}
+.rel__group {
+  margin-top: 14px;
+}
+.rel__group-title {
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 .releases {
   list-style: none;

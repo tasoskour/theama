@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { z } from 'zod'
-import { DownloadClientStatus, DownloadFileList, DownloadList, IndexerStatus, ReleaseList, type DownloadFile, type ReleaseKind, type ReleaseSource } from '@theama/contracts'
+import { DownloadClientStatus, DownloadFileList, DownloadList, IndexerStatus, ReleaseList, type DownloadFile, type ReleaseKind } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
 import { useConnectionStore } from './connection'
 
@@ -16,7 +16,8 @@ export interface ReleaseSearch {
   year?: number | undefined
   season?: number | undefined
   episode?: number | undefined
-  source?: ReleaseSource | undefined
+  sort?: 'quality' | 'seeders' | undefined
+  collectionName?: string | undefined
   /** Keep results that do not look like the title. */
   unmatched?: boolean | undefined
 }
@@ -30,10 +31,7 @@ export const useDownloadsStore = defineStore('downloads', () => {
   const indexer = ref<IndexerStatus | null>(null)
   const statusError = ref(false)
   /** Configured providers can be retried even when they are temporarily unreachable. */
-  const canFindReleases = computed(() =>
-    (client.value !== null && client.value.state !== 'not_configured') ||
-    (indexer.value !== null && indexer.value.state !== 'not_configured'),
-  )
+  const canFindReleases = computed(() => indexer.value !== null && indexer.value.state !== 'not_configured')
   /** What qBittorrent is downloading for us; kept fresh by pushes from the service. */
   const list = ref<DownloadList | null>(null)
 
@@ -102,8 +100,8 @@ export const useDownloadsStore = defineStore('downloads', () => {
   async function findReleases(q: ReleaseSearch, signal?: AbortSignal): Promise<ReleasesResult> {
     if (!connection.client) return notConnected
     try {
-      const { kind, title, year, season, episode, source, unmatched } = q
-      return { ok: true, value: await connection.client.get('/downloads/releases', ReleaseList, { kind, title, year, season, episode, source, unmatched: unmatched ? true : undefined },signal ? { signal } : undefined) }
+      const { kind, title, year, season, episode, sort, collectionName, unmatched } = q
+      return { ok: true, value: await connection.client.get('/downloads/releases', ReleaseList, { kind, title, year, season, episode, sort, collectionName, unmatched: unmatched ? true : undefined }, signal ? { signal } : undefined) }
     } catch (err) {
       return failure(err)
     }

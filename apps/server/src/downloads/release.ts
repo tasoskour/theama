@@ -58,7 +58,7 @@ export function parseRelease(name: string): Pick<RawRelease, 'resolution' | 'qua
 }
 
 /**
- * Whether a hit is plausibly the title asked for. Search plugins return anything that mentions the words, so the
+ * Whether a hit is plausibly the title asked for. Indexers return anything that mentions the words, so the
  * release name has to start with the title (ignoring case, accents and punctuation), and a year, when asked for,
  * must not contradict the one in the name. Episodes and seasons must match when requested.
  */
@@ -79,19 +79,28 @@ export function matchesQuery(name: string, parsed: ReturnType<typeof parseReleas
     if (parsed.season !== null && parsed.season !== q.season) return false
     if (parsed.season === null && !parsed.pack) return false
     if (q.episode !== undefined && parsed.episode !== null && parsed.episode !== q.episode) return false
-    if (q.episode === undefined && parsed.episode !== null) return false
   }
   return true
+}
+
+/** A name-based hint only: torrent contents are not available until qBittorrent adds it. */
+export function isCollectionPack(name: string, collectionName: string): boolean {
+  const root = normaliseTitle(collectionName.replace(/\s+collection$/i, ''))
+  const normalized = normaliseTitle(name)
+  if (!root || !(normalized === root || normalized.startsWith(`${root} `))) return false
+  return /\b(?:collection|complete[ ._-]?(?:set|collection|saga|movies|films)|box[ ._-]?set|all[ ._-]?(?:movies|films)|trilogy|quadrilogy|anthology|saga)\b/i.test(name)
+    || /\b\d{1,2}\s*[-–]\s*\d{1,2}\b/.test(name)
 }
 
 const RESOLUTION_RANK: Record<Resolution, number> = { '2160p': 4, '1080p': 3, '720p': 2, '480p': 1 }
 
 /** Seeded releases first, then the better resolution; a release nobody is sharing is of little use. */
-export function rankReleases<T extends RawRelease>(items: T[]): T[] {
+export function rankReleases<T extends RawRelease>(items: T[], sort: 'quality' | 'seeders' = 'quality'): T[] {
   return [...items].sort((a, b) => {
+    if (sort === 'seeders' && a.seeders !== b.seeders) return b.seeders - a.seeders
     const dead = Number(b.seeders > 0) - Number(a.seeders > 0)
     if (dead !== 0) return dead
     const res = (b.resolution ? RESOLUTION_RANK[b.resolution] : 0) - (a.resolution ? RESOLUTION_RANK[a.resolution] : 0)
-    return res !== 0 ? res : b.seeders - a.seeders
+    return res !== 0 ? res : b.seeders - a.seeders || a.title.localeCompare(b.title)
   })
 }

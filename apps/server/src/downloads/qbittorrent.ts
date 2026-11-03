@@ -21,16 +21,6 @@ export interface QBittorrentConnection {
   password: string
 }
 
-export interface QBittorrentSearchHit {
-  title: string
-  link: string
-  size: number
-  seeders: number
-  leechers: number
-  /** The site a plugin searched, e.g. `https://thepiratebay.org`. */
-  site: string | null
-}
-
 /** The fields of qBittorrent's `torrents/info` that Theama uses. */
 export interface QBittorrentTorrent {
   hash: string
@@ -165,46 +155,6 @@ export class QBittorrentClient {
 
   async remove(hashes: string[], deleteFiles: boolean): Promise<void> {
     await this.send('POST', '/api/v2/torrents/delete', new URLSearchParams({ hashes: hashes.join('|'), deleteFiles: String(deleteFiles) }))
-  }
-
-  /**
-   * Runs qBittorrent's own search plugins and waits for them (up to `timeoutMs`; slow sites are cut off rather than
-   * waited for). The search is always stopped and deleted afterwards: qBittorrent allows only five at a time.
-   */
-  async search(pattern: string, timeoutMs = 12_000): Promise<QBittorrentSearchHit[]> {
-    const plugins = JSON.parse(await this.text('GET', '/api/v2/search/plugins')) as { enabled?: boolean }[]
-    if (!plugins.some((p) => p.enabled)) {
-      throw new DownloadClientError('unavailable', 'qBittorrent has no search plugins enabled (Search tab → Search plugins)')
-    }
-    const started = await this.send('POST', '/api/v2/search/start', new URLSearchParams({ pattern, plugins: 'enabled', category: 'all' }))
-    const { id } = (await started.json()) as { id: number }
-    const idForm = () => new URLSearchParams({ id: String(id) })
-    try {
-      const deadline = Date.now() + timeoutMs
-      for (;;) {
-        const status = JSON.parse(await this.text('GET', `/api/v2/search/status?id=${id}`)) as { status?: string }[]
-        if (status[0]?.status !== 'Running' || Date.now() >= deadline) break
-        await new Promise((r) => setTimeout(r, 750))
-      }
-      const raw = JSON.parse(await this.text('GET', `/api/v2/search/results?id=${id}&limit=500`)) as { results?: Record<string, unknown>[] }
-      return (raw.results ?? []).flatMap((r) =>
-        typeof r.fileName === 'string' && typeof r.fileUrl === 'string'
-          ? [
-              {
-                title: r.fileName,
-                link: r.fileUrl,
-                size: Math.max(0, Number(r.fileSize) || 0),
-                seeders: Math.max(0, Number(r.nbSeeders) || 0),
-                leechers: Math.max(0, Number(r.nbLeechers) || 0),
-                site: typeof r.siteUrl === 'string' ? r.siteUrl : null,
-              },
-            ]
-          : [],
-      )
-    } finally {
-      await this.send('POST', '/api/v2/search/stop', idForm()).catch(() => undefined)
-      await this.send('POST', '/api/v2/search/delete', idForm()).catch(() => undefined)
-    }
   }
 
   private async text(method: 'GET' | 'POST', path: string, form?: Form): Promise<string> {

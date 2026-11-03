@@ -6,7 +6,7 @@ const mock = vi.hoisted(() => ({ get: vi.fn(), event: null as null | ((event: ob
 vi.mock('./connection', () => ({ useConnectionStore: () => ({ phase: 'connected', client: { get: mock.get }, onEvent: (event: typeof mock.event) => { mock.event = event } }) }))
 beforeEach(() => { mock.get.mockReset(); setActivePinia(createPinia()) })
 
-it('offers release search only after a provider is configured, including temporarily unreachable providers', async () => {
+it('offers release search only after Prowlarr is configured, including when it is temporarily unreachable', async () => {
   const status = { state: 'not_configured' as const, url: null, version: null, message: null }
   mock.get.mockResolvedValue(status)
   const store = useDownloadsStore()
@@ -17,7 +17,7 @@ it('offers release search only after a provider is configured, including tempora
   expect(store.canFindReleases).toBe(true)
   store.indexer = status
   store.client = { ...status, state: 'connected', username: null, webApiVersion: null }
-  expect(store.canFindReleases).toBe(true)
+  expect(store.canFindReleases).toBe(false)
   store.client = null
   expect(store.canFindReleases).toBe(false)
 })

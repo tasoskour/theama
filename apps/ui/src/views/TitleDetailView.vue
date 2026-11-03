@@ -43,7 +43,7 @@ const heading = ref<HTMLElement | null>(null)
 
 const key = computed(() => String(route.query.key ?? ''))
 
-/** Offered only once qBittorrent or Prowlarr is set up, so it is not a button that leads nowhere. */
+/** Release search requires Prowlarr; qBittorrent is used when a result is chosen. */
 const canFindDownload = computed(() => downloadsStore.canFindReleases)
 
 const latest = useLatestRequest()
@@ -477,7 +477,7 @@ const metaChips = computed(() => {
                 v-if="summary.kind !== 'video' && canFindDownload"
                 variant="text"
                 class="th-btn-quiet th-btn-quiet--text"
-                :to="{ name: 'downloads', query: { kind: summary.kind, title: meta?.title ?? summary.title, ...(summary.year ? { year: String(summary.year) } : {}) } }"
+                :to="{ name: 'downloads', query: { releases: '1', kind: summary.kind, title: meta?.title ?? summary.title, ...(summary.year ? { year: String(summary.year) } : {}), ...(summary.kind === 'movie' && detail?.collections.find(c => c.kind === 'official') ? { collectionName: detail.collections.find(c => c.kind === 'official')?.name } : {}) } }"
                 data-test="find-download"
               >{{ $t('detail.findDownload') }}</v-btn>
             </div>

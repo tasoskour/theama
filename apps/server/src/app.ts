@@ -531,9 +531,9 @@ export async function buildApp(deps: AppDeps) {
   }
 
   app.get(`${API_PREFIX}/downloads/releases`, async (req): Promise<ReleaseList> => {
+    if ('source' in (req.query as Record<string, unknown>)) throw new ApiProblem('invalid_request', 'Release source selection has been removed; set up Prowlarr to search', 400)
     const q = ReleaseQuery.parse(req.query)
-    const ready = q.source === 'prowlarr' ? downloads.indexerConnection() : q.source === 'qbittorrent' ? downloads.connection() : (downloads.indexerConnection() ?? downloads.connection())
-    if (!ready) throw new ApiProblem('not_configured', 'Set up qBittorrent or Prowlarr in Settings → Downloads first', 409)
+    if (!downloads.indexerConnection()) throw new ApiProblem('not_configured', 'Set up Prowlarr in Settings → Downloads to search releases', 409)
     try {
       return await downloads.findReleases(q)
     } catch (err) {

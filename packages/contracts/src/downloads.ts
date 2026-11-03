@@ -51,8 +51,8 @@ export type IndexerStatus = z.infer<typeof IndexerStatus>
 export const ReleaseKind = z.enum(['movie', 'series'])
 export type ReleaseKind = z.infer<typeof ReleaseKind>
 
-/** Where releases are searched: Prowlarr's indexers, or the search plugins installed in qBittorrent. `auto` prefers Prowlarr. */
-export const ReleaseSource = z.enum(['prowlarr', 'qbittorrent'])
+/** Prowlarr searches the configured torrent indexers. */
+export const ReleaseSource = z.literal('prowlarr')
 export type ReleaseSource = z.infer<typeof ReleaseSource>
 
 export const ReleaseQuery = z.object({
@@ -62,7 +62,8 @@ export const ReleaseQuery = z.object({
   /** Series only. Without an episode this asks for the whole season (or any season when it is absent too). */
   season: z.coerce.number().int().min(0).max(99).optional(),
   episode: z.coerce.number().int().min(0).max(999).optional(),
-  source: ReleaseSource.optional(),
+  sort: z.enum(['quality', 'seeders']).optional(),
+  collectionName: z.string().trim().min(1).max(200).optional(),
   /** Keeps results whose name does not look like the title asked for. Sent as `unmatched=true`; anything else is ignored. */
   unmatched: z.enum(['true']).transform(() => true as const).optional(),
 })
@@ -89,6 +90,8 @@ export const Release = z.object({
   episode: z.number().int().nullable(),
   /** A whole season (or series) rather than one episode. */
   pack: z.boolean(),
+  /** The name suggests a multi-movie collection; contents have not been verified. */
+  collectionPack: z.boolean().optional(),
 })
 export type Release = z.infer<typeof Release>
 

@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { WIZARD_STEPS, type WizardStep } from './content'
 
 export const SETUP_PROGRESS_KEY = 'theama.setup.v1'
+// Temporarily disable first-launch setup; manual setup stays available in Settings.
+const AUTO_START_SETUP = false
 const ProgressSchema = z.object({
   version: z.literal(1),
   state: z.enum(['new', 'in_progress', 'dismissed', 'completed']),
@@ -25,7 +27,7 @@ export function readSetupProgress(storage: SetupStorage): { progress: SetupProgr
       // An invalid record is still evidence of a previous visit: never trap it in first-use routing.
       return { progress: parsed.success ? parsed.data : emptyProgress(), autoStart: false, storageAvailable: true }
     }
-    return { progress: emptyProgress(), autoStart: !existingProfile, storageAvailable: true }
+    return { progress: emptyProgress(), autoStart: AUTO_START_SETUP && !existingProfile, storageAvailable: true }
   } catch {
     return { progress: emptyProgress(), autoStart: false, storageAvailable: false }
   }

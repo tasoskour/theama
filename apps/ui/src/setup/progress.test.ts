@@ -9,8 +9,8 @@ beforeEach(() => { values = new Map(); setActivePinia(createPinia()); vi.stubGlo
 afterEach(() => vi.unstubAllGlobals())
 
 describe('setup progress and first use', () => {
-  it('automatically offers setup only for a fresh profile', () => {
-    expect(readSetupProgress(storage).autoStart).toBe(true)
+  it('keeps automatic setup disabled for fresh and existing profiles', () => {
+    expect(readSetupProgress(storage).autoStart).toBe(false)
     values.set('theama.prefs', '{}')
     expect(readSetupProgress(storage).autoStart).toBe(false)
   })

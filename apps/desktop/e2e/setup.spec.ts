@@ -90,7 +90,11 @@ const next = () => page.locator('[data-test="setup-next"]').click()
 const skipped = () => page.locator('[data-test="setup-skip"]').click()
 const stepHeading = (name: string) => expect(page.getByRole('heading', { name, exact: true, level: 1 })).toBeVisible()
 
-test('fresh profile opens once, permits skip and finish later, then resumes at its saved step', async () => {
+test('fresh profile skips automatic setup, allows manual setup, then resumes at its saved step', async () => {
+  await expect(page.getByRole('heading', { name: 'Welcome to Theama' })).toBeVisible({ timeout: 60_000 })
+  await expect(page.locator('[data-test="setup-wizard"]')).toHaveCount(0)
+  await navigate('/settings/setup')
+  await page.locator('[data-test="setup-launch"]').click()
   await stepHeading('Welcome and language')
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 60_000 })
   await next()

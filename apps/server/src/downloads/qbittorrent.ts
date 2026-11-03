@@ -256,9 +256,10 @@ export class QBittorrentClient {
     // Some builds and reverse proxies answer a failed login with 401 instead of a 200 "Fails.".
     if (res.status === 401) throw new DownloadClientError('auth', 'qBittorrent did not accept the user name or password')
     if (!res.ok) throw new DownloadClientError('unavailable', `qBittorrent answered HTTP ${res.status}`)
-    // Wrong credentials are a 200 with the body "Fails.", not an error status.
+    // Newer qBittorrent builds answer a successful login with 204 and a session cookie.
+    // Older builds answer 200 "Ok."; wrong credentials answer 200 "Fails.".
     const body = (await res.text()).trim()
-    if (body !== 'Ok.') throw new DownloadClientError('auth', 'qBittorrent did not accept the user name or password')
+    if (res.status !== 204 && body !== 'Ok.') throw new DownloadClientError('auth', 'qBittorrent did not accept the user name or password')
     // With "bypass authentication for localhost" there is no cookie and none is needed.
     this.sid = sessionCookie(res.headers.getSetCookie())
   }

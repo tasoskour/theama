@@ -15,7 +15,7 @@ interface Seen {
 }
 
 /** A stand-in for qBittorrent's Web API: login by form, a SID cookie, and the two version endpoints. */
-function fakeQBittorrent(opts: { user?: string; pass?: string; bypass?: boolean } = {}) {
+function fakeQBittorrent(opts: { user?: string; pass?: string; bypass?: boolean; noContentLogin?: boolean } = {}) {
   const user = opts.user ?? 'admin'
   const pass = opts.pass ?? 'secret-pass'
   const seen: Seen[] = []
@@ -29,7 +29,7 @@ function fakeQBittorrent(opts: { user?: string; pass?: string; bypass?: boolean 
       if (state.banned) return new Response('Forbidden', { status: 403 })
       const form = new URLSearchParams(String(init.body))
       if (form.get('username') === user && form.get('password') === pass) {
-        const res = new Response('Ok.', { status: 200 })
+        const res = opts.noContentLogin ? new Response(null, { status: 204 }) : new Response('Ok.', { status: 200 })
         if (!opts.bypass) res.headers.append('set-cookie', `SID=${state.sid}; HttpOnly; path=/`)
         return res
       }
@@ -54,6 +54,13 @@ describe('QBittorrentClient', () => {
     expect(await client.webApiVersion()).toBe('2.11.2')
     expect(fake.seen.filter((r) => r.url.endsWith('/auth/login'))).toHaveLength(1)
     expect(fake.seen[0]?.headers).toMatchObject({ Origin: 'http://localhost:8080', Referer: 'http://localhost:8080/' })
+    expect(fake.seen[1]?.headers.Cookie).toBe('SID=abc123')
+  })
+
+  it('accepts a 204 login response with a session cookie', async () => {
+    const fake = fakeQBittorrent({ noContentLogin: true })
+    const client = new QBittorrentClient(() => conn, { fetch: fake.fetch })
+    expect(await client.version()).toBe('v5.0.1')
     expect(fake.seen[1]?.headers.Cookie).toBe('SID=abc123')
   })
 

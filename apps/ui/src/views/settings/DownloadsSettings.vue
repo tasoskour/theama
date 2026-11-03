@@ -142,7 +142,7 @@ defineExpose({ async saveForSetup(): Promise<boolean> {
     <div class="field th-form-section" data-test="qb-section">
       <div class="label-row">
         <span id="qb-label" class="label">{{ $t('downloads.qb.name') }}</span>
-        <v-chip v-if="qb" size="small" label variant="tonal" :color="chipColor(qb.state)" data-test="qb-state">{{ $t(`downloads.state.${qb.state}`) }}</v-chip>
+        <v-chip v-if="qb && !showQbForm" size="small" label variant="tonal" :color="chipColor(qb.state)" data-test="qb-state">{{ $t(`downloads.state.${qb.state}`) }}</v-chip>
       </div>
       <p class="th-muted hint">{{ $t('downloads.qb.intro') }}</p>
 
@@ -170,7 +170,7 @@ defineExpose({ async saveForSetup(): Promise<boolean> {
         <v-btn variant="tonal" size="small" @click="startQbEdit">{{ $t('downloads.edit') }}</v-btn>
         <v-btn variant="text" size="small" color="error" :loading="qbSaving" @click="removeQb">{{ $t('downloads.remove') }}</v-btn>
       </div>
-      <v-alert v-if="qbConfigured && qb && qb.state !== 'connected' && qb.message" type="warning" variant="tonal" density="compact">
+      <v-alert v-if="qbConfigured && !showQbForm && qb && qb.state !== 'connected' && qb.message" type="warning" variant="tonal" density="compact">
         {{ qb.message }}
         <template #append><v-btn variant="text" size="small" @click="downloads.load()">{{ $t('common.retry') }}</v-btn></template>
       </v-alert>

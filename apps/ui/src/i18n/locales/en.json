@@ -853,8 +853,8 @@
     "qb": {
       "name": "qBittorrent",
       "intro": "The program that does the downloading. Theama talks to its Web UI.",
-      "addressHint": "Usually http://localhost:8080",
-      "rejected": "qBittorrent did not accept this user name or password.",
+      "addressHint": "Use the port shown in qBittorrent → Tools → Options → Web UI.",
+      "rejected": "qBittorrent answered, but rejected this Web UI login. Check the user name and set a new Web UI password in qBittorrent, then try again.",
       "webUiHint": "In qBittorrent, turn on Tools → Options → Web UI → Web User Interface (Remote control). The login is checked before it is kept."
     },
     "prowlarr": {

@@ -853,8 +853,8 @@
     "qb": {
       "name": "qBittorrent",
       "intro": "Το πρόγραμμα που κάνει τη λήψη. Το Theama επικοινωνεί με το Web UI του.",
-      "addressHint": "Συνήθως http://localhost:8080",
-      "rejected": "Το qBittorrent δεν δέχτηκε αυτό το όνομα χρήστη ή τον κωδικό.",
+      "addressHint": "Χρησιμοποιήστε τη θύρα που εμφανίζεται στο qBittorrent → Εργαλεία → Επιλογές → Web UI.",
+      "rejected": "Το qBittorrent απάντησε, αλλά απέρριψε τα στοιχεία σύνδεσης Web UI. Ελέγξτε το όνομα χρήστη, ορίστε νέο κωδικό Web UI στο qBittorrent και δοκιμάστε ξανά.",
       "webUiHint": "Στο qBittorrent ενεργοποιήστε το Εργαλεία → Επιλογές → Web UI → Web User Interface (Απομακρυσμένος έλεγχος). Η σύνδεση ελέγχεται πριν αποθηκευτεί."
     },
     "prowlarr": {

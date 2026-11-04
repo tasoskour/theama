@@ -1348,9 +1348,10 @@
           "step4d": "Under \"Request an API Key\" click Create, choose Developer and accept the terms. In the form pick type \"Desktop application\", name \"Theama\", URL http://localhost and a one-line personal-use description. The address fields need your real details.",
           "step5": "Copy your key",
           "step5d": "The API page now shows an \"API Key\" (32 letters and numbers) and a longer \"API Read Access Token\". Either one works in Theama. Copy it.",
-          "step6": "Paste it and save",
-          "step6d": "Paste the key in the field below and press Save. Theama checks it with TMDB straight away."
-        }
+          "step6": "Paste it in the box above and save",
+          "step6d": "Paste the key in the box at the top of this card and press Save. Theama checks it with TMDB straight away."
+        },
+        "formTitle": "Paste your TMDB API key here"
       },
       "prowlarr": {
         "title": "Prowlarr (finds torrents)",
@@ -1366,13 +1367,14 @@
           "step2d": "Go to http://localhost:9696. On first start it asks you to set authentication: choose Forms and pick a username and password.",
           "step3": "Copy the API key",
           "step3d": "In Prowlarr open Settings → General. Under Security copy the \"API Key\". The port is listed under Host (9696 unless you changed it).",
-          "step4": "Enter the address and key here",
-          "step4d": "Fill in the address (use the port you saw) and the API key below, then press Save. The status turns to Configured when Prowlarr answers.",
+          "step4": "Enter the address and key in the box above",
+          "step4d": "Fill in the address (use the port you saw) and the API key in the box at the top of this card, then press Save. The status turns to Configured when Prowlarr answers.",
           "step5": "Add indexers",
-          "step5d": "Press \"Add The Pirate Bay and YTS\" below. Or do it in Prowlarr: Indexers → Add Indexer, search the name, select it, Test, then Save.",
+          "step5d": "Press \"Add The Pirate Bay and YTS\" in the box at the top of this card (it unlocks once Prowlarr is connected). Or do it in Prowlarr: Indexers → Add Indexer, search the name, select it, Test, then Save.",
           "step6": "Use it responsibly",
           "step6d": "Theama ships no indexers and does not judge content. Use only sources you are allowed to use where you live."
-        }
+        },
+        "formTitle": "Enter your Prowlarr address and API key here"
       },
       "qbittorrent": {
         "title": "qBittorrent (downloads)",
@@ -1389,9 +1391,10 @@
           "step4d": "Under Authentication enter a username and a password (new versions have no default password). Or tick \"Bypass authentication for clients on localhost\" and leave both fields below empty.",
           "step5": "Apply the options",
           "step5d": "Press Apply, then OK. Keep qBittorrent running: Theama sends downloads to it.",
-          "step6": "Enter the address and login here",
-          "step6d": "Address: http://localhost:PORT with your port. Fill in the username and password from step 4 below, then press Save."
-        }
+          "step6": "Enter the address and login in the box above",
+          "step6d": "Address: http://localhost:PORT with your port. Fill in the username and password from step 4 in the box at the top of this card, then press Save."
+        },
+        "formTitle": "Enter your qBittorrent address and login here"
       },
       "subtitles": {
         "title": "Subtitles",
@@ -1409,8 +1412,8 @@
           "step3d": "OpenSubtitles calls an API key a \"consumer\". Open it from your profile menu → API consumers, or with the button above.",
           "step4": "Create a consumer",
           "step4d": "Click \"New consumer\", enter the name \"Theama\" and a short description such as \"personal use\", accept the terms and save.",
-          "step5": "Copy the API key and save it here",
-          "step5d": "Your new consumer appears in the list with an \"API key\". Copy it, choose OpenSubtitles below, paste it and press Save. Optional: sign in with your OpenSubtitles username in the subtitle settings of Theama to raise the daily download limit."
+          "step5": "Copy the API key and paste it in the box above",
+          "step5d": "Your new consumer appears in the list with an \"API key\". Copy it, make sure OpenSubtitles is selected at the top of this card, paste the key there and press Save. Optional: sign in with your OpenSubtitles username in the subtitle settings of Theama to raise the daily download limit."
         },
         "subdl": {
           "title": "SubDL",
@@ -1420,13 +1423,18 @@
           "step2d": "Verify through the email if SubDL asks, then log in.",
           "step3": "Open the API panel",
           "step3d": "Press the button above (subdl.com/panel/api), or choose API in your account panel.",
-          "step4": "Copy the API key and save it here",
-          "step4d": "The panel shows your API key. Copy it, choose SubDL below, paste it and press Save."
-        }
+          "step4": "Copy the API key and paste it in the box above",
+          "step4d": "The panel shows your API key. Copy it, make sure SubDL is selected at the top of this card, paste the key there and press Save."
+        },
+        "formTitle": "Choose a provider and paste its API key here",
+        "providerHint": "OpenSubtitles has the bigger catalogue; SubDL is quicker to set up. One is enough."
       }
     },
     "run": "Run setup wizard",
     "installed": "Installed",
-    "progressCount": "{done} of {total} configured"
+    "progressCount": "{done} of {total} configured",
+    "needHelp": "Don’t have it yet?",
+    "showHow": "Show me how",
+    "guideHeading": "Step-by-step guide"
   }
 }

@@ -15,6 +15,8 @@ import { ITEM_CONTENT } from '@/setup/items'
 import SetupServiceCard from '@/components/setup/SetupServiceCard.vue'
 import SetupLanguageSelect from '@/components/setup/SetupLanguageSelect.vue'
 import logoMark from '@/assets/logo-mark.svg'
+import opensubtitlesIcon from '@/assets/setup/icons/opensubtitles.svg'
+import subdlIcon from '@/assets/setup/icons/subdl.svg'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -102,7 +104,7 @@ const saveSub = () => run('subtitles', async () => {
   subKey.value = ''
   return null
 })
-const providerItems = [{ title: 'OpenSubtitles', value: 'opensubtitles' }, { title: 'SubDL', value: 'subdl' }]
+const providerItems = [{ title: 'OpenSubtitles', value: 'opensubtitles', icon: opensubtitlesIcon }, { title: 'SubDL', value: 'subdl', icon: subdlIcon }]
 
 // --- Detection of installed apps (desktop only) ---
 const detectedNote = ref<Partial<Record<SetupItem, boolean>>>({})
@@ -174,9 +176,14 @@ function skipAll(): void {
       </form>
     </SetupServiceCard>
 
-    <SetupServiceCard item="subtitles" :installed="installed" :status="statusOf('subtitles')" :open="isOpen('subtitles')" @toggle="toggle('subtitles')" @skip="skip('subtitles')" @unskip="unskip('subtitles')">
+    <SetupServiceCard item="subtitles" :installed="installed" :active-group="provider" :status="statusOf('subtitles')" :open="isOpen('subtitles')" @toggle="toggle('subtitles')" @skip="skip('subtitles')" @unskip="unskip('subtitles')">
       <form class="form" @submit.prevent="saveSub">
-        <v-select v-model="provider" :items="providerItems" :label="$t('setup.items.subtitles.provider')" :disabled="disabled" />
+        <v-btn-toggle v-model="provider" mandatory divided variant="outlined" color="primary" class="provider-toggle" :aria-label="$t('setup.items.subtitles.provider')" data-test="setup-provider">
+          <v-btn v-for="p in providerItems" :key="p.value" :value="p.value" :data-test="`setup-provider-${p.value}`" :disabled="disabled">
+            <img class="provider-icon" :src="p.icon" alt="" />{{ p.title }}
+          </v-btn>
+        </v-btn-toggle>
+        <p class="th-muted provider-hint">{{ $t('setup.items.subtitles.providerHint') }}</p>
         <v-text-field v-model="subKey" type="password" :label="$t('setup.items.subtitles.apiKey')" autocomplete="off" spellcheck="false" :error-messages="problem.subtitles ?? undefined" :disabled="disabled" data-test="setup-sub-key" />
         <div><v-btn type="submit" color="primary" :loading="busy.subtitles" :disabled="disabled || !subKey.trim()">{{ $t('setup.save') }}</v-btn></div>
       </form>
@@ -197,6 +204,10 @@ h1 { font-size: clamp(1.6rem, 3vw, 2.4rem); margin: 0 0 6px; }
 .hero-text { flex: 1 1 18rem; min-width: 0; }
 .hero-text p { margin: 0; max-width: 70ch; }
 .logo { width: 56px; height: 56px; flex: none; }
+.provider-toggle { width: fit-content; max-width: 100%; height: auto; }
+.provider-toggle .v-btn { min-height: 44px; text-transform: none; }
+.provider-icon { width: 22px; height: 22px; border-radius: 6px; margin-right: 8px; }
+.provider-hint { margin: 0; font-size: .85rem; }
 .progress { display: grid; gap: 6px; font-size: .9rem; }
 .form { display: grid; gap: 8px; max-width: 35rem; }
 .row, .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }

@@ -1,4 +1,4 @@
-import type { SetupResourceId } from '@theama/contracts'
+import { SETUP_RESOURCES, type SetupResourceId } from '@theama/contracts'
 import type { SetupItem } from './content'
 import tmdbIcon from '@/assets/setup/icons/tmdb.svg'
 import opensubtitlesIcon from '@/assets/setup/icons/opensubtitles.svg'
@@ -49,4 +49,10 @@ const shotByName = new Map(Object.entries(shots).map(([path, url]) => [path.slic
 export function screenshotFor(item: SetupItem, group: string, step: number): string | null {
   const base = group === 'main' ? item : `${item}-${group}`
   return shotByName.get(`${base}-${step}`) ?? null
+}
+
+/** `host/path` of a link, shown under its label so people know where it leads. */
+export function linkHost(resource: SetupResourceId): string {
+  const url = new URL(SETUP_RESOURCES[resource])
+  return (url.host + url.pathname).replace(/^www[.]/, '').replace(/[/]$/, '')
 }

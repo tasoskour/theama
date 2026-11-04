@@ -869,7 +869,11 @@
       "hint": "Pick one of your library folders for each kind, so finished downloads show up in Theama by themselves. Leave it on the default to use qBittorrent's own folder.",
       "movies": "Movies",
       "series": "Series",
-      "default": "qBittorrent's default folder"
+      "default": "qBittorrent's default folder",
+      "browse": "Browse…",
+      "ask": "Ask where to save each download",
+      "askHint": "When on, a folder picker opens every time you press Download, and the folders below are not used.",
+      "askTitle": "Choose where to save this download"
     },
     "privacy": "What is sent where",
     "privacyText": "Your title searches go to Prowlarr, which passes them to the torrent sites you chose there. Chosen releases are sent to qBittorrent for downloading. Theama bundles no sites or plugins, and you are responsible for what you download. Passwords and keys are stored in the secrets folder of Theama's data, not in its database.",
@@ -1285,25 +1289,15 @@
     "contents": "Setup contents",
     "noResults": "No instructions match your search.",
     "progress": "Setup progress",
-    "stepCount": "Step {current} of {total}",
     "optional": "Optional feature",
     "baseline": "Getting started",
-    "optionalHint": "This feature is optional. Skip it if you do not need it.",
-    "baselineHint": "This helps the basic library experience. You can still skip it and return later.",
     "configure": "Configure",
     "instructions": "Setup instructions and download links",
     "storageWarning": "Local profile storage is unavailable. Wizard progress is remembered only for this session; saved configuration uses its normal storage.",
     "linkError": "The browser could not open this link. Try again or use the address shown by the link.",
-    "saveHint": "Each form saves through the existing settings. Save and continue also submits credentials entered in this step. Skipping never deletes saved configuration.",
     "backendRequired": "Connect the backend before configuring this step. You can read the instructions or skip it for now.",
-    "saveError": "Could not save this step. Check the form errors and try again, or skip this step to continue later.",
-    "incompleteHint": "Incomplete and unavailable items are listed below. Optional features do not prevent you from finishing.",
     "back": "Back",
-    "saveContinue": "Save and continue",
-    "finish": "Finish setup",
-    "skip": "Skip this step",
-    "later": "Finish later",
-    "revisit": "Revisit",
+    "skip": "Skip",
     "status": {
       "configured": "Configured",
       "attention": "Needs attention",
@@ -1311,15 +1305,68 @@
       "skipped": "Skipped",
       "unavailable": "Status unavailable"
     },
-    "steps": {
-      "welcome": "Welcome and language",
-      "service": "Backend and service",
-      "library": "Media folders",
-      "playback": "Video player",
-      "metadata": "TMDB metadata",
-      "subtitles": "Subtitles",
-      "downloads": "Downloads and search",
-      "review": "Final review"
-    }
+    "pageIntro": "Theama works with four outside services. Set up what you need now, skip the rest, and change any of it later in Settings.",
+    "configureNow": "Set up now",
+    "edit": "Edit",
+    "hide": "Hide",
+    "save": "Save",
+    "done": "Done",
+    "skipAll": "Skip all, configure later",
+    "allDone": "Everything is configured.",
+    "detected": "Found on this computer: the fields below are filled in for you.",
+    "links": {
+      "tmdbSignup": "Create a TMDB account",
+      "tmdbApi": "Open TMDB API settings",
+      "prowlarr": "Download Prowlarr",
+      "prowlarrDocs": "Prowlarr quick start",
+      "qbittorrent": "Download qBittorrent",
+      "qbittorrentOptions": "Web UI options explained",
+      "opensubtitles": "OpenSubtitles API key",
+      "subdl": "SubDL API key"
+    },
+    "items": {
+      "tmdb": {
+        "title": "TMDB (movie and series information)",
+        "summary": "Posters, descriptions and cast come from TMDB. It is free.",
+        "apiKey": "TMDB API key",
+        "step1": "Create a free account at themoviedb.org and confirm your email.",
+        "step2": "Open Settings → API and request a Developer key (a personal-use description is enough).",
+        "step3": "Copy the \"API Key\" value (not the long Read Access Token).",
+        "step4": "Paste it below and press Save."
+      },
+      "prowlarr": {
+        "title": "Prowlarr (finds torrents)",
+        "summary": "Searches torrent sites for releases. Needs at least one indexer.",
+        "addIndexers": "Add The Pirate Bay and YTS",
+        "current": "Indexers in Prowlarr: {names}",
+        "added": "Added: {names}.",
+        "existing": "Already there: {names}.",
+        "step1": "Download and install Prowlarr, then open it (http://localhost:9696).",
+        "step2": "In Prowlarr go to Settings → General and copy the API Key.",
+        "step3": "Paste the address and key below and press Save.",
+        "step4": "Press \"Add The Pirate Bay and YTS\" to add the recommended public indexers (or add them yourself in Prowlarr under Indexers → Add Indexer).",
+        "step5": "Theama ships no indexers: use only sources you are allowed to use."
+      },
+      "qbittorrent": {
+        "title": "qBittorrent (downloads)",
+        "summary": "Downloads the releases you choose.",
+        "webUiOff": "The qBittorrent Web UI looks switched off. Turn it on in Tools → Options → Web UI.",
+        "step1": "Download and install qBittorrent.",
+        "step2": "Open Tools → Options → Web UI, tick \"Web User Interface (Remote control)\" and set a user name and password.",
+        "step3": "Keep the port (8080 by default). Apply the options.",
+        "step4": "Enter the address, user name and password below and press Save."
+      },
+      "subtitles": {
+        "title": "Subtitles",
+        "summary": "Downloads subtitles from OpenSubtitles or SubDL. You need only one.",
+        "provider": "Provider",
+        "apiKey": "API key",
+        "rejected": "The provider did not accept this key.",
+        "step1": "Create a free account at OpenSubtitles (consumers page) or SubDL.",
+        "step2": "Create an API key / consumer and copy it.",
+        "step3": "Choose the provider below, paste the key and press Save."
+      }
+    },
+    "run": "Run setup wizard"
   }
 }

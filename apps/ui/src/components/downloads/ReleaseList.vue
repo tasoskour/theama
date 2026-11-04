@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { mdiArrowLeft, mdiClose, mdiMagnify } from '@mdi/js'
 import type { DownloadTool, Release, ReleaseKind, Resolution } from '@theama/contracts'
+import { getBridge } from '@/api/bridge'
+import { useSettingsStore } from '@/stores/settings'
 import { useDownloadsStore } from '@/stores/downloads'
 import { useDownloadToolsStore } from '@/stores/downloadTools'
 import { formatBytes } from '@/utils/format'
@@ -16,6 +18,7 @@ defineEmits<{ back: [] }>()
 
 const { t, locale } = useI18n()
 const downloads = useDownloadsStore()
+const settings = useSettingsStore()
 const tools = useDownloadToolsStore()
 
 // The search that is on screen. The fields below are edited freely and only replace it on Search.
@@ -144,8 +147,15 @@ function apply(): void {
 
 async function add(r: Release): Promise<void> {
   if (adding.value) return
+  let savePath: string | undefined
+  const bridge = getBridge()
+  if (bridge && settings.settings.downloadAskFolder) {
+    const picked = await bridge.pickFolder(t('downloads.folders.askTitle'))
+    if (!picked) return
+    savePath = picked
+  }
   adding.value = r.id
-  const res = await downloads.download(r.id, props.query.kind)
+  const res = await downloads.download(r.id, props.query.kind, savePath)
   adding.value = null
   if (res.ok) {
     sent.value = new Set([...sent.value, r.id])

@@ -7,6 +7,7 @@ const bridge: TheamaBridge = {
   downloadTools: {
     status: () => ipcRenderer.invoke(IPC.downloadToolsStatus),
     open: (tool) => ipcRenderer.invoke(IPC.downloadToolsOpen, { tool }),
+    detect: () => ipcRenderer.invoke(IPC.downloadToolsDetect),
   },
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
   setLanguage: (language) => ipcRenderer.invoke(IPC.setLanguage, { language }),

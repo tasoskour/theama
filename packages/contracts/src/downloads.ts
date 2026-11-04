@@ -45,8 +45,18 @@ export const IndexerStatus = z.object({
   url: z.string().nullable(),
   version: z.string().nullable(),
   message: z.string().nullable(),
+  /** Names of the indexers set up inside Prowlarr; empty when Prowlarr could not be asked. */
+  indexers: z.array(z.string()).default([]),
 })
 export type IndexerStatus = z.infer<typeof IndexerStatus>
+
+/** Result of adding the recommended public indexers (The Pirate Bay, YTS) to Prowlarr. */
+export const RecommendedIndexersResult = z.object({
+  added: z.array(z.string()),
+  existing: z.array(z.string()),
+  failed: z.array(z.object({ name: z.string(), reason: z.string() })),
+})
+export type RecommendedIndexersResult = z.infer<typeof RecommendedIndexersResult>
 
 export const ReleaseKind = z.enum(['movie', 'series'])
 export type ReleaseKind = z.infer<typeof ReleaseKind>
@@ -106,6 +116,8 @@ export type ReleaseList = z.infer<typeof ReleaseList>
 export const AddDownloadRequest = z.object({
   releaseId: z.string().min(1).max(100),
   kind: ReleaseKind,
+  /** A folder chosen for this one download; overrides the saved download folder. */
+  savePath: z.string().min(1).max(1000).optional(),
 })
 export type AddDownloadRequest = z.infer<typeof AddDownloadRequest>
 

@@ -1,5 +1,12 @@
 import { z } from 'zod'
+import type { RecommendedIndexersResult } from '@theama/contracts'
 import { DownloadClientError, baseOf, type QBittorrentOptions } from './qbittorrent'
+
+/** Public torrent indexers that need no account. `definition` is Prowlarr's definition name. */
+export const RECOMMENDED_INDEXERS = [
+  { name: 'The Pirate Bay', definition: 'thepiratebay' },
+  { name: 'YTS', definition: 'yts' },
+] as const
 
 export interface ProwlarrConnection {
   /** e.g. `http://localhost:9696` */
@@ -67,13 +74,47 @@ export class ProwlarrClient {
     return hits
   }
 
-  private async getJson(path: string, timeoutMs = this.timeout): Promise<unknown> {
+  /** Names of the indexers already set up in Prowlarr. */
+  async listIndexers(): Promise<string[]> {
+    const raw = await this.getJson('api/v1/indexer')
+    return Array.isArray(raw) ? raw.flatMap((i) => (typeof i?.name === 'string' ? [i.name as string] : [])) : []
+  }
+
+  /** Adds the recommended public indexers that are not there yet. One failing indexer does not stop the others. */
+  async addRecommendedIndexers(): Promise<RecommendedIndexersResult> {
+    const result: RecommendedIndexersResult = { added: [], existing: [], failed: [] }
+    const present = (await this.getJson('api/v1/indexer')) as unknown
+    const have = new Set(Array.isArray(present) ? present.map((i) => String(i?.definitionName ?? '').toLowerCase()) : [])
+    const schemas = await this.getJson('api/v1/indexer/schema', Math.max(this.timeout, 30_000))
+    const profiles = await this.getJson('api/v1/appprofile')
+    const appProfileId = Array.isArray(profiles) && typeof profiles[0]?.id === 'number' ? (profiles[0].id as number) : 1
+    for (const wanted of RECOMMENDED_INDEXERS) {
+      const schema = Array.isArray(schemas) ? schemas.find((x) => String(x?.definitionName ?? '').toLowerCase() === wanted.definition) : undefined
+      if (!schema) { result.failed.push({ name: wanted.name, reason: 'This Prowlarr version has no definition for it' }); continue }
+      if (have.has(wanted.definition)) { result.existing.push(wanted.name); continue }
+      try {
+        await this.request('POST', 'api/v1/indexer', { ...schema, name: schema.name ?? wanted.name, enable: true, appProfileId, tags: [] }, Math.max(this.timeout, 45_000))
+        result.added.push(wanted.name)
+      } catch (err) {
+        result.failed.push({ name: wanted.name, reason: err instanceof Error ? err.message : 'Unknown error' })
+      }
+    }
+    return result
+  }
+
+  private getJson(path: string, timeoutMs = this.timeout): Promise<unknown> {
+    return this.request('GET', path, undefined, timeoutMs)
+  }
+
+  private async request(method: 'GET' | 'POST', path: string, body: unknown, timeoutMs: number): Promise<unknown> {
     const conn = this.connection()
     if (!conn) throw new DownloadClientError('unavailable', 'Prowlarr is not set up')
     let res: Response
     try {
       res = await this.fetchImpl(new URL(path, baseOf(conn.url)), {
-        headers: { 'X-Api-Key': conn.apiKey, Accept: 'application/json' },
+        method,
+        headers: { 'X-Api-Key': conn.apiKey, Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         signal: AbortSignal.timeout(timeoutMs),
         redirect: 'error',
       })
@@ -82,7 +123,10 @@ export class ProwlarrClient {
       throw new DownloadClientError('unreachable', `Could not reach Prowlarr at ${conn.url} (${reason})`)
     }
     if (res.status === 401 || res.status === 403) throw new DownloadClientError('auth', 'Prowlarr did not accept the API key')
-    if (!res.ok) throw new DownloadClientError('unavailable', `Prowlarr answered HTTP ${res.status}`)
+    if (!res.ok) {
+      const detail = method === 'POST' ? await res.text().then((t) => t.slice(0, 200)).catch(() => '') : ''
+      throw new DownloadClientError('unavailable', `Prowlarr answered HTTP ${res.status}${detail ? `: ${detail}` : ''}`)
+    }
     try {
       return await res.json()
     } catch {

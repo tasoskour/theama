@@ -43,6 +43,7 @@ import {
   ReleaseQuery,
   type ReleaseList,
   type IndexerStatus,
+  type RecommendedIndexersResult,
   type DownloadClientStatus,
   TitleKeyRequest,
   LogQuery,
@@ -520,6 +521,14 @@ export async function buildApp(deps: AppDeps) {
     return status
   })
 
+  app.post(`${API_PREFIX}/downloads/indexer/recommended`, async (): Promise<RecommendedIndexersResult> => {
+    try {
+      return await downloads.addRecommendedIndexers()
+    } catch (err) {
+      return downloadFailure(err)
+    }
+  })
+
   /** Maps the download client's failures to HTTP. None is a 401: that means our own API token. */
   function downloadFailure(err: unknown): never {
     if (err instanceof DownloadClientError) {
@@ -542,10 +551,10 @@ export async function buildApp(deps: AppDeps) {
   })
 
   app.post(`${API_PREFIX}/downloads`, async (req, reply) => {
-    const { releaseId, kind } = AddDownloadRequest.parse(req.body ?? {})
+    const { releaseId, kind, savePath } = AddDownloadRequest.parse(req.body ?? {})
     if (!downloads.connection()) throw new ApiProblem('not_configured', 'qBittorrent is not set up', 409)
     try {
-      await downloads.download(releaseId, kind)
+      await downloads.download(releaseId, kind, savePath)
     } catch (err) {
       if (err instanceof ReleaseExpired) throw new ApiProblem('release_expired', err.message, 410)
       return downloadFailure(err)

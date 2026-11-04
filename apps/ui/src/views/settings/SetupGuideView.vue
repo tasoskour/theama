@@ -41,7 +41,7 @@ function goTopic(id: string): void {
     <h2 class="th-display">{{ $t('setup.guideTitle') }}</h2>
     <p class="lead">{{ guide?.intro }}</p>
     <div class="actions">
-      <v-btn color="primary" data-test="setup-launch" @click="launch()">{{ $t(setup.resumable ? 'setup.resume' : setup.progress.state === 'completed' ? 'setup.reviewSetup' : 'setup.start') }}</v-btn>
+      <v-btn color="primary" data-test="setup-launch" @click="launch()">{{ $t('setup.run') }}</v-btn>
       <v-btn v-if="setup.progress.state !== 'new'" variant="text" @click="launch(true)">{{ $t('setup.restart') }}</v-btn>
       <v-btn variant="tonal" :loading="refreshing" @click="refresh()">{{ $t('setup.refresh') }}</v-btn>
     </div>

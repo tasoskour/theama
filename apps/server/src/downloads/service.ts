@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { Logger } from 'pino'
 import { z } from 'zod'
-import type { DownloadClientState, DownloadClientStatus, DownloadFile, DownloadList, IndexerStatus, Release, ReleaseKind, ReleaseList, ReleaseQuery } from '@theama/contracts'
+import type { DownloadClientState, DownloadClientStatus, DownloadFile, DownloadList, IndexerStatus, RecommendedIndexersResult, Release, ReleaseKind, ReleaseList, ReleaseQuery } from '@theama/contracts'
 import type { CredentialStore } from '../metadata/credentials'
 import { problemFor, toItem } from './items'
 import { ProwlarrClient, isDownloadLink, type IndexerHit, type ProwlarrConnection } from './prowlarr'
@@ -120,6 +120,11 @@ export class DownloadsService {
     return this.probeIndexer(this.prowlarr, conn)
   }
 
+  /** Adds The Pirate Bay and YTS to Prowlarr. */
+  async addRecommendedIndexers(): Promise<RecommendedIndexersResult> {
+    return this.prowlarr.addRecommendedIndexers()
+  }
+
   /** Same rule as `connect`: a rejected key is refused, an indexer that is not running yet is saved. */
   async connectIndexer(next: ProwlarrConnection | null): Promise<IndexerStatus> {
     if (next === null) {
@@ -180,13 +185,13 @@ export class DownloadsService {
   }
 
   /** Hands a release found by `findReleases` to qBittorrent. Only those links are ever accepted, never a typed-in one. */
-  async download(releaseId: string, kind: ReleaseKind): Promise<void> {
+  async download(releaseId: string, kind: ReleaseKind, savePath?: string): Promise<void> {
     const entry = this.releases.get(releaseId)
     if (!entry || this.now() - entry.at > RELEASE_CACHE_MS) {
       this.releases.delete(releaseId)
       throw new ReleaseExpired()
     }
-    await this.qbittorrent.add(entry.link, { savePath: this.options.savePath?.(kind) ?? null, tags: [THEAMA_TAG, `${THEAMA_TAG}-${kind}`] })
+    await this.qbittorrent.add(entry.link, { savePath: savePath ?? this.options.savePath?.(kind) ?? null, tags: [THEAMA_TAG, `${THEAMA_TAG}-${kind}`] })
     this.options.logger.info({ kind }, 'Download added to qBittorrent')
   }
 
@@ -276,7 +281,9 @@ export class DownloadsService {
 
   private async probeIndexer(client: ProwlarrClient, conn: ProwlarrConnection): Promise<IndexerStatus> {
     try {
-      return { ...indexerStatusOf('connected', conn), version: await client.version() }
+      const version = await client.version()
+      const indexers = await client.listIndexers().catch(() => [])
+      return { ...indexerStatusOf('connected', conn), version, indexers }
     } catch (err) {
       if (!(err instanceof DownloadClientError)) throw err
       return { ...indexerStatusOf(stateOf(err.kind), conn), message: err.message }
@@ -302,7 +309,7 @@ function statusOf(state: DownloadClientState, conn: QBittorrentConnection | null
 }
 
 function indexerStatusOf(state: DownloadClientState, conn: ProwlarrConnection | null): IndexerStatus {
-  return { state, url: conn?.url ?? null, version: null, message: null }
+  return { state, url: conn?.url ?? null, version: null, message: null, indexers: [] }
 }
 
 const pad = (n: number): string => String(n).padStart(2, '0')

@@ -31,9 +31,11 @@ import type { PlayerManager } from './players'
 import type { ApiConnection } from './runtime'
 import type { ServiceController } from './service/controller'
 import type { DownloadToolsManager } from './download-tools'
+import type { DetectedServices } from '@theama/contracts'
 
 export interface IpcDeps {
   downloadTools: Pick<DownloadToolsManager, 'status' | 'open'>
+  detectServices(): DetectedServices
   getWindow(): BrowserWindow | null
   paths: DataPaths
   controller: ServiceController
@@ -78,6 +80,7 @@ export function registerIpc(deps: IpcDeps): void {
 
   handle(IPC.downloadToolsStatus, none, () => deps.downloadTools.status())
   handle(IPC.downloadToolsOpen, OpenDownloadToolRequest, ({ tool }) => deps.downloadTools.open(tool))
+  handle(IPC.downloadToolsDetect, none, () => deps.detectServices())
 
   handle(IPC.appInfo, none, (): AppInfo => {
     const conn = deps.connection()

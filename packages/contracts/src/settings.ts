@@ -89,6 +89,8 @@ export const AppSettings = z.object({
   /** The library folders new downloads are saved into; null leaves it to qBittorrent's own default. */
   downloadMovieSourceId: LibrarySourceId.default(null),
   downloadSeriesSourceId: LibrarySourceId.default(null),
+  /** Choose the folder each time a download is started instead of using the one above (desktop app only). */
+  downloadAskFolder: z.boolean().default(false),
   /** List and manage every torrent in qBittorrent, not only the ones Theama added. */
   downloadsShowAll: z.boolean().default(false),
 })
@@ -114,6 +116,7 @@ export const AppSettingsPatch = z.object({
   renameEpisodeTemplate: Template.optional(),
   downloadMovieSourceId: LibrarySourceId.optional(),
   downloadSeriesSourceId: LibrarySourceId.optional(),
+  downloadAskFolder: z.boolean().optional(),
   downloadsShowAll: z.boolean().optional(),
 })
 export type AppSettingsPatch = z.infer<typeof AppSettingsPatch>

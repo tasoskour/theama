@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { mdiFolderOpen } from '@mdi/js'
+import { getBridge } from '@/api/bridge'
 import { useConnectionStore } from '@/stores/connection'
 import { useDownloadsStore } from '@/stores/downloads'
 import { useLibraryStore } from '@/stores/library'
@@ -118,6 +120,25 @@ async function setFolder(key: 'downloadMovieSourceId' | 'downloadSeriesSourceId'
   if (await settings.update({ [key]: id })) snackbar.value = t('settings.general.saved')
 }
 
+const bridge = getBridge()
+const canBrowse = bridge !== null
+
+const norm = (p: string): string => p.replace(/[\\/]+$/, '').toLowerCase()
+
+async function browseFolder(kind: 'movies' | 'series'): Promise<void> {
+  const picked = await bridge?.pickFolder(t(`downloads.folders.${kind}`))
+  if (!picked) return
+  const key = kind === 'movies' ? 'downloadMovieSourceId' : 'downloadSeriesSourceId'
+  const existing = library.sources.find((s) => norm(s.path) === norm(picked))
+  if (existing) {
+    await setFolder(key, existing.id)
+    return
+  }
+  const res = await library.add(picked, kind)
+  if (res.ok) await setFolder(key, res.source.id)
+  else snackbar.value = res.message
+}
+
 onMounted(() => {
   void downloads.load()
   if (!library.loaded) void library.load()
@@ -214,22 +235,39 @@ defineExpose({ async saveForSetup(): Promise<boolean> {
       <span class="label">{{ $t('downloads.folders.title') }}</span>
       <p class="th-muted hint">{{ $t('downloads.folders.hint') }}</p>
       <div class="form">
-        <v-select
-          :model-value="settings.settings.downloadMovieSourceId"
-          :items="movieFolders"
-          :label="$t('downloads.folders.movies')"
+        <v-switch
+          v-if="canBrowse"
+          :model-value="settings.settings.downloadAskFolder"
+          :label="$t('downloads.folders.ask')"
+          :hint="$t('downloads.folders.askHint')"
+          persistent-hint
+          color="primary"
           :disabled="!connection.isConnected"
-          data-test="folder-movies"
-          @update:model-value="(v: number | null) => setFolder('downloadMovieSourceId', v)"
+          data-test="folder-ask"
+          @update:model-value="(v: boolean | null) => settings.update({ downloadAskFolder: v === true })"
         />
-        <v-select
-          :model-value="settings.settings.downloadSeriesSourceId"
-          :items="seriesFolders"
-          :label="$t('downloads.folders.series')"
-          :disabled="!connection.isConnected"
-          data-test="folder-series"
-          @update:model-value="(v: number | null) => setFolder('downloadSeriesSourceId', v)"
-        />
+        <div class="folder-row">
+          <v-select
+            :model-value="settings.settings.downloadMovieSourceId"
+            :items="movieFolders"
+            :label="$t('downloads.folders.movies')"
+            :disabled="!connection.isConnected"
+            data-test="folder-movies"
+            @update:model-value="(v: number | null) => setFolder('downloadMovieSourceId', v)"
+          />
+          <v-btn v-if="canBrowse" variant="tonal" :prepend-icon="mdiFolderOpen" :disabled="!connection.isConnected" data-test="browse-movies" @click="browseFolder('movies')">{{ $t('downloads.folders.browse') }}</v-btn>
+        </div>
+        <div class="folder-row">
+          <v-select
+            :model-value="settings.settings.downloadSeriesSourceId"
+            :items="seriesFolders"
+            :label="$t('downloads.folders.series')"
+            :disabled="!connection.isConnected"
+            data-test="folder-series"
+            @update:model-value="(v: number | null) => setFolder('downloadSeriesSourceId', v)"
+          />
+          <v-btn v-if="canBrowse" variant="tonal" :prepend-icon="mdiFolderOpen" :disabled="!connection.isConnected" data-test="browse-series" @click="browseFolder('series')">{{ $t('downloads.folders.browse') }}</v-btn>
+        </div>
       </div>
     </div>
 
@@ -279,6 +317,14 @@ defineExpose({ async saveForSetup(): Promise<boolean> {
   flex: 1 1 14rem;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.folder-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.folder-row > :first-child {
+  flex: 1;
 }
 .actions,
 .saved {

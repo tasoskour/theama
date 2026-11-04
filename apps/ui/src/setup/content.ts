@@ -1,8 +1,11 @@
 import { SETUP_RESOURCES, type SetupResourceId } from '@theama/contracts'
 
-export const WIZARD_STEPS = ['welcome', 'service', 'library', 'playback', 'metadata', 'subtitles', 'downloads', 'review'] as const
-export type WizardStep = typeof WIZARD_STEPS[number]
-export type GuideId = WizardStep | 'installation' | 'prowlarr' | 'vpn' | 'maintenance' | 'developer' | 'troubleshooting'
+export const GUIDE_STEPS = ['welcome', 'service', 'library', 'playback', 'metadata', 'subtitles', 'downloads', 'review'] as const
+export type GuideStep = typeof GUIDE_STEPS[number]
+/** The only things the first-run wizard asks for: the four outside services Theama relies on. */
+export const SETUP_ITEMS = ['tmdb', 'prowlarr', 'qbittorrent', 'subtitles'] as const
+export type SetupItem = typeof SETUP_ITEMS[number]
+export type GuideId = GuideStep | 'installation' | 'prowlarr' | 'vpn' | 'maintenance' | 'developer' | 'troubleshooting'
 export type GuideBlock =
   | { kind: 'paragraph'; text: string }
   | { kind: 'steps'; items: string[] }

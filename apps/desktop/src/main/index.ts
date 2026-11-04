@@ -6,6 +6,7 @@ import { IPC, IndexerStatus, LaunchInfo, type DesktopSettings, type DesktopSetti
 import { defaultDataDir, resolveDataPaths } from '@theama/logs'
 import { registerIpc } from './ipc'
 import { DownloadToolsManager } from './download-tools'
+import { detectServices } from './service-detect'
 import { menuStrings } from './menu-strings'
 import { originOf } from './origin'
 import { launchDetached, PlayerManager, type LaunchedPlayer } from './players'
@@ -429,6 +430,7 @@ async function main(): Promise<void> {
     },
   })
   registerIpc({
+    detectServices: () => detectServices(),
     downloadTools: new DownloadToolsManager({
       openBrowser: (url) => shell.openExternal(url),
       prowlarrUrl: async () => {

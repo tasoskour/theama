@@ -13,9 +13,9 @@ it('offers release search only after Prowlarr is configured, including when it i
   expect(store.canFindReleases).toBe(false)
   await store.load()
   expect(store.canFindReleases).toBe(false)
-  store.indexer = { ...status, state: 'unreachable' }
+  store.indexer = { ...status, state: 'unreachable', indexers: [] }
   expect(store.canFindReleases).toBe(true)
-  store.indexer = status
+  store.indexer = { ...status, indexers: [] }
   store.client = { ...status, state: 'connected', username: null, webApiVersion: null }
   expect(store.canFindReleases).toBe(false)
   store.client = null

@@ -4,7 +4,7 @@ import { ServiceAccountChoice, ServiceStatus } from './service'
 import type { UiLanguage } from './settings'
 import { LogEntry } from './logs'
 import { NextUp } from './playback'
-import type { DownloadTool, DownloadToolsStatus, OpenDownloadToolResult } from './download-tools'
+import type { DetectedServices, DownloadTool, DownloadToolsStatus, OpenDownloadToolResult } from './download-tools'
 
 /**
  * Narrow, typed IPC surface between the sandboxed renderer and the Electron
@@ -42,6 +42,7 @@ export const IPC = {
   playersCancelNext: 'players:cancelNext',
   downloadToolsStatus: 'downloadTools:status',
   downloadToolsOpen: 'downloadTools:open',
+  downloadToolsDetect: 'downloadTools:detect',
   /** Main to renderer push: the trailer was closed from inside the video (Escape). */
   evTrailerClosed: 'ev:trailer-closed',
   /** Main to renderer push: an episode ended and the next one should start after a countdown. */
@@ -167,6 +168,8 @@ export interface TheamaBridge {
   downloadTools: {
     status(): Promise<DownloadToolsStatus>
     open(tool: DownloadTool): Promise<OpenDownloadToolResult>
+    /** Reads installed Prowlarr and qBittorrent settings from their config files. */
+    detect(): Promise<DetectedServices>
   }
   appInfo(): Promise<AppInfo>
   /** Tells the main process which language to use for native dialogs and tray UI. */

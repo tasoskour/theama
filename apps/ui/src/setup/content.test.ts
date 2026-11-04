@@ -4,11 +4,11 @@ import { ExternalLinkRequest, SETUP_RESOURCES } from '@theama/contracts'
 import { externalUrl } from '@/composables/useExternalLinks'
 import { guide as en } from './guide.en'
 import { guide as el } from './guide.el'
-import { guideMarkdown, searchableText, WIZARD_STEPS } from './content'
+import { guideMarkdown, searchableText, GUIDE_STEPS } from './content'
 
 describe('complete bilingual setup guide', () => {
   it('covers every wizard step and every integration in both languages', () => {
-    const ids = [...WIZARD_STEPS, 'installation', 'prowlarr', 'vpn', 'maintenance', 'developer', 'troubleshooting']
+    const ids = [...GUIDE_STEPS, 'installation', 'prowlarr', 'vpn', 'maintenance', 'developer', 'troubleshooting']
     expect(new Set(en.sections.map((s) => s.id))).toEqual(new Set(ids))
     expect(el.sections.map((s) => s.id)).toEqual(en.sections.map((s) => s.id))
     for (let i = 0; i < en.sections.length; i++) {

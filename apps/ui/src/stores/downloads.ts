@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { z } from 'zod'
-import { DownloadClientStatus, DownloadFileList, DownloadList, IndexerStatus, ReleaseList, type DownloadFile, type ReleaseKind } from '@theama/contracts'
+import { DownloadClientStatus, DownloadFileList, DownloadList, IndexerStatus, RecommendedIndexersResult, ReleaseList, type DownloadFile, type ReleaseKind } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
 import { useConnectionStore } from './connection'
 
@@ -97,6 +97,18 @@ export const useDownloadsStore = defineStore('downloads', () => {
     }
   }
 
+  /** Adds The Pirate Bay and YTS to Prowlarr, then refreshes the status so the indexer list is current. */
+  async function addRecommendedIndexers(): Promise<{ ok: true; value: RecommendedIndexersResult } | Failure> {
+    if (!connection.client) return notConnected
+    try {
+      const value = await connection.client.post('/downloads/indexer/recommended', {}, RecommendedIndexersResult)
+      void load()
+      return { ok: true, value }
+    } catch (err) {
+      return failure(err)
+    }
+  }
+
   async function findReleases(q: ReleaseSearch, signal?: AbortSignal): Promise<ReleasesResult> {
     if (!connection.client) return notConnected
     try {
@@ -107,10 +119,10 @@ export const useDownloadsStore = defineStore('downloads', () => {
     }
   }
 
-  async function download(releaseId: string, kind: ReleaseKind): Promise<DownloadResult> {
+  async function download(releaseId: string, kind: ReleaseKind, savePath?: string): Promise<DownloadResult> {
     if (!connection.client) return notConnected
     try {
-      await connection.client.post('/downloads', { releaseId, kind }, Done)
+      await connection.client.post('/downloads', { releaseId, kind, ...(savePath ? { savePath } : {}) }, Done)
       return { ok: true }
     } catch (err) {
       return failure(err)
@@ -169,5 +181,5 @@ export const useDownloadsStore = defineStore('downloads', () => {
     if (e.type === 'downloads.changed') { listRevision++; list.value = e.list }
   })
 
-  return { client, indexer, statusError, canFindReleases, list, setPaused, files, selectFiles, remove, load, saveClient, saveIndexer, findReleases, download }
+  return { client, indexer, statusError, addRecommendedIndexers, canFindReleases, list, setPaused, files, selectFiles, remove, load, saveClient, saveIndexer, findReleases, download }
 })

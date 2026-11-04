@@ -19,3 +19,10 @@ export const OpenDownloadToolResult = z.object({
   code: z.enum(['not_installed', 'launch_failed', 'not_ready', 'unavailable', 'invalid_address']).nullable(),
 })
 export type OpenDownloadToolResult = z.infer<typeof OpenDownloadToolResult>
+
+/** Settings found on this computer for apps the person installed. Secrets that cannot be read (the qBittorrent password) are never included. */
+export const DetectedServices = z.object({
+  prowlarr: z.object({ installed: z.boolean(), url: z.string().nullable(), apiKey: z.string().nullable() }),
+  qbittorrent: z.object({ installed: z.boolean(), url: z.string().nullable(), username: z.string().nullable(), webUiEnabled: z.boolean().nullable() }),
+})
+export type DetectedServices = z.infer<typeof DetectedServices>

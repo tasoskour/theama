@@ -55,13 +55,13 @@ export function useSetupStatus() {
       : subtitleValues.includes('failed') ? 'attention' : subtitleValues.every((v) => v === 'verified') ? 'configured' : 'unavailable'
     subtitle = withSkip(subtitle, setup.progress.skipped.includes('subtitles'))
     return {
-      service: withSkip(connected ? 'configured' : service.status?.state === 'not-installed' ? 'not_configured' : service.status ? 'attention' : 'unavailable', setup.progress.skipped.includes('service')),
-      library: withSkip(libraryStatus(library.sources, library.loaded && !library.error, connected), setup.progress.skipped.includes('library')),
-      playback: withSkip(playerStatus(players.defaultPlayer, players.loaded && !players.error), setup.progress.skipped.includes('playback')),
-      metadata: withSkip(metadataStatus(metadata.status, connected && !metadata.error), setup.progress.skipped.includes('metadata')),
+      service: connected ? 'configured' : service.status?.state === 'not-installed' ? 'not_configured' : service.status ? 'attention' : 'unavailable',
+      library: libraryStatus(library.sources, library.loaded && !library.error, connected),
+      playback: playerStatus(players.defaultPlayer, players.loaded && !players.error),
+      metadata: withSkip(metadataStatus(metadata.status, connected && !metadata.error), setup.progress.skipped.includes('tmdb')),
       subtitles: subtitle,
-      downloads: withSkip(connected && downloadLoaded.value && !downloads.statusError ? clientStatus(downloads.client?.state) : 'unavailable', setup.progress.skipped.includes('downloads')),
-      prowlarr: connected && downloadLoaded.value && !downloads.statusError ? clientStatus(downloads.indexer?.state) : 'unavailable',
+      downloads: withSkip(connected && downloadLoaded.value && !downloads.statusError ? clientStatus(downloads.client?.state) : 'unavailable', setup.progress.skipped.includes('qbittorrent')),
+      prowlarr: withSkip(connected && downloadLoaded.value && !downloads.statusError ? clientStatus(downloads.indexer?.state) : 'unavailable', setup.progress.skipped.includes('prowlarr')),
     }
   })
   return { statuses, refreshing, refresh }

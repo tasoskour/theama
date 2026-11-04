@@ -947,6 +947,14 @@
       "unknownSize": "Unknown size",
       "nothingReceivedProwlarr": "Prowlarr found no usable releases. Try another spelling, season, or year, or test the search in Prowlarr.",
       "noneMatchedProwlarr": "{count} releases came back, but none matched this title. Try another spelling, season, or year, or show them anyway.",
+      "filters": {
+        "season": "Season",
+        "episode": "Episode",
+        "allSeasons": "All seasons",
+        "allEpisodes": "All episodes",
+        "seasonOption": "Season {n}",
+        "episodeOption": "Episode {n}"
+      },
       "sort": {
         "label": "Sort",
         "quality": "Quality first",

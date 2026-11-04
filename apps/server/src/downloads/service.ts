@@ -16,6 +16,8 @@ const RELEASE_CACHE_SIZE = 1000
 const RELEASE_CACHE_MS = 30 * 60_000
 /** Anything beyond this is noise; the list is already ranked. */
 const MAX_RELEASES = 60
+/** A series has many seasons and episodes; the season and episode filters in the interface need all of them. */
+const MAX_SERIES_RELEASES = 300
 const MAX_COLLECTION_PACKS = 20
 
 /** The tag every download added from Theama carries, so they can be told apart from the person's own. */
@@ -178,7 +180,7 @@ export class DownloadsService {
     }
     const selectedPacks = rankReleases(packs, q.sort).slice(0, MAX_COLLECTION_PACKS)
     const packLinks = new Set(selectedPacks.map((p) => p.link))
-    const selectedSingles = rankReleases(kept.filter((item) => !packLinks.has(item.link)), q.sort).slice(0, MAX_RELEASES)
+    const selectedSingles = rankReleases(kept.filter((item) => !packLinks.has(item.link)), q.sort).slice(0, q.kind === 'series' ? MAX_SERIES_RELEASES : MAX_RELEASES)
     const items = [...selectedPacks, ...selectedSingles].map(({ link, ...release }): Release => ({ id: this.remember(link), ...release }))
     this.options.logger.info({ query: text, received: hits.length + packHits.length, kept: items.length }, 'Release search finished')
     return { source: 'prowlarr', items, received: hits.length + packHits.length }

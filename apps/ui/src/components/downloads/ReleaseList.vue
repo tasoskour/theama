@@ -10,6 +10,7 @@ import { useDownloadToolsStore } from '@/stores/downloadTools'
 import { formatBytes } from '@/utils/format'
 import { toolLogos } from './toolLogos'
 import { groupReleases, type ReleaseGroup } from './releaseGroups'
+import { episodesOf, filterReleases, seasonsOf, sortReleases, type ReleaseSort } from './releaseSort'
 
 type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined; collectionName?: string | undefined }
 
@@ -34,7 +35,9 @@ const items = ref<Release[]>([])
 const received = ref(0)
 const resolution = ref<Resolution | null>(null)
 const minSeeders = ref('')
-const sort = ref<'quality' | 'seeders'>('quality')
+const sort = ref<ReleaseSort>('quality')
+const seasonFilter = ref<number | null>(null)
+const episodeFilter = ref<number | null>(null)
 /** Asks the server to keep results that do not look like the title. Off for every new title. */
 const unmatched = ref(false)
 const adding = ref<string | null>(null)
@@ -57,10 +60,15 @@ function fill(q: Query): void {
 }
 
 const resolutions = computed(() => (['2160p', '1080p', '720p', '480p'] as const).filter((r) => items.value.some((i) => i.resolution === r)))
-const shown = computed(() => {
-  const least = num(minSeeders.value) ?? 0
-  return items.value.filter((i) => (!resolution.value || i.resolution === resolution.value) && i.seeders >= least)
-})
+const seasons = computed(() => seasonsOf(items.value))
+const episodes = computed(() => episodesOf(items.value, seasonFilter.value))
+const seasonItems = computed(() => [{ title: t('downloads.releases.filters.allSeasons'), value: null }, ...seasons.value.map((n) => ({ title: t('downloads.releases.filters.seasonOption', { n }), value: n }))])
+const episodeItems = computed(() => [{ title: t('downloads.releases.filters.allEpisodes'), value: null }, ...episodes.value.map((n) => ({ title: t('downloads.releases.filters.episodeOption', { n }), value: n }))])
+// Sorting and filtering only reorder what was already fetched; nothing here asks the server again.
+const shown = computed(() => sortReleases(
+  filterReleases(items.value, { resolution: resolution.value, minSeeders: num(minSeeders.value) ?? 0, season: seasonFilter.value, episode: episodeFilter.value }),
+  sort.value,
+))
 const filtered = computed(() => items.value.length > 0 && shown.value.length === 0)
 const emptyMessageKey = computed(() => received.value === 0 ? 'downloads.releases.nothingReceivedProwlarr' : 'downloads.releases.noneMatchedProwlarr')
 const groups = computed(() => groupReleases(shown.value, active.value.kind))
@@ -82,7 +90,7 @@ async function run(): Promise<void> {
   loading.value = true
   error.value = null
   items.value = []
-  const res = await downloads.findReleases({ ...active.value, sort: sort.value, unmatched: unmatched.value }, controller.signal)
+  const res = await downloads.findReleases({ ...active.value, unmatched: unmatched.value }, controller.signal)
   if (mine !== generation) return
   loading.value = false
   if (res.ok) {
@@ -120,6 +128,8 @@ watch(
     active.value = q
     fill(q)
     resolution.value = null
+    seasonFilter.value = null
+    episodeFilter.value = null
     unmatched.value = false
     sent.value = new Set()
     void run()
@@ -141,6 +151,8 @@ function apply(): void {
     ? { kind, title: text, year: num(year.value), ...(text === props.query.title ? { collectionName: props.query.collectionName } : {}) }
     : { kind, title: text, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) }
   resolution.value = null
+  seasonFilter.value = null
+  episodeFilter.value = null
   sent.value = new Set()
   void run()
 }
@@ -240,8 +252,31 @@ const heading = computed(() => {
         hide-details
         class="rel__sort"
         data-test="release-sort"
-        @update:model-value="run"
       />
+      <template v-if="active.kind === 'series' && seasons.length > 0">
+        <v-select
+          v-model="seasonFilter"
+          :items="seasonItems"
+          :label="$t('downloads.releases.filters.season')"
+          density="compact"
+          variant="outlined"
+          hide-details
+          class="rel__sort"
+          data-test="release-season-filter"
+          @update:model-value="episodeFilter = null"
+        />
+        <v-select
+          v-model="episodeFilter"
+          :items="episodeItems"
+          :label="$t('downloads.releases.filters.episode')"
+          :disabled="seasonFilter === null"
+          density="compact"
+          variant="outlined"
+          hide-details
+          class="rel__sort"
+          data-test="release-episode-filter"
+        />
+      </template>
       <v-chip-group v-if="resolutions.length > 1" v-model="resolution" column class="rel__chips" :aria-label="$t('detail.facts.resolution')">
         <v-chip v-for="r in resolutions" :key="r" :value="r" filter variant="tonal" size="small">{{ r }}</v-chip>
       </v-chip-group>

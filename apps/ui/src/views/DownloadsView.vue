@@ -14,10 +14,8 @@ import ReleaseList from '@/components/downloads/ReleaseList.vue'
 import SuggestionGrid from '@/components/downloads/SuggestionGrid.vue'
 import PersonSuggestions from '@/components/downloads/PersonSuggestions.vue'
 import SuggestionSection from '@/components/downloads/SuggestionSection.vue'
-import SuggestionDetailsDialog from '@/components/downloads/SuggestionDetailsDialog.vue'
 import type { SuggestionItem } from '@/components/downloads/suggestion'
-import TrailerDialog from '@/components/titles/TrailerDialog.vue'
-import { imdbLinkFor, openExternal, trailerInApp } from '@/composables/useExternalLinks'
+import TitlePreviewHost from '@/components/titles/TitlePreviewHost.vue'
 import { useDownloadsStore } from '@/stores/downloads'
 import { useDownloadsViewStore } from '@/stores/downloadsView'
 import { useMetadataStore } from '@/stores/metadata'
@@ -108,80 +106,8 @@ watch(yearsSentinel, (el, _, onCleanup) => {
   onCleanup(() => observer.disconnect())
 })
 
-const preview = ref<SuggestionItem | null>(null)
-const previewOpen = ref(false)
-const linkAction = ref<'trailer' | 'imdb' | null>(null)
-const linkProblem = ref<string | null>(null)
-let previewGeneration = 0
-let previewActivator: HTMLElement | null = null
-let trailerActivator: HTMLElement | null = null
-const trailer = ref<{ key: string; title: string } | null>(null)
-const trailerOpen = ref(false)
-
-function invalidatePreview(): void {
-  previewGeneration += 1
-  linkAction.value = null
-  linkProblem.value = null
-}
-watch(previewOpen, invalidatePreview, { flush: 'sync' })
-onBeforeUnmount(invalidatePreview)
-
-function openPreview(c: SuggestionItem): void {
-  previewActivator = document.activeElement instanceof HTMLElement ? document.activeElement : null
-  preview.value = c
-  previewOpen.value = true
-}
-
-function restorePreviewFocus(): void {
-  if (previewOpen.value) return
-  // Removing a favorite can remove the card that opened this dialog.
-  const target = previewActivator?.isConnected ? previewActivator : document.querySelector<HTMLElement>('.head__tabs [role="tab"][aria-selected="true"]')
-  target?.focus({ preventScroll: true })
-}
-
-watch(trailerOpen, async (open) => {
-  if (!open && previewOpen.value) {
-    await nextTick()
-    trailerActivator?.focus({ preventScroll: true })
-  }
-})
-
-// Opening a preview uses the data already on the card. Links are fetched only on demand.
-async function withDetails(c: MatchCandidate, action: 'trailer' | 'imdb', then: (d: { imdbId: string | null; trailer: { key: string } | null }) => void | Promise<void>): Promise<void> {
-  if (linkAction.value || !previewOpen.value) return
-  const mine = previewGeneration
-  linkAction.value = action
-  linkProblem.value = null
-  try {
-    const res = await metadata.suggestionDetails(c.kind, c.externalId)
-    // A dismissed preview must not launch a late trailer or write into a different title's dialog.
-    if (mine !== previewGeneration) return
-    if (!res.ok) throw new Error(t('downloads.suggestions.details', { message: res.message }))
-    await then(res)
-  } catch (err) {
-    if (mine === previewGeneration) linkProblem.value = err instanceof Error ? err.message : String(err)
-  } finally {
-    if (mine === previewGeneration) linkAction.value = null
-  }
-}
-
-const showTrailer = (c: MatchCandidate): Promise<void> => {
-  trailerActivator = document.activeElement instanceof HTMLElement ? document.activeElement : null
-  return withDetails(c, 'trailer', (d) => {
-    if (!d.trailer) throw new Error(t('downloads.suggestions.noTrailer'))
-    if (trailerInApp) {
-      trailer.value = { key: d.trailer.key, title: c.title }
-      trailerOpen.value = true
-    } else return openExternal({ service: 'youtube', id: d.trailer.key })
-  })
-}
-
-const showImdb = (c: MatchCandidate): Promise<void> =>
-  withDetails(c, 'imdb', (d) => {
-    const link = imdbLinkFor(d.imdbId)
-    if (!link) throw new Error(t('downloads.suggestions.noImdb'))
-    return openExternal(link)
-  })
+const previewHost = ref<InstanceType<typeof TitlePreviewHost> | null>(null)
+function openPreview(c: SuggestionItem): void { previewHost.value?.show(c) }
 
 // Emptying the title leaves the search and shows the suggestions again.
 watch(text, (v) => {
@@ -235,7 +161,6 @@ async function search(): Promise<void> {
 
 // Suggestions mix movies and series, so the pick decides which kind of release to look for.
 const pick = (c: MatchCandidate): void => {
-  previewOpen.value = false
   tab.value = 'find'
   openReleases(c.title, c.year ?? undefined, c.kind)
 }
@@ -262,8 +187,7 @@ watch(() => route.query, (params) => {
   // The outgoing view can observe the next page's query before it unmounts.
   if (route.name !== 'downloads') return
   changeKind()
-  previewOpen.value = false
-  trailerOpen.value = false
+  previewHost.value?.close()
   const target = releaseSearchFromRoute(params)
   // Ordinary navigation restores the controls; explicit links start a new Find context.
   if (!target && !person.value) return
@@ -432,18 +356,7 @@ watch(() => route.query, (params) => {
 
     <ActiveDownloads v-show="tab === 'active'" @find="tab = 'find'" />
 
-    <SuggestionDetailsDialog
-      v-if="preview"
-      v-model="previewOpen"
-      :candidate="preview"
-      :busy="linkAction"
-      :problem="linkProblem"
-      @pick="pick"
-      @trailer="showTrailer"
-      @imdb="showImdb"
-      @closed="restorePreviewFocus"
-    />
-    <TrailerDialog v-if="trailerInApp && trailer" v-model="trailerOpen" :video-id="trailer.key" :title="trailer.title" @youtube="openExternal({ service: 'youtube', id: trailer.key })" />
+    <TitlePreviewHost ref="previewHost" focus-fallback=".head__tabs [role='tab'][aria-selected='true']" @pick="pick" />
   </div>
 </template>
 

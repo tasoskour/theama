@@ -132,7 +132,8 @@ test.afterAll(async () => {
 
 test('searches a missing official movie by keyboard without making its poster playable', async () => {
   const ghost = page.locator('[data-test="contextual-member"]').filter({ hasText: 'Mad Max 2' })
-  await expect(ghost.locator('a, button')).toHaveCount(0)
+  await expect(ghost.locator('a')).toHaveCount(0)
+  await expect(ghost.locator('[data-test="collection-preview"]')).toHaveCount(1)
   const link = page.getByRole('link', { name: 'Find releases for Mad Max 2', exact: true })
   await link.focus()
   await page.keyboard.press('Enter')
@@ -140,6 +141,41 @@ test('searches a missing official movie by keyboard without making its poster pl
   await expect.poll(() => releaseRequests.length).toBe(1)
   expect(releaseParams()).toMatchObject({ kind: 'movie', title: 'Mad Max 2', year: '1981' })
   expect(metadataSearches).toBe(0)
+})
+
+test('previews a verified missing movie without card detail requests and restores keyboard focus', async () => {
+  await expect(page.locator('[data-poster-card]').first()).toContainText('TMDB 6.7')
+  const ghost = page.locator('[data-test="contextual-member"]').filter({ hasText: 'Mad Max 2' })
+  const preview = ghost.locator('[data-test="collection-preview"]')
+  const detailsBefore = fake.requests.filter((r) => r.path === '/movie/8810').length
+  await expect(ghost).toContainText('TMDB 7.0/10')
+  await preview.focus()
+  await page.keyboard.press('Enter')
+  const dialog = page.locator('[data-test="suggestion-dialog"]')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('Not in your library')
+  await expect(dialog).toContainText('The Road Warrior.')
+  await expect(dialog.locator('[data-test="suggestion-tmdb"]')).toBeVisible()
+  expect(fake.requests.filter((r) => r.path === '/movie/8810')).toHaveLength(detailsBefore)
+  await app.evaluate(({ shell }) => {
+    const links: string[] = []
+    Object.assign(globalThis, { previewLinks: links })
+    shell.openExternal = async (url) => { links.push(url) }
+  })
+  await dialog.locator('[data-test="suggestion-tmdb"]').click()
+  await expect.poll(() => app.evaluate(() => (globalThis as typeof globalThis & { previewLinks: string[] }).previewLinks)).toContain('https://www.themoviedb.org/movie/8810')
+  expect(fake.requests.filter((r) => r.path === '/movie/8810')).toHaveLength(detailsBefore)
+  await dialog.locator('[data-test="suggestion-trailer"]').click()
+  await expect(dialog.locator('[data-test="suggestion-link-error"]')).toHaveText('No trailer available')
+  await dialog.locator('[data-test="suggestion-imdb"]').click()
+  await expect(dialog.locator('[data-test="suggestion-link-error"]')).toHaveText('No IMDb page available')
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+  await expect(preview).toBeFocused()
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(380, 850))
+  await preview.click()
+  await expect(dialog).toBeVisible()
+  expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
 })
 
 test('searches absent user collection movies and series, leaving personal and local items alone', async () => {

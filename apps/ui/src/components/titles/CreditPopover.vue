@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { Suggestion, TitleCredit } from '@theama/contracts'
+import { useRouter } from 'vue-router'
+import type { MatchCandidate, Suggestion, TitleCredit } from '@theama/contracts'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
 import { useLatestRequest } from '@/composables/useRefresh'
 import AwardsList from './AwardsList.vue'
 import PosterArt from './PosterArt.vue'
+import TitlePreviewHost from './TitlePreviewHost.vue'
+import { useDownloadsStore } from '@/stores/downloads'
 
 const props = defineProps<{ credit: TitleCredit }>()
 const connection = useConnectionStore()
 const metadata = useMetadataStore()
+const downloads = useDownloadsStore()
+const router = useRouter()
+const activator = ref<HTMLElement | null>(null)
+const previewHost = ref<InstanceType<typeof TitlePreviewHost> | null>(null)
+const pendingPreview = ref<Suggestion | null>(null)
 const open = ref(false)
 const loading = ref(false)
 const error = ref<{ code: string; message: string } | null>(null)
@@ -20,6 +28,25 @@ const profileSrc = computed(() => connection.assetUrl(props.credit.profileUrl))
 const profileFailed = ref(false)
 const initials = computed(() => props.credit.name.trim().split(/\s+/u).filter(Boolean).map((part) => Array.from(part)[0]).filter(Boolean).slice(0, 2).join(''))
 watch(profileSrc, () => { profileFailed.value = false })
+
+function releaseRoute(title: MatchCandidate) {
+  return { name: 'downloads', query: { kind: title.kind, title: title.title, ...(title.kind === 'movie' && title.year !== null ? { year: String(title.year) } : {}), releases: '1', personId: props.credit.externalId, personCategory: props.credit.category, personName: props.credit.name } }
+}
+
+function preview(title: Suggestion): void {
+  pendingPreview.value = title
+  open.value = false
+}
+
+function openPendingPreview(): void {
+  if (!pendingPreview.value) return
+  previewHost.value?.show(pendingPreview.value, activator.value)
+  pendingPreview.value = null
+}
+
+function findReleases(title: MatchCandidate): void {
+  void router.push(releaseRoute(title))
+}
 
 async function load(): Promise<void> {
   loading.value = true
@@ -44,9 +71,9 @@ watch([open, () => props.credit.externalId, () => props.credit.category], ([show
 </script>
 
 <template>
-  <v-menu v-model="open" :close-on-content-click="false" location="top start" max-width="40rem">
+  <v-menu v-model="open" :close-on-content-click="false" location="top start" max-width="40rem" @after-leave="openPendingPreview">
     <template #activator="{ props: menuProps }">
-      <button v-bind="menuProps" type="button" class="credit" :data-test="`credit-${credit.category}`">
+      <button v-bind="menuProps" ref="activator" type="button" class="credit" :data-test="`credit-${credit.category}`">
         <span class="credit__portrait" aria-hidden="true">
           <img v-if="profileSrc && !profileFailed" :src="profileSrc" alt="" loading="lazy" decoding="async" width="48" height="64" data-test="credit-photo" @error="profileFailed = true" />
           <span v-else class="credit__initials" data-test="credit-photo-fallback">{{ initials }}</span>
@@ -99,20 +126,21 @@ watch([open, () => props.credit.externalId, () => props.credit.category], ([show
           <p v-if="!group.items.length" class="th-muted credit-popover__empty">{{ $t('detail.noPersonTitles') }}</p>
           <ul v-else class="credit-popover__top" :data-test="`credit-top-${group.kind}`">
             <li v-for="title in group.items" :key="`${title.kind}:${title.externalId}`" class="credit-popover__result" data-test="credit-top-title">
-              <div class="credit-popover__poster">
-                <PosterArt :seed="`${title.kind}:${title.externalId}`" :title="title.title" :year="title.year" :kind="title.kind" :image-url="connection.assetUrl(title.posterUrl)" />
-              </div>
-              <div class="credit-popover__info">
-                <span class="credit__name">{{ title.title }}</span>
-                <span class="th-muted"><span v-if="title.year">{{ title.year }} · </span><span v-if="title.rating !== null">{{ $t('detail.personRating', { value: title.rating.toFixed(1) }) }}</span></span>
-              </div>
-              <v-btn size="small" variant="tonal" color="primary" :to="{ name: 'downloads', query: { kind: title.kind, title: title.title, ...(title.kind === 'movie' && title.year !== null ? { year: String(title.year) } : {}), releases: '1', personId: credit.externalId, personCategory: credit.category, personName: credit.name } }" :aria-label="$t('detail.findPersonReleases', { title: title.title })" data-test="credit-releases" @click="open = false">{{ $t('downloads.suggestions.findReleases') }}</v-btn>
+              <button type="button" class="credit-popover__preview" :aria-label="$t('downloads.suggestions.preview', { title: title.title })" data-test="credit-preview" @click="preview(title)" @keydown.enter.stop.prevent="preview(title)" @keydown.space.stop.prevent="preview(title)">
+                <span class="credit-popover__poster"><PosterArt :seed="`${title.kind}:${title.externalId}`" :title="title.title" :year="title.year" :kind="title.kind" :image-url="connection.assetUrl(title.posterUrl)" /></span>
+                <span class="credit-popover__info">
+                  <span class="credit__name">{{ title.title }}</span>
+                  <span class="th-muted"><span v-if="title.year">{{ title.year }} · </span><span v-if="title.rating !== null">{{ $t('detail.personRating', { value: title.rating.toFixed(1) }) }}</span></span>
+                </span>
+              </button>
+              <v-btn v-if="downloads.canFindReleases" size="small" variant="tonal" color="primary" :to="releaseRoute(title)" :aria-label="$t('detail.findPersonReleases', { title: title.title })" data-test="credit-releases" @click="open = false">{{ $t('downloads.suggestions.findReleases') }}</v-btn>
             </li>
           </ul>
         </template>
       </div>
     </v-card>
   </v-menu>
+  <TitlePreviewHost ref="previewHost" :can-find-releases="downloads.canFindReleases" @pick="findReleases" />
 </template>
 
 <style scoped>
@@ -205,6 +233,26 @@ watch([open, () => props.credit.externalId, () => props.credit.category], ([show
   gap: 12px;
   padding: 8px 0;
 }
+.credit-popover__preview {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.credit-popover__preview:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 3px;
+}
+.credit-popover__preview:hover .credit__name { text-decoration: underline; }
 .credit-popover__info {
   display: grid;
   flex: 1;

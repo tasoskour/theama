@@ -86,6 +86,7 @@ export interface ProviderCollection {
     releaseDate: string | null
     overview: string | null
     posterPath: string | null
+    rating: number | null
   }[]
 }
 

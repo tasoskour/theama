@@ -7,6 +7,7 @@ import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
 import PosterArt from './PosterArt.vue'
 import SearchField from '@/components/common/SearchField.vue'
+import { openExternal } from '@/composables/useExternalLinks'
 
 /**
  * Identifies one title (`titleKey`), or, with `groupKeys`, first puts those cards into one series under a name
@@ -177,6 +178,10 @@ function problem(code: string, fallback: string): string {
                 {{ c.title }}<span v-if="c.year" class="th-muted"> ({{ c.year }})</span>
               </div>
               <div v-if="c.originalTitle && c.originalTitle !== c.title" class="th-muted cand__orig">{{ c.originalTitle }}</div>
+              <div class="cand__links">
+                <span v-if="c.rating != null" class="cand__rating" :aria-label="$t('detail.personRating', { value: c.rating.toFixed(1) })">★ TMDB {{ c.rating.toFixed(1) }}/10</span>
+                <v-btn size="small" variant="text" :aria-label="`${$t('metadata.tmdb')}: ${c.title}`" data-test="identify-tmdb" @click="openExternal({ service: 'tmdb', kind: c.kind, id: c.externalId })">{{ $t('metadata.tmdb') }} ↗</v-btn>
+              </div>
               <p v-if="c.overview" class="cand__overview">{{ c.overview }}</p>
               <p v-else class="th-muted cand__overview">{{ $t('match.dialog.noOverview') }}</p>
             </div>
@@ -259,6 +264,18 @@ function problem(code: string, fallback: string): string {
 }
 .cand__orig {
   font-size: 0.85rem;
+}
+.cand__links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 4px;
+}
+.cand__rating {
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.8rem;
+  font-weight: 650;
 }
 .cand__overview {
   margin: 6px 0 0;

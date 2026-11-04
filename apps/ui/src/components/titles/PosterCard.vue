@@ -56,7 +56,7 @@ const detail = computed(() => {
 const needsId = computed(() => props.title.matchState === 'ambiguous' || props.title.matchState === 'unmatched')
 
 const label = computed(() =>
-  [props.title.title, props.caption ?? detail.value, offline.value ? t('files.offline') : '', partly.value ? t('titles.partial', { available: props.title.availableCount, total: props.title.fileCount }) : '', props.title.watchState === 'all' ? t('play.watched') : '', needsId.value ? t('match.notIdentified') : '']
+  [props.title.title, props.caption ?? detail.value, props.title.rating != null ? t('detail.personRating', { value: props.title.rating.toFixed(1) }) : '', offline.value ? t('files.offline') : '', partly.value ? t('titles.partial', { available: props.title.availableCount, total: props.title.fileCount }) : '', props.title.watchState === 'all' ? t('play.watched') : '', needsId.value ? t('match.notIdentified') : '']
     .filter(Boolean)
     .join(', '),
 )
@@ -99,7 +99,11 @@ const label = computed(() =>
         </span>
       </div>{{ ' ' }}
       <div class="card__meta" aria-hidden="true">
-        <span class="card__title">{{ title.title }}</span>{{ ' ' }}<span v-if="caption ?? detail" class="card__detail th-muted">{{ caption ?? detail }}</span>
+        <span class="card__title">{{ title.title }}</span>
+        <span class="card__subline">
+          <span v-if="caption ?? detail" class="card__detail th-muted">{{ caption ?? detail }}</span>
+          <span v-if="title.rating != null" class="card__rating">★ TMDB {{ title.rating.toFixed(1) }}</span>
+        </span>
       </div>
     </router-link>
     <TitleActionsMenu v-if="!selecting" :title="title" :tabindex="tabindex === 0 ? 0 : -1" :in-continue="inContinue" />
@@ -229,12 +233,27 @@ const label = computed(() =>
   -webkit-box-orient: vertical;
 }
 .card__detail {
-  display: block;
+  min-width: 0;
   font-size: 0.8rem;
   margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.card__subline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-top: 2px;
+  min-height: 1rem;
+}
+.card__subline .card__detail { margin-top: 0; }
+.card__rating {
+  flex: none;
+  white-space: nowrap;
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.72rem;
+  font-weight: 650;
 }
 @media (prefers-reduced-motion: reduce) {
   .card:hover .card__art,

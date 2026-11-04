@@ -7,6 +7,7 @@ import { CollectionDetail, type CollectionMember, type CollectionOrder } from '@
 import { ApiRequestError } from '@/api/client'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import PosterCard from '@/components/titles/PosterCard.vue'
+import TitlePreviewHost from '@/components/titles/TitlePreviewHost.vue'
 import { useLatestRequest, useRefresh } from '@/composables/useRefresh'
 import { useConnectionStore } from '@/stores/connection'
 import { useDownloadsStore } from '@/stores/downloads'
@@ -17,6 +18,22 @@ const route = useRoute()
 const router = useRouter()
 const connection = useConnectionStore()
 const downloads = useDownloadsStore()
+const previewHost = ref<InstanceType<typeof TitlePreviewHost> | null>(null)
+const previewRoute = ref<ReturnType<typeof releaseSearchRoute> | null>(null)
+
+function openMember(m: CollectionMember & { releaseRoute: ReturnType<typeof releaseSearchRoute> | null }): void {
+  if (!m.provider || !m.externalId) return
+  previewRoute.value = m.releaseRoute
+  previewHost.value?.show({
+    provider: m.provider, externalId: m.externalId, kind: 'movie', title: m.title,
+    originalTitle: null, year: m.year, overview: m.overview, posterUrl: m.posterUrl,
+    rating: m.rating, score: null, genres: [],
+  })
+}
+
+function findPreviewReleases(): void {
+  if (previewRoute.value) void router.push(previewRoute.value)
+}
 
 const detail = ref<CollectionDetail | null>(null)
 const missing = ref(false)
@@ -186,15 +203,18 @@ const heroStyle = computed(() => {
         <li v-for="m in members" :key="m.titleKey ?? m.title + m.position" class="member">
           <div class="member__pos th-muted" aria-hidden="true">{{ m.position }}</div>
           <PosterCard v-if="m.summary" :title="m.summary" />
-          <!-- A contextual entry: known to the collection, not in the library. It is never a link and never plays. -->
+          <!-- Contextual entries never play. Verified official members can open a metadata preview. -->
           <div v-else class="ghost" data-test="contextual-member">
-            <div class="ghost__art">
-              <PosterArt :seed="`ghost:${m.title}`" :title="m.title" :year="m.year" kind="movie" :image-url="connection.assetUrl(m.posterUrl)" />
-            </div>
-            <div class="ghost__meta">
-              <div class="ghost__title">{{ m.title }}</div>
-              <div class="th-muted ghost__detail">{{ m.year ?? '' }}<span v-if="m.year"> · </span>{{ $t('collections.notInLibrary') }}</div>
-            </div>
+            <button v-if="m.provider && m.externalId" type="button" class="ghost__preview" :aria-label="$t('downloads.suggestions.preview', { title: m.title })" data-test="collection-preview" @click="openMember(m)">
+              <span class="ghost__art"><PosterArt :seed="`ghost:${m.title}`" :title="m.title" :year="m.year" kind="movie" :image-url="connection.assetUrl(m.posterUrl)" /></span>
+              <span class="ghost__meta"><span class="ghost__title">{{ m.title }}</span></span>
+            </button>
+            <template v-else>
+              <div class="ghost__art"><PosterArt :seed="`ghost:${m.title}`" :title="m.title" :year="m.year" kind="movie" :image-url="connection.assetUrl(m.posterUrl)" /></div>
+              <div class="ghost__meta"><div class="ghost__title">{{ m.title }}</div></div>
+            </template>
+            <div class="th-muted ghost__detail">{{ m.year ?? '' }}<span v-if="m.year"> · </span>{{ $t('collections.notInLibrary') }}</div>
+            <div v-if="m.rating !== null" class="ghost__rating" :aria-label="$t('detail.personRating', { value: m.rating.toFixed(1) })">TMDB {{ m.rating.toFixed(1) }}/10</div>
           </div>
           <v-btn
             v-if="downloads.canFindReleases && m.releaseRoute"
@@ -221,6 +241,8 @@ const heroStyle = computed(() => {
         </li>
       </ol>
     </template>
+
+    <TitlePreviewHost ref="previewHost" :can-find-releases="downloads.canFindReleases" missing @pick="findPreviewReleases" />
 
     <v-dialog v-model="renaming" max-width="28rem" aria-labelledby="rename-title">
       <v-card class="pa-2" tag="form" @submit.prevent="rename">
@@ -325,9 +347,33 @@ const heroStyle = computed(() => {
 }
 .ghost {
   display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.ghost__preview {
+  display: grid;
   gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--th-radius);
+}
+.ghost__preview:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 3px;
+}
+.ghost__preview:hover .ghost__art,
+.ghost__preview:focus-visible .ghost__art {
+  opacity: 0.85;
+  filter: grayscale(0.25);
 }
 .ghost__art {
+  display: block;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -345,7 +391,11 @@ const heroStyle = computed(() => {
 }
 .ghost__detail {
   font-size: 0.8rem;
-  margin-top: 2px;
+}
+.ghost__rating {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: rgb(var(--v-theme-primary));
 }
 .gone {
   text-align: center;

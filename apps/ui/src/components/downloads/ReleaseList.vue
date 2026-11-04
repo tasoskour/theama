@@ -362,11 +362,24 @@ const heading = computed(() => {
   flex: 0 1 12rem;
 }
 .rel__group {
-  margin-top: 14px;
+  margin-top: 24px;
+}
+.rel__group:first-child {
+  margin-top: 16px;
 }
 .rel__group-title {
-  font-size: 0.9rem;
-  font-weight: 600;
+  margin: 0 0 6px;
+  padding: 10px 14px;
+  border: 1px solid rgba(var(--v-theme-primary), 0.14);
+  border-inline-start: 3px solid rgba(var(--v-theme-primary), 0.7);
+  border-radius: var(--th-radius);
+  background: rgba(var(--v-theme-primary), 0.06);
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .releases {
   list-style: none;

@@ -22,7 +22,7 @@ import type { CredentialStore } from './credentials'
 import { decide, rank, type Decision, type ScoredCandidate } from './matcher'
 import { AsyncCache } from './cache'
 import { runPool } from '../scan/probe'
-import { ProviderError, type MetadataProvider, type ProviderCandidate, type ProviderEpisode } from './provider'
+import { ProviderError, type MetadataProvider, type ProviderCandidate, type ProviderCollection, type ProviderEpisode } from './provider'
 import { MetadataRepo, type PendingTitle } from './store'
 
 const LANGUAGE_TAGS: Record<MetadataLanguage, string> = { en: 'en-US', el: 'el-GR' }
@@ -78,6 +78,9 @@ export class MetadataManager {
   private idle: Promise<void> = Promise.resolve()
   /** Collections already read in the current pass, so three films of one set cost one request. */
   private readonly collectionsThisPass = new Set<string>()
+  private readonly collectionFetches = new Map<string, Promise<void>>()
+  private readonly collectionRefreshes = new Set<string>()
+  private readonly collectionRetryAfter = new Map<string, number>()
   private readonly suggestionCache = new AsyncCache<MetadataSuggestionsResult>(128, SUGGESTION_FRESH_MS, () => this.now().getTime())
   private readonly suggestionDetailsCache = new AsyncCache<MetadataSuggestionDetails>(256, SUGGESTION_FRESH_MS, () => this.now().getTime())
   private readonly personTitlesCache = new AsyncCache<MetadataPersonTitlesResult>(128, SUGGESTION_FRESH_MS, () => this.now().getTime())
@@ -139,6 +142,22 @@ export class MetadataManager {
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.d.provider.close()
     await this.idle
+    await Promise.allSettled([...this.collectionFetches.values()])
+  }
+
+  /** Old cached sets render immediately; one background collection request supplies all member ratings. */
+  refreshCollectionIfNeeded(id: number): void {
+    if (this.stopped || !this.d.credentials.has()) return
+    const ref = this.d.collections.ratingRefreshTarget(id)
+    if (!ref || this.collectionRefreshes.has(ref.externalId) || (this.collectionRetryAfter.get(ref.externalId) ?? 0) > this.now().getTime()) return
+    this.collectionRefreshes.add(ref.externalId)
+    void this.storeCollection(ref).then(() => {
+      this.collectionRetryAfter.delete(ref.externalId)
+      this.changed(true)
+    }).catch((err: unknown) => {
+      this.collectionRetryAfter.set(ref.externalId, this.now().getTime() + 2 * 60_000)
+      this.d.logger.warn({ err, collection: ref.name }, 'Could not refresh collection ratings; will retry later')
+    }).finally(() => { this.collectionRefreshes.delete(ref.externalId) })
   }
 
   /** Asks for a pass over everything that needs looking up. Cheap to call often. */
@@ -260,6 +279,7 @@ export class MetadataManager {
       overview: c.overview,
       posterUrl: artworkUrl(posterFile),
       score,
+      rating: c.rating,
       genres: c.genres ?? [],
     }
   }
@@ -378,27 +398,39 @@ export class MetadataManager {
     const age = existing?.fetchedAt ? this.now().getTime() - new Date(existing.fetchedAt).getTime() : Infinity
     if (existing && !force && age < COLLECTION_FRESH_MS) return
     this.collectionsThisPass.add(ref.externalId)
-    const when = this.now().toISOString()
     try {
-      const c = await this.d.provider.fetchCollection(ref.externalId, this.tag())
-      const parts = new Map<string, string | null>()
-      for (const p of c.parts) parts.set(p.externalId, await this.d.artwork.ensure(p.posterPath, 'poster'))
-      this.d.collections.upsertOfficial(
-        id,
-        c,
-        { poster: await this.d.artwork.ensure(c.posterPath, 'poster'), backdrop: await this.d.artwork.ensure(c.backdropPath, 'backdrop'), parts },
-        when,
-      )
+      await this.storeCollection(ref)
     } catch (err) {
-      if (err instanceof ProviderError && err.kind === 'not_found') {
-        this.d.collections.upsertOfficial(id, { externalId: ref.externalId, name: ref.name, overview: null, posterPath: null, backdropPath: null, parts: [] }, { poster: null, backdrop: null, parts: new Map() }, when)
-        return
-      }
       this.collectionsThisPass.delete(ref.externalId)
       if (err instanceof ProviderError && err.kind === 'auth') throw err
       this.d.logger.warn({ err, collection: ref.name }, 'Could not read a collection; will try again later')
     }
     this.changed()
+  }
+
+  private async storeCollection(ref: { externalId: string; name: string }): Promise<void> {
+    const existing = this.collectionFetches.get(ref.externalId)
+    if (existing) return existing
+    const task = (async () => {
+      const provider = this.d.provider.id
+      const when = this.now().toISOString()
+      let collection: ProviderCollection
+      try {
+        collection = await this.d.provider.fetchCollection(ref.externalId, this.tag())
+      } catch (err) {
+        if (!(err instanceof ProviderError) || err.kind !== 'not_found') throw err
+        collection = { externalId: ref.externalId, name: ref.name, overview: null, posterPath: null, backdropPath: null, parts: [] }
+      }
+      const parts = new Map<string, string | null>()
+      for (const part of collection.parts) parts.set(part.externalId, await this.d.artwork.ensure(part.posterPath, 'poster'))
+      this.d.collections.upsertOfficial(provider, collection, {
+        poster: await this.d.artwork.ensure(collection.posterPath, 'poster'),
+        backdrop: await this.d.artwork.ensure(collection.backdropPath, 'backdrop'),
+        parts,
+      }, when)
+    })()
+    this.collectionFetches.set(ref.externalId, task)
+    try { await task } finally { this.collectionFetches.delete(ref.externalId) }
   }
 
   /** Downloads images that earlier attempts could not get (offline CDN, interrupted run). */

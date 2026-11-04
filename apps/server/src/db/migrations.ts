@@ -330,6 +330,11 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE title_credit ADD COLUMN profile_file TEXT;
   `,
+  /* 17 — ratings already supplied with official collection members */
+  `
+  ALTER TABLE collection_member ADD COLUMN rating REAL;
+  ALTER TABLE collection ADD COLUMN rating_enriched INTEGER NOT NULL DEFAULT 0;
+  `,
 ]
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS.length

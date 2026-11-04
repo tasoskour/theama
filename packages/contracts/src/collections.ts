@@ -33,6 +33,11 @@ export const CollectionMember = z.object({
   releaseDate: z.string().nullable(),
   overview: z.string().nullable(),
   posterUrl: z.string().nullable(),
+  /** Verified provider identity for an official member; absent for personal entries without one. */
+  provider: z.string().nullable().default(null),
+  externalId: z.string().nullable().default(null),
+  /** Provider rating out of 10, absent when nobody has voted. */
+  rating: z.number().min(0).max(10).nullable().default(null),
   /** The library card for a local member. */
   summary: TitleSummary.nullable(),
 })

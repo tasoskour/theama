@@ -44,5 +44,5 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: Theama
   deleteAppDataOnUninstall: false
-  include: build/installer.nsh
+  include: scripts/installer.nsh
   artifactName: Theama-Setup-${version}.${ext}

@@ -10,9 +10,11 @@ defineProps<{
   candidate: SuggestionItem
   busy: 'trailer' | 'imdb' | null
   problem: string | null
+  canFindReleases?: boolean
+  missing?: boolean
 }>()
 const open = defineModel<boolean>({ required: true })
-defineEmits<{ pick: [candidate: SuggestionItem]; trailer: [candidate: SuggestionItem]; imdb: [candidate: SuggestionItem]; closed: [] }>()
+defineEmits<{ pick: [candidate: SuggestionItem]; trailer: [candidate: SuggestionItem]; imdb: [candidate: SuggestionItem]; tmdb: [candidate: SuggestionItem]; closed: [] }>()
 
 const connection = useConnectionStore()
 const headingId = useId()
@@ -35,10 +37,11 @@ const favorites = useFavoritesStore()
           <h2 :id="headingId" class="details__title th-display">{{ candidate.title }}</h2>
           <div class="details__meta th-muted">
             <v-chip v-if="favorites.inLibrary(candidate)" size="small" data-test="suggestion-detail-added">{{ $t('downloads.favorites.alreadyAdded') }}</v-chip>
+            <v-chip v-else-if="missing" size="small" color="warning" variant="tonal">{{ $t('collections.notInLibrary') }}</v-chip>
             <span>{{ $t(`downloads.suggestions.${candidate.kind}`) }}</span>
             <span v-if="candidate.year">{{ candidate.year }}</span>
             <span v-if="candidate.rating != null" class="details__rating" :aria-label="$t('downloads.suggestions.rating', { value: candidate.rating.toFixed(1) })" data-test="suggestion-detail-rating">
-              <svg viewBox="0 0 24 24" class="th-icon" aria-hidden="true"><path :d="mdiStar" fill="currentColor" /></svg>{{ candidate.rating.toFixed(1) }}<span class="th-muted">/ 10</span>
+              <svg viewBox="0 0 24 24" class="th-icon" aria-hidden="true"><path :d="mdiStar" fill="currentColor" /></svg>TMDB {{ candidate.rating.toFixed(1) }}<span class="th-muted">/ 10</span>
             </span>
           </div>
           <p class="details__description" :class="{ 'th-muted': !candidate.overview?.trim() }" data-test="suggestion-description">{{ candidate.overview?.trim() || $t('downloads.suggestions.noDescription') }}</p>
@@ -58,7 +61,8 @@ const favorites = useFavoritesStore()
             data-test="suggestion-detail-favorite"
             @click="favorites.toggle(candidate)"
           >{{ $t(favorites.isFavorite(candidate) ? 'downloads.favorites.saved' : 'downloads.favorites.save') }}</v-btn>
-          <v-btn color="primary" :prepend-icon="mdiMagnify" data-test="suggestion-releases" @click="$emit('pick', candidate)">{{ $t('downloads.suggestions.findReleases') }}</v-btn>
+          <v-btn v-if="canFindReleases !== false" color="primary" :prepend-icon="mdiMagnify" data-test="suggestion-releases" @click="$emit('pick', candidate)">{{ $t('downloads.suggestions.findReleases') }}</v-btn>
+          <v-btn variant="outlined" :append-icon="mdiOpenInNew" data-test="suggestion-tmdb" @click="$emit('tmdb', candidate)">{{ $t('metadata.tmdb') }}</v-btn>
           <v-btn variant="outlined" :prepend-icon="mdiPlayCircleOutline" :loading="busy === 'trailer'" :disabled="busy !== null" data-test="suggestion-trailer" @click="$emit('trailer', candidate)">{{ $t('downloads.suggestions.trailer') }}</v-btn>
           <v-btn variant="text" :append-icon="mdiOpenInNew" :loading="busy === 'imdb'" :disabled="busy !== null" data-test="suggestion-imdb" @click="$emit('imdb', candidate)">{{ $t('downloads.suggestions.imdb') }}</v-btn>
         </div>

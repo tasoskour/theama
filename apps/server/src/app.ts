@@ -734,7 +734,9 @@ export async function buildApp(deps: AppDeps) {
 
   app.get(`${API_PREFIX}/collections/:id`, async (req): Promise<CollectionDetail> => {
     const { id } = IdParams.parse(req.params)
-    return collectionDetail(id, CollectionDetailQuery.parse(req.query).order)
+    const detail = collectionDetail(id, CollectionDetailQuery.parse(req.query).order)
+    metadata.refreshCollectionIfNeeded(id)
+    return detail
   })
 
   app.post(`${API_PREFIX}/collections`, async (req, reply): Promise<CollectionDetail> => {

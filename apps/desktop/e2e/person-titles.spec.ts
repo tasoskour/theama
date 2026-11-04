@@ -149,6 +149,24 @@ test('loads on click, shows both top sections, scrolls, and retains library navi
   await expect(popup()).toHaveCount(0)
 })
 
+test('opens a filmography preview, leaves the popover, and restores focus to the person', async () => {
+  await actor().click()
+  const first = popup().locator('[data-test="credit-preview"]').first()
+  await page.waitForTimeout(300) // the menu's initial focus animation must finish before moving focus
+  await first.focus()
+  await expect(first).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(popup()).toHaveCount(0)
+  const dialog = page.locator('[data-test="suggestion-dialog"]')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('Movie 0')
+  await expect(dialog.locator('[data-test="suggestion-detail-rating"]')).toContainText('TMDB 8.4')
+  await expect(dialog.locator('[data-test="suggestion-tmdb"]')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible()
+  await expect(actor()).toBeFocused()
+})
+
 test('explicit movie and series actions search releases directly without metadata search', async () => {
   for (const kind of ['movie', 'series'] as const) {
     await actor().click()

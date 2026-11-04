@@ -23,7 +23,7 @@ const MOVIES = [
   { id: 496243, title: 'Parasite', original_title: '기생충', release_date: '2019-05-30', runtime: 133, popularity: 80, vote_average: 8.5, vote_count: 18000, poster_path: '/parasite.png', genres: ['Comedy', 'Thriller', 'Drama'], overview: 'All unemployed, Ki-taek’s family takes peculiar interest in the wealthy Parks.', el: { title: 'Παράσιτο', overview: 'Μια φτωχή οικογένεια παρεισφρέει στους πλούσιους Παρκ.', tagline: '', genres: ['Κωμωδία', 'Θρίλερ', 'Δράμα'] } },
   { id: 9659, title: 'Mad Max', original_title: 'Mad Max', release_date: '1979-04-12', runtime: 95, popularity: 40, vote_average: 6.7, vote_count: 4000, poster_path: '/madmax.png', genres: ['Action'], overview: 'A highway patrolman vows revenge.', collection: 8945 },
   { id: 8810, title: 'Mad Max 2', original_title: 'Mad Max 2', release_date: '1981-12-24', runtime: 96, popularity: 38, vote_average: 7.0, vote_count: 3500, poster_path: '/madmax2.png', genres: ['Action'], overview: 'The Road Warrior.', collection: 8945 },
-  { id: 9361, title: 'Mad Max Beyond Thunderdome', original_title: 'Mad Max Beyond Thunderdome', release_date: '1985-07-10', runtime: 107, popularity: 36, vote_average: 6.1, vote_count: 2800, poster_path: null, genres: ['Action'], overview: 'Max drifts into Bartertown.', collection: 8945 },
+  { id: 9361, title: 'Mad Max Beyond Thunderdome', original_title: 'Mad Max Beyond Thunderdome', release_date: '1985-07-10', runtime: 107, popularity: 36, vote_average: 6.1, vote_count: 0, poster_path: null, genres: ['Action'], overview: 'Max drifts into Bartertown.', collection: 8945 },
   { id: 76341, title: 'Mad Max: Fury Road', original_title: 'Mad Max: Fury Road', release_date: '2015-05-13', runtime: 120, popularity: 110, vote_average: 7.6, vote_count: 22000, poster_path: '/furyroad.png', genres: ['Action', 'Adventure'], overview: 'Max joins Furiosa across the wasteland.', collection: 8945 },
   { id: 700001, title: 'Obscure Gem', original_title: 'Obscure Gem', release_date: '2001-01-01', runtime: 90, popularity: 1, poster_path: null, genres: [], overview: '' },
 ]
@@ -61,6 +61,7 @@ export async function startFakeTmdb(options = {}) {
     mode: 'ok',
     requests: /** @type {{ path: string, query: Record<string, string>, auth: string | null }[]} */ ([]),
     imageRequests: 0,
+    collectionDelayMs: 0,
     url: '',
     imageUrl: '',
     close: () => Promise.resolve(),
@@ -217,14 +218,16 @@ export async function startFakeTmdb(options = {}) {
       const c = COLLECTIONS[coll[1]]
       if (!c) return json(404, { status_code: 34 })
       const parts = MOVIES.filter((m) => m.collection === c.id).sort((a, b) => a.release_date.localeCompare(b.release_date))
-      return json(200, {
+      const response = {
         id: c.id,
         name: lang === 'el' ? c.el.name : c.name,
         overview: lang === 'el' ? c.el.overview : c.overview,
         poster_path: c.poster_path,
         backdrop_path: c.backdrop_path,
-        parts: parts.map((m) => ({ id: m.id, title: m.title, release_date: m.release_date, overview: m.overview, poster_path: m.poster_path })),
-      })
+        parts: parts.map((m) => ({ id: m.id, title: m.title, release_date: m.release_date, overview: m.overview, poster_path: m.poster_path, vote_average: m.vote_average ?? 0, vote_count: m.vote_count ?? 0 })),
+      }
+      if (state.collectionDelayMs) return setTimeout(() => json(200, response), state.collectionDelayMs)
+      return json(200, response)
     }
 
     const show = path.match(/^\/tv\/(\d+)$/)

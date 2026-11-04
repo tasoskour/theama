@@ -328,6 +328,8 @@ test('identifies titles with TMDB: key set-up, posters, details, and choosing be
   await page.getByRole('button', { name: 'Choose' }).click()
   const identify = page.getByRole('dialog', { name: 'Identify this title' })
   await expect(identify.getByRole('listitem')).toHaveCount(2)
+  await expect(identify.locator('[data-test="identify-tmdb"]')).toHaveCount(2)
+  await expect(identify.locator('[data-test="identify-candidate"]').first()).toContainText('TMDB 7.5/10')
   const searchesBeforeTyping = fake.requests.filter((request) => request.path === '/search/tv').length
   const providerSearch = identify.getByRole('textbox', { name: 'Search series' })
   await providerSearch.fill('D')

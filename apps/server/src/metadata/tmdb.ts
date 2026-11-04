@@ -136,7 +136,7 @@ const Collection = z.object({
   poster_path: text,
   backdrop_path: text,
   parts: z
-    .array(z.object({ id: z.number().int(), title: text, release_date: text, overview: text, poster_path: text }))
+    .array(z.object({ id: z.number().int(), title: text, release_date: text, overview: text, poster_path: text, vote_average: num, vote_count: num }))
     .nullish()
     .transform((v) => v ?? []),
 })
@@ -431,6 +431,7 @@ export class TmdbProvider implements MetadataProvider {
           releaseDate,
           overview: p.overview ?? fallback?.overview ?? null,
           posterPath: p.poster_path ?? fallback?.poster_path ?? null,
+          rating: p.vote_count && p.vote_count > 0 ? p.vote_average : null,
         }
       }),
     }

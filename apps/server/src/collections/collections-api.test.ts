@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import Database from 'better-sqlite3'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { CollectionDetail, CollectionList, LibraryStatus, MetadataStatus, TitleDetail, TitlePage, type TitleSummary } from '@theama/contracts'
 import { GOOD_KEY, startFakeTmdb, type FakeTmdb } from '../../../../tools/fake-tmdb/server.mjs'
@@ -14,6 +15,7 @@ let personal: string
 let fake: FakeTmdb
 let server: RunningServer
 let base: string
+let databaseFile: string
 const auth = () => ({ Authorization: `Bearer ${server.token}` })
 const get = async (path: string) => (await fetch(`${base}${path}`, { headers: auth() })).json() as Promise<unknown>
 const send = (method: string, path: string, body?: unknown) =>
@@ -73,15 +75,15 @@ beforeAll(async () => {
     'Doctor.Who.S01E01.mkv', // ambiguous: never identified here, so no provider data
   )
   writeFileSync(join(personal, 'Trip to Crete.mp4'), 'x')
-  server = await startServer(
-    loadConfig({
+  const config = loadConfig({
       THEAMA_DATA_DIR: join(dir, 'data'),
       THEAMA_PORT: '0',
       THEAMA_FFPROBE: 'none',
       THEAMA_TMDB_API_BASE: fake.url,
       THEAMA_TMDB_IMAGE_BASE: fake.imageUrl,
-    }),
-  )
+    })
+  databaseFile = config.databaseFile
+  server = await startServer(config)
   base = `http://127.0.0.1:${server.port}/api/v1`
   expect((await send('POST', '/library/sources', { path: media, libraryType: 'auto' })).status).toBe(201)
   expect((await send('POST', '/library/sources', { path: personal, libraryType: 'videos' })).status).toBe(201)
@@ -159,9 +161,39 @@ describe('official collections', () => {
     ])
     const missing = c.members[1]!
     expect(missing.summary).toBeNull() // contextual: nothing to open or play
+    expect(missing).toMatchObject({ provider: 'tmdb', externalId: '8810', rating: 7 })
     expect(missing.posterUrl).toMatch(/madmax2\.png$/)
     expect(c.members[2]!.posterUrl).toBeNull()
+    expect(c.members[2]!.rating).toBeNull() // TMDB returned an average but no votes
     expect(c.members[0]!.summary).toMatchObject({ kind: 'movie', matchState: 'matched' })
+  })
+
+  it('serves an older cached set immediately and refreshes all ratings with one deduplicated request', async () => {
+    const [summary] = CollectionList.parse(await get('/collections?kind=official')).items
+    const db = new Database(databaseFile)
+    try {
+      db.prepare('UPDATE collection SET rating_enriched = 0 WHERE id = ?').run(summary!.id)
+      db.prepare('UPDATE collection_member SET rating = NULL WHERE collection_id = ?').run(summary!.id)
+    } finally { db.close() }
+
+    const before = collectionRequests()
+    const movieRequests = fake.requests.filter((r) => r.path.startsWith('/movie/')).length
+    fake.collectionDelayMs = 200
+    try {
+      const first = await collection(summary!.id)
+      expect(first.members[1]).toMatchObject({ title: 'Mad Max 2', rating: null, externalId: '8810' })
+      expect(first.members).toHaveLength(4)
+      await collection(summary!.id)
+      await until('one collection refresh', async () => collectionRequests() === before + 1)
+      expect(collectionRequests()).toBe(before + 1)
+      const refreshed = await until('ratings to be stored', async () => {
+        const result = await collection(summary!.id)
+        return result.members[1]?.rating === 7 ? result : false
+      })
+      expect(refreshed.members[2]!.rating).toBeNull()
+      expect(fake.requests.filter((r) => r.path.startsWith('/movie/')).length).toBe(movieRequests)
+      expect(collectionRequests()).toBe(before + 1)
+    } finally { fake.collectionDelayMs = 0 }
   })
 
   it('tells a movie which collections it is in', async () => {

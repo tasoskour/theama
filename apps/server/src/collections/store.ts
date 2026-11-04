@@ -22,6 +22,7 @@ interface CollectionRow {
   poster_file: string | null
   backdrop_file: string | null
   fetched_at: string | null
+  rating_enriched: number
 }
 
 interface MemberRow {
@@ -33,6 +34,7 @@ interface MemberRow {
   release_date: string | null
   overview: string | null
   poster_file: string | null
+  rating: number | null
   custom_order: number | null
   /** The library title this member is, if it is in the library. */
   local_key: string | null
@@ -92,13 +94,13 @@ export class CollectionRepo {
     return this.raw.transaction(() => {
       this.raw
         .prepare(
-          `INSERT INTO collection (kind, provider, external_id, name, overview, poster_path, poster_file, backdrop_path, backdrop_file, fetched_at, created_at, updated_at)
-           VALUES ('official', @provider, @externalId, @name, @overview, @posterPath, @posterFile, @backdropPath, @backdropFile, @now, @now, @now)
+          `INSERT INTO collection (kind, provider, external_id, name, overview, poster_path, poster_file, backdrop_path, backdrop_file, fetched_at, created_at, updated_at, rating_enriched)
+           VALUES ('official', @provider, @externalId, @name, @overview, @posterPath, @posterFile, @backdropPath, @backdropFile, @now, @now, @now, 1)
            ON CONFLICT(provider, external_id) WHERE provider IS NOT NULL DO UPDATE SET
              name = @name, overview = @overview, poster_path = @posterPath, backdrop_path = @backdropPath,
              poster_file = coalesce(@posterFile, CASE WHEN poster_path = @posterPath THEN poster_file END),
              backdrop_file = coalesce(@backdropFile, CASE WHEN backdrop_path = @backdropPath THEN backdrop_file END),
-             fetched_at = @now, updated_at = @now`,
+             fetched_at = @now, updated_at = @now, rating_enriched = 1`,
         )
         .run({
           provider,
@@ -117,11 +119,11 @@ export class CollectionRepo {
       const del = this.raw.prepare('DELETE FROM collection_member WHERE collection_id = ? AND external_id = ?')
       for (const e of existing) if (!keep.includes(e.external_id)) del.run(id, e.external_id)
       const upsert = this.raw.prepare(
-        `INSERT INTO collection_member (collection_id, external_id, title, year, release_date, overview, poster_path, poster_file)
-         VALUES (@id, @externalId, @title, @year, @releaseDate, @overview, @posterPath, @posterFile)
+        `INSERT INTO collection_member (collection_id, external_id, title, year, release_date, overview, poster_path, poster_file, rating)
+         VALUES (@id, @externalId, @title, @year, @releaseDate, @overview, @posterPath, @posterFile, @rating)
          ON CONFLICT(collection_id, external_id) WHERE external_id IS NOT NULL DO UPDATE SET
            title = @title, year = @year, release_date = @releaseDate, overview = @overview, poster_path = @posterPath,
-           poster_file = coalesce(@posterFile, CASE WHEN poster_path = @posterPath THEN poster_file END)`,
+           poster_file = coalesce(@posterFile, CASE WHEN poster_path = @posterPath THEN poster_file END), rating = @rating`,
       )
       for (const p of c.parts) {
         upsert.run({
@@ -133,6 +135,7 @@ export class CollectionRepo {
           overview: p.overview,
           posterPath: p.posterPath,
           posterFile: art.parts.get(p.externalId) ?? null,
+          rating: p.rating,
         })
       }
       return id
@@ -163,7 +166,7 @@ export class CollectionRepo {
   // --- reading ------------------------------------------------------------
 
   private collectionRow(id: number): CollectionRow | undefined {
-    return this.raw.prepare('SELECT id, kind, provider, external_id, name, overview, poster_file, backdrop_file, fetched_at FROM collection WHERE id = ?').get(id) as
+    return this.raw.prepare('SELECT id, kind, provider, external_id, name, overview, poster_file, backdrop_file, fetched_at, rating_enriched FROM collection WHERE id = ?').get(id) as
       | CollectionRow
       | undefined
   }
@@ -172,7 +175,7 @@ export class CollectionRepo {
     if (c.kind === 'official') {
       return this.raw
         .prepare(
-          `SELECT m.id, m.title_key, m.external_id, m.title, m.year, m.release_date, m.overview, m.poster_file, m.custom_order,
+          `SELECT m.id, m.title_key, m.external_id, m.title, m.year, m.release_date, m.overview, m.poster_file, m.rating, m.custom_order,
                   (SELECT tm.title_key FROM title_match tm
                     WHERE tm.state = 'matched' AND tm.kind = 'movie' AND tm.provider = @provider AND tm.external_id = m.external_id
                       AND EXISTS (SELECT 1 FROM media_file f WHERE f.title_key = tm.title_key)
@@ -183,7 +186,7 @@ export class CollectionRepo {
     }
     return this.raw
       .prepare(
-        `SELECT m.id, m.title_key, m.external_id, m.title, m.year, m.release_date, m.overview, m.poster_file, m.custom_order,
+        `SELECT m.id, m.title_key, m.external_id, m.title, m.year, m.release_date, m.overview, m.poster_file, m.rating, m.custom_order,
                 CASE WHEN EXISTS (SELECT 1 FROM media_file f WHERE f.title_key = m.title_key AND f.kind <> 'extra') THEN m.title_key END AS local_key
            FROM collection_member m WHERE m.collection_id = ?`,
       )
@@ -231,7 +234,7 @@ export class CollectionRepo {
     const words = q ? normaliseTitle(q).split(' ').filter(Boolean) : []
     const rows = (
       this.raw
-        .prepare(`SELECT id, kind, provider, external_id, name, overview, poster_file, backdrop_file, fetched_at FROM collection ${kind ? 'WHERE kind = ?' : ''} ORDER BY name COLLATE NOCASE, id`)
+        .prepare(`SELECT id, kind, provider, external_id, name, overview, poster_file, backdrop_file, fetched_at, rating_enriched FROM collection ${kind ? 'WHERE kind = ?' : ''} ORDER BY name COLLATE NOCASE, id`)
         .all(...(kind ? [kind] : [])) as CollectionRow[]
     ).filter((c) => {
       const name = normaliseTitle(c.name)
@@ -266,9 +269,20 @@ export class CollectionRepo {
       releaseDate: v.row.release_date,
       overview: v.row.overview,
       posterUrl: v.summary?.posterUrl ?? artworkUrl(v.row.poster_file),
+      provider: c.kind === 'official' ? c.provider : null,
+      externalId: c.kind === 'official' ? v.row.external_id : null,
+      rating: v.summary?.rating ?? v.row.rating,
       summary: v.summary,
     }))
     return { summary: this.summaryOf(c, sorted), backdropUrl: artworkUrl(c.backdrop_file), orders, order, members }
+  }
+
+  /** Older official sets are refreshed only when viewed, leaving the cached page available immediately. */
+  ratingRefreshTarget(id: number): { externalId: string; name: string } | null {
+    const c = this.collectionRow(id)
+    return c?.kind === 'official' && c.rating_enriched === 0 && c.external_id
+      ? { externalId: c.external_id, name: c.name }
+      : null
   }
 
   // --- the person's own collections ----------------------------------------

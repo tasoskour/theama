@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, Menu, net, protocol, screen, session, shell
 import { appendFileSync, existsSync } from 'node:fs'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { autoUpdater } from 'electron-updater'
 import { IPC, IndexerStatus, LaunchInfo, type DesktopSettings, type DesktopSettingsPatch, type NextUpOffer, type ServiceActionResult, type ServiceStatus } from '@theama/contracts'
 import { defaultDataDir, resolveDataPaths } from '@theama/logs'
 import { registerIpc } from './ipc'
@@ -26,6 +27,7 @@ import { resolveAdminPaths } from './service/admin-paths'
 import type { ServiceController } from './service/controller'
 import { DevProcessController } from './service/dev-controller'
 import { createNssmController } from './service/nssm-controller'
+import { Updater } from './updater'
 
 const APP_ORIGIN = 'app://theama'
 const SERVICE_POLL_MS = 4000
@@ -429,7 +431,18 @@ async function main(): Promise<void> {
       mainWindow?.webContents.send(IPC.evTrailerClosed)
     },
   })
+  // Self-update only in a released build that runs the real service; the development and smoke-test runs never contact the feed.
+  const updater = new Updater({
+    enabled: app.isPackaged && controllerKind === 'nssm' && process.env.THEAMA_DISABLE_UPDATES !== '1',
+    autoUpdater,
+    onChange: (state) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.evUpdateState, state)
+    },
+    log: (level, message, context) => logDesktop(paths.logsDir, level, message, context),
+  })
+  updater.start()
   registerIpc({
+    updater,
     detectServices: () => detectServices(),
     downloadTools: new DownloadToolsManager({
       openBrowser: (url) => shell.openExternal(url),

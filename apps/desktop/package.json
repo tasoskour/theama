@@ -1,6 +1,6 @@
 {
   "name": "@theama/desktop",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Electron shell for Theama: window, native menus, service control and the typed IPC bridge.",
@@ -19,6 +19,7 @@
   "dependencies": {
     "@theama/contracts": "workspace:*",
     "@theama/logs": "workspace:*",
+    "electron-updater": "6.8.11",
     "zod": "^4.6.7"
   },
   "devDependencies": {

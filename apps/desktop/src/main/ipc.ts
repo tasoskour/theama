@@ -32,6 +32,7 @@ import type { ApiConnection } from './runtime'
 import type { ServiceController } from './service/controller'
 import type { DownloadToolsManager } from './download-tools'
 import type { DetectedServices } from '@theama/contracts'
+import type { Updater } from './updater'
 
 export interface IpcDeps {
   downloadTools: Pick<DownloadToolsManager, 'status' | 'open'>
@@ -56,6 +57,7 @@ export interface IpcDeps {
   desktopSettings(): DesktopSettings
   setDesktopSettings(patch: DesktopSettingsPatch): DesktopSettings
   setWindowTheme(theme: 'dark' | 'light'): void
+  updater: Pick<Updater, 'state' | 'check' | 'install'>
 }
 
 function isTrusted(event: IpcMainInvokeEvent, trusted: string[]): boolean {
@@ -149,6 +151,10 @@ export function registerIpc(deps: IpcDeps): void {
   handle(IPC.serviceUninstall, none, () => deps.runService('uninstall'))
   handle(IPC.serviceInstall, ServiceInstallRequest, ({ account }) => deps.runService('install', account.kind))
   handle(IPC.serviceRepair, ServiceInstallRequest, ({ account }) => deps.runService('repair', account.kind))
+
+  handle(IPC.updateState, none, () => deps.updater.state())
+  handle(IPC.updateCheck, none, () => deps.updater.check())
+  handle(IPC.updateInstall, none, () => deps.updater.install())
 
   handle(IPC.logsReadLocal, LocalLogsRequest, ({ limit }) => readRecentLocal(deps.paths.logsDir, limit))
   handle(IPC.openLogsFolder, none, async () => {

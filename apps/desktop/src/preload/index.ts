@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type LogEntry, type NextUpOffer, type ServiceStatus, type TheamaBridge } from '@theama/contracts'
+import { IPC, type LogEntry, type NextUpOffer, type ServiceStatus, type TheamaBridge, type UpdateState } from '@theama/contracts'
 
 // The renderer is sandboxed with no Node access. This is its only door to the
 // system, and every call is validated again in the main process.
@@ -48,6 +48,16 @@ const bridge: TheamaBridge = {
   logs: {
     readLocal: (limit) => ipcRenderer.invoke(IPC.logsReadLocal, { limit: limit ?? 200 }) as Promise<LogEntry[]>,
     openFolder: () => ipcRenderer.invoke(IPC.openLogsFolder),
+  },
+  updates: {
+    state: () => ipcRenderer.invoke(IPC.updateState),
+    check: () => ipcRenderer.invoke(IPC.updateCheck),
+    install: () => ipcRenderer.invoke(IPC.updateInstall),
+    onState: (listener) => {
+      const handler = (_e: unknown, state: UpdateState): void => listener(state)
+      ipcRenderer.on(IPC.evUpdateState, handler)
+      return () => ipcRenderer.off(IPC.evUpdateState, handler)
+    },
   },
   players: {
     list: () => ipcRenderer.invoke(IPC.playersList),

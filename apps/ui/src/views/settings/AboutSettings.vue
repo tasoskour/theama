@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { mdiFolderOpenOutline } from '@mdi/js'
-import { SystemInfo, type AppInfo } from '@theama/contracts'
+import { SystemInfo, type AppInfo, type UpdateState } from '@theama/contracts'
 import { getBridge } from '@/api/bridge'
 import { useConnectionStore } from '@/stores/connection'
 import { useI18n } from 'vue-i18n'
@@ -35,7 +35,21 @@ async function copyReport(): Promise<void> {
   }
 }
 
-onMounted(() => void load())
+const update = ref<UpdateState | null>(null)
+let stopUpdates: (() => void) | undefined
+const updateBusy = computed(() => update.value?.status === 'checking' || update.value?.status === 'downloading')
+
+async function checkForUpdates(): Promise<void> {
+  if (bridge) update.value = await bridge.updates.check()
+}
+
+onMounted(() => {
+  void load()
+  if (!bridge) return
+  void bridge.updates.state().then((s) => (update.value = s))
+  stopUpdates = bridge.updates.onState((s) => (update.value = s))
+})
+onBeforeUnmount(() => stopUpdates?.())
 watch(() => connection.phase, (p) => p === 'connected' && void load())
 </script>
 
@@ -82,6 +96,20 @@ v-for="row in [
       </template>
     </dl>
     <p v-else class="th-muted">{{ $t('common.loading') }}</p>
+
+    <div v-if="bridge && update && update.status !== 'disabled'" class="diag" data-test="updates">
+      <h3 class="th-display diag__title">{{ $t('settings.about.updates') }}</h3>
+      <p class="th-muted diag__hint" role="status">
+        <template v-if="update.status === 'checking'">{{ t('settings.about.updateChecking') }}</template>
+        <template v-else-if="update.status === 'downloading'">{{ t('settings.about.updateDownloading', { version: update.version, percent: update.percent ?? 0 }) }}</template>
+        <template v-else-if="update.status === 'ready'">{{ t('settings.about.updateReady', { version: update.version }) }}</template>
+        <template v-else-if="update.status === 'up-to-date'">{{ t('settings.about.updateUpToDate') }}</template>
+        <template v-else-if="update.status === 'error'">{{ t('settings.about.updateFailed') }}</template>
+        <template v-else>{{ t('settings.about.updatesHint') }}</template>
+      </p>
+      <v-btn v-if="update.status === 'ready'" color="primary" data-test="update-install" @click="bridge.updates.install()">{{ t('settings.about.updateInstall') }}</v-btn>
+      <v-btn v-else variant="tonal" :loading="updateBusy" data-test="update-check" @click="checkForUpdates">{{ t('settings.about.updateCheck') }}</v-btn>
+    </div>
 
     <div class="diag">
       <h3 class="th-display diag__title">{{ $t('settings.about.diagnostics') }}</h3>

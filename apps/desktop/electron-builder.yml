@@ -23,6 +23,14 @@ extraResources:
   - from: ../../build/stage/resources
     to: .
 
+# Where the installed app looks for newer versions (electron-updater). "yarn release" / --publish uploads the installer,
+# its .blockmap and latest.yml to a GitHub Release tagged vX.Y.Z; the repository must be public for the app to read it.
+publish:
+  provider: github
+  owner: tasoskour
+  repo: theama
+  releaseType: release
+
 win:
   icon: ../../build/stage/app/icon.ico
   target:

@@ -52,7 +52,24 @@ export const IPC = {
   evNextNotification: 'ev:next-notification',
   /** Main to renderer push: service status changed. */
   evServiceStatus: 'ev:service-status',
+  updateState: 'update:state',
+  updateCheck: 'update:check',
+  updateInstall: 'update:install',
+  /** Main to renderer push: the app update state changed. */
+  evUpdateState: 'ev:update-state',
 } as const
+
+/** Where the desktop app's self-update stands. `disabled` means this build cannot update itself (development, tests). */
+export const UpdateState = z.object({
+  status: z.enum(['disabled', 'idle', 'checking', 'available', 'downloading', 'ready', 'up-to-date', 'error']),
+  /** The version found on the release feed, once known. */
+  version: z.string().nullable(),
+  /** Download progress, 0 to 100, while downloading. */
+  percent: z.number().min(0).max(100).nullable(),
+  /** A short reason when `status` is `error`. */
+  message: z.string().nullable(),
+})
+export type UpdateState = z.infer<typeof UpdateState>
 
 export const AppInfo = z.object({
   version: z.string(),
@@ -210,6 +227,14 @@ export interface TheamaBridge {
   logs: {
     readLocal(limit?: number): Promise<LogEntry[]>
     openFolder(): Promise<void>
+  }
+  /** Self-update of the desktop app from the release feed. */
+  updates: {
+    state(): Promise<UpdateState>
+    check(): Promise<UpdateState>
+    /** Quits and runs the downloaded installer, then starts the new version. Only meaningful when `status` is `ready`. */
+    install(): Promise<void>
+    onState(listener: (state: UpdateState) => void): () => void
   }
   /** Players are started by the desktop shell, which asks the backend which file to open; the UI never supplies a path. */
   players: {

@@ -65,9 +65,9 @@ const SubtitleLanguages = z.array(z.string().regex(/^[a-z]{2}$/)).max(6)
 
 export const AppSettings = z.object({
   language: UiLanguage.default('en'),
-  theme: ThemePreference.default('system'),
+  theme: ThemePreference.default('dark'),
   textSize: TextSize.default('default'),
-  visualMode: VisualMode.default('standard'),
+  visualMode: VisualMode.default('immersive'),
   graphicsQuality: GraphicsQuality.default('medium'),
   backdropScene: BackdropScene.default('classic'),
   /** With `auto`: let the genre of what is on screen pick the scene. */

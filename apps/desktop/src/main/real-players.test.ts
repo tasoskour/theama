@@ -1,6 +1,8 @@
-import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { execFile } from 'node:child_process'
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import type { NextUpOffer, ProgressResult } from '@theama/contracts'
 import { PlayerManager, launchDetached, type LaunchedPlayer } from './players'
@@ -9,7 +11,9 @@ import { trackPlayback, type PlaybackTracker, type TrackingPlan } from './positi
 
 // Opt-in Windows smoke test. Point THEAMA_PLAYER_SMOKE_ROOT at portable distributions in
 // vlc/, mpv/, mpc-hc/ and mpc-be/. It never changes an installed player's preferences.
+// THEAMA_VLC_SMOKE_EXE also allows testing an installed VLC with an isolated configuration.
 const root = process.env.THEAMA_PLAYER_SMOKE_ROOT
+const vlcExe = process.env.THEAMA_VLC_SMOKE_EXE
 function executable(dir: string, name: string): string {
   const direct = join(dir, name)
   if (existsSync(direct)) return direct
@@ -46,11 +50,15 @@ function video(): Buffer {
   return chunk('RIFF', Buffer.concat([Buffer.from('AVI '), hdrl, chunk('LIST', Buffer.concat([Buffer.from('movi'), ...images])), chunk('idx1', index)]))
 }
 
-describe.skipIf(process.platform !== 'win32' || !root)('real portable players', () => {
-  it.each(['vlc', 'mpv', 'mpc-hc', 'mpc-be'] as const)('%s reaches EOF and advances twice in the same process', async (kind) => {
+describe.skipIf(process.platform !== 'win32' || (!root && !vlcExe))('real players with isolated preferences', () => {
+  const kinds = root ? ['vlc', 'mpv', 'mpc-hc', 'mpc-be'] as const : ['vlc'] as const
+  it.each(kinds)('%s reaches EOF and advances twice in the same process', async (kind) => {
     const exeName = { vlc: 'vlc.exe', mpv: 'mpv.exe', 'mpc-hc': 'mpc-hc64.exe', 'mpc-be': 'mpc-be64.exe' }[kind]
-    let exe = executable(join(root!, kind), exeName)
+    let exe = kind === 'vlc' && vlcExe ? vlcExe : executable(join(root!, kind), exeName)
     const media = mkdtempSync(join(tmpdir(), 'theama-real-player-'))
+    const vlcConfig = join(media, 'vlc.rc')
+    const vlcPreferences = '[core]\r\nplay-and-pause=1\r\n'
+    if (kind === 'vlc') writeFileSync(vlcConfig, vlcPreferences)
     const files = [1, 2, 3].map((id) => join(media, `Σειρά S01E0${id}.avi`))
     const clip = video()
     for (const file of files) {
@@ -72,12 +80,13 @@ describe.skipIf(process.platform !== 'win32' || !root)('real portable players', 
     const offers: NextUpOffer[] = []
     const samples: { fileId: number; position: number; final: boolean }[] = []
     const manager = new PlayerManager({
-      host: { env: { ProgramFiles: root }, exists: () => true }, getPrefs: () => ({ defaultId: kind, custom: [] }), setPrefs: () => undefined,
+      host: { env: { ProgramFiles: root ?? media }, exists: () => true }, getPrefs: () => ({ defaultId: kind, custom: [] }), setPrefs: () => undefined,
       fetchLaunchInfo: async (id) => ({ ok: true, info: { fileId: id, path: files[id - 1]!, fileName: basename(files[id - 1]!), kind: 'episode', title: 'Smoke',
         subtitle: { path: files[id - 1]!.replace('.avi', '.el.srt'), language: 'el' }, subtitleLanguages: ['el', 'en'], resumeSeconds: id === 2 ? 1 : null } }),
       openWithSystem: async () => '', reportLaunched: async () => undefined, createMpcBridge,
       launch: async (_exe, args) => {
-        const extras = kind === 'vlc' ? [`--config=${join(media, 'vlc.rc')}`, '--no-save-config', '--no-qt-privacy-ask', '--no-media-library'] : kind === 'mpv' ? ['--no-config'] : []
+        // Production arguments must override play-and-pause and prevent saving those overrides.
+        const extras = kind === 'vlc' ? [`--config=${vlcConfig}`, '--no-qt-privacy-ask', '--no-media-library'] : kind === 'mpv' ? ['--no-config'] : []
         const player = await launchDetached(exe, [...extras, ...args])
         processes.push(player)
         return player
@@ -111,6 +120,16 @@ describe.skipIf(process.platform !== 'win32' || !root)('real portable players', 
       await until(() => samples.filter((sample) => sample.final).length === 3)
       expect(processes).toHaveLength(1)
       expect(trackers.at(-1)!.reason).toBeUndefined()
+      if (kind === 'vlc') {
+        // Close normally so preference preservation is checked after VLC's shutdown save path.
+        const player = processes[0]!
+        await promisify(execFile)('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+          `if (!(Get-Process -Id ${player.pid!}).CloseMainWindow()) { throw 'VLC window did not close' }`], { windowsHide: true })
+        let closed = false
+        void player.exited.then(() => { closed = true })
+        await until(() => closed)
+        expect(readFileSync(vlcConfig, 'utf8')).toBe(vlcPreferences)
+      }
     } catch (error) {
       const plan = plans.at(-1)
       let status = ''

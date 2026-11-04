@@ -80,7 +80,8 @@ const DEFINITIONS: Definition[] = [
       ...(tracking?.kind === 'vlc'
         ? ['--no-one-instance', '--extraintf=http', '--http-host=127.0.0.1', `--http-port=${tracking.port}`, `--http-password=${tracking.password}`]
         : []),
-      ...(series && tracking?.kind === 'vlc' ? ['--no-play-and-exit'] : []),
+      // EOF must stop, not pause, so the tracker can offer the next episode. Keep overrides session-local.
+      ...(series && tracking?.kind === 'vlc' ? ['--no-play-and-exit', '--no-play-and-pause', '--no-save-config'] : []),
       path,
     ],
   },

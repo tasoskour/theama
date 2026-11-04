@@ -72,6 +72,13 @@ describe('buildArgs with resuming and tracking', () => {
     expect(buildArgs('mpv', { ...base, tracking: { kind: 'mpv', pipe: 'theama-pipe' } })).toEqual(['--input-ipc-server=theama-pipe', '--', base.path])
     expect(buildArgs('mpc-hc', { ...base, tracking: { kind: 'mpc', port: 6666 } })).toEqual([base.path, '/new', '/webport', '6666'])
   })
+  it('lets tracked VLC episodes finish without pausing or saving session overrides', () => {
+    expect(buildArgs('vlc', { ...base, subtitle, resumeSeconds: 754, series: true, tracking: { kind: 'vlc', port: 5555, password: 'pw' } })).toEqual([
+      `--sub-file=${subtitle}`, '--start-time=754',
+      '--no-one-instance', '--extraintf=http', '--http-host=127.0.0.1', '--http-port=5555', '--http-password=pw',
+      '--no-play-and-exit', '--no-play-and-pause', '--no-save-config', base.path,
+    ])
+  })
   it.each(['mpc-hc', 'mpc-be'] as const)('keeps %s episodes open, retaining resume, subtitles and native EOF control', (kind) => {
     expect(buildArgs(kind, { ...base, subtitle: 'D:\\Media\\Film.el.srt', resumeSeconds: 754, series: true, mpcSlave: '1234', tracking: { kind: 'mpc', port: 6666 } })).toEqual([
       base.path, '/sub', 'D:\\Media\\Film.el.srt', '/start', '754000', '/new', '/play', '/slave', '1234', '/webport', '6666',

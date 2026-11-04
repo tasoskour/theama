@@ -41,7 +41,10 @@ function setVersion(next) {
     }
   }
   for (const f of files) {
-    writeFileSync(f, readFileSync(f, 'utf8').replace(/^(s*"version":s*")[^"]*(")/m, `$1${next}$2`))
+    const before = readFileSync(f, 'utf8')
+    const after = before.replace(/^(\s*"version":\s*")[^"]*(")/m, `$1${next}$2`)
+    if (after === before && !before.includes(`"version": "${next}"`)) fail(`Could not update the version in ${f}.`)
+    writeFileSync(f, after)
   }
 }
 

@@ -88,6 +88,12 @@ async function navigate(path: string): Promise<void> {
 }
 const card = (item: string) => page.locator(`[data-test="setup-card-${item}"]`)
 const save = (item: string) => card(item).getByRole('button', { name: 'Save', exact: true }).click()
+const openCard = async (item: string) => {
+  const toggle = page.locator(`[data-test="setup-edit-${item}"]`)
+  await expect(toggle).toBeVisible()
+  if ((await toggle.innerText()).trim() !== 'Hide') await toggle.click()
+  await expect(toggle).toHaveText('Hide')
+}
 const cardError = (item: string) => card(item).locator('.v-messages__message').first()
 
 test('fresh profile opens the single-page setup, skips everything, and does not nag again', async () => {
@@ -208,6 +214,25 @@ test('skip-all completes without changing saved configuration and existing profi
   await page.reload()
   await expect(page.locator('[data-test="setup-wizard"]')).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible()
+})
+
+test('language can be switched from the guide and wizard, and steps explain each site in detail', async () => {
+  await navigate('/settings/setup')
+  await page.locator('[data-test="setup-language"]').click()
+  await page.getByRole('option', { name: 'Ελληνικά', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Οδηγός ρύθμισης', exact: true })).toBeVisible()
+  await page.locator('[data-test="setup-language"]').click()
+  await page.getByRole('option', { name: 'English', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Setup Guide', exact: true })).toBeVisible()
+  await page.locator('[data-test="setup-launch"]').click()
+  await openCard('subtitles')
+  await expect(card('subtitles')).toContainText('New consumer')
+  await expect(card('subtitles')).toContainText('subdl.com')
+  await openCard('qbittorrent')
+  await expect(card('qbittorrent')).toContainText('Look at the Port field')
+  await expect(page.locator('[data-test="setup-installed-qbittorrent"]')).toBeVisible()
+  await expect(page.locator('[data-test="setup-progress"]')).toContainText('3 of 4 configured')
+  await page.locator('[data-test="setup-done"]').click()
 })
 
 test('English and Greek guide and wizard work in both themes, large text and narrow windows', async () => {

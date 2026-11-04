@@ -8,6 +8,7 @@ import { useConnectionStore } from '@/stores/connection'
 import { searchableText } from '@/setup/content'
 import GuideBlocks from '@/components/setup/GuideBlocks.vue'
 import SetupStatusChip from '@/components/setup/SetupStatusChip.vue'
+import SetupLanguageSelect from '@/components/setup/SetupLanguageSelect.vue'
 
 const guide = useSetupGuide()
 const setup = useSetupStore()
@@ -38,7 +39,10 @@ function goTopic(id: string): void {
 
 <template>
   <section class="setup-guide" data-test="setup-guide">
-    <h2 class="th-display">{{ $t('setup.guideTitle') }}</h2>
+    <header class="guide-head">
+      <h2 class="th-display">{{ $t('setup.guideTitle') }}</h2>
+      <SetupLanguageSelect />
+    </header>
     <p class="lead">{{ guide?.intro }}</p>
     <div class="actions">
       <v-btn color="primary" data-test="setup-launch" @click="launch()">{{ $t('setup.run') }}</v-btn>
@@ -67,6 +71,7 @@ function goTopic(id: string): void {
 
 <style scoped>
 .setup-guide { display: grid; gap: 20px; min-width: 0; }
+.guide-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
 .lead { max-width: 78ch; line-height: 1.7; }
 .actions, .section-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .contents { display: grid; gap: 8px; padding: 16px; border: 1px solid rgb(var(--v-theme-hairline)); border-radius: var(--th-radius); }

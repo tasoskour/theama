@@ -1337,10 +1337,20 @@
         "title": "TMDB (movie and series information)",
         "summary": "Posters, descriptions and cast come from TMDB. It is free.",
         "apiKey": "TMDB API key",
-        "step1": "Create a free account at themoviedb.org and confirm your email.",
-        "step2": "Open Settings → API and request a Developer key (a personal-use description is enough).",
-        "step3": "Copy the \"API Key\" value (not the long Read Access Token).",
-        "step4": "Paste it below and press Save."
+        "main": {
+          "step1": "Create a free TMDB account",
+          "step1d": "Press \"Create a TMDB account\" above, then enter a username, password and your email address.",
+          "step2": "Confirm your email and log in",
+          "step2d": "TMDB emails you a verification link. Click it, then log in at themoviedb.org.",
+          "step3": "Open the API settings",
+          "step3d": "Click your avatar (top right) → Settings → API in the left menu, or press \"Open TMDB API settings\" above.",
+          "step4": "Request an API key",
+          "step4d": "Under \"Request an API Key\" click Create, choose Developer and accept the terms. In the form pick type \"Desktop application\", name \"Theama\", URL http://localhost and a one-line personal-use description. The address fields need your real details.",
+          "step5": "Copy your key",
+          "step5d": "The API page now shows an \"API Key\" (32 letters and numbers) and a longer \"API Read Access Token\". Either one works in Theama. Copy it.",
+          "step6": "Paste it and save",
+          "step6d": "Paste the key in the field below and press Save. Theama checks it with TMDB straight away."
+        }
       },
       "prowlarr": {
         "title": "Prowlarr (finds torrents)",
@@ -1349,32 +1359,74 @@
         "current": "Indexers in Prowlarr: {names}",
         "added": "Added: {names}.",
         "existing": "Already there: {names}.",
-        "step1": "Download and install Prowlarr, then open it (http://localhost:9696).",
-        "step2": "In Prowlarr go to Settings → General and copy the API Key.",
-        "step3": "Paste the address and key below and press Save.",
-        "step4": "Press \"Add The Pirate Bay and YTS\" to add the recommended public indexers (or add them yourself in Prowlarr under Indexers → Add Indexer).",
-        "step5": "Theama ships no indexers: use only sources you are allowed to use."
+        "main": {
+          "step1": "Download and install Prowlarr",
+          "step1d": "Press \"Download Prowlarr\" above, get the Windows installer and run it. Prowlarr then runs in the background with a tray icon.",
+          "step2": "Open Prowlarr in your browser",
+          "step2d": "Go to http://localhost:9696. On first start it asks you to set authentication: choose Forms and pick a username and password.",
+          "step3": "Copy the API key",
+          "step3d": "In Prowlarr open Settings → General. Under Security copy the \"API Key\". The port is listed under Host (9696 unless you changed it).",
+          "step4": "Enter the address and key here",
+          "step4d": "Fill in the address (use the port you saw) and the API key below, then press Save. The status turns to Configured when Prowlarr answers.",
+          "step5": "Add indexers",
+          "step5d": "Press \"Add The Pirate Bay and YTS\" below. Or do it in Prowlarr: Indexers → Add Indexer, search the name, select it, Test, then Save.",
+          "step6": "Use it responsibly",
+          "step6d": "Theama ships no indexers and does not judge content. Use only sources you are allowed to use where you live."
+        }
       },
       "qbittorrent": {
         "title": "qBittorrent (downloads)",
         "summary": "Downloads the releases you choose.",
         "webUiOff": "The qBittorrent Web UI looks switched off. Turn it on in Tools → Options → Web UI.",
-        "step1": "Download and install qBittorrent.",
-        "step2": "Open Tools → Options → Web UI, tick \"Web User Interface (Remote control)\" and set a user name and password.",
-        "step3": "Keep the port (8080 by default). Apply the options.",
-        "step4": "Enter the address, user name and password below and press Save."
+        "main": {
+          "step1": "Download and install qBittorrent",
+          "step1d": "Press \"Download qBittorrent\" above, run the Windows installer, then start qBittorrent.",
+          "step2": "Open the Web UI options",
+          "step2d": "In qBittorrent choose Tools → Options (Alt+O) and open the \"Web UI\" tab.",
+          "step3": "Turn on the Web UI",
+          "step3d": "Tick \"Web User Interface (Remote control)\". Look at the Port field: that number goes after \"localhost:\" in the address below. 8080 is common, but use whatever is shown there, and change it if it clashes with another program.",
+          "step4": "Set a username and password",
+          "step4d": "Under Authentication enter a username and a password (new versions have no default password). Or tick \"Bypass authentication for clients on localhost\" and leave both fields below empty.",
+          "step5": "Apply the options",
+          "step5d": "Press Apply, then OK. Keep qBittorrent running: Theama sends downloads to it.",
+          "step6": "Enter the address and login here",
+          "step6d": "Address: http://localhost:PORT with your port. Fill in the username and password from step 4 below, then press Save."
+        }
       },
       "subtitles": {
         "title": "Subtitles",
-        "summary": "Downloads subtitles from OpenSubtitles or SubDL. You need only one.",
+        "summary": "Downloads subtitles from OpenSubtitles or SubDL. One is enough: OpenSubtitles has the bigger catalogue, SubDL is quicker to set up.",
         "provider": "Provider",
         "apiKey": "API key",
         "rejected": "The provider did not accept this key.",
-        "step1": "Create a free account at OpenSubtitles (consumers page) or SubDL.",
-        "step2": "Create an API key / consumer and copy it.",
-        "step3": "Choose the provider below, paste the key and press Save."
+        "opensubtitles": {
+          "title": "OpenSubtitles",
+          "step1": "Create an OpenSubtitles.com account",
+          "step1d": "Press the button above (use opensubtitles.com, not the old opensubtitles.org). Click Sign up and enter a username, password and email.",
+          "step2": "Confirm your email and log in",
+          "step2d": "Click the link in the confirmation email, then log in.",
+          "step3": "Open the API consumers page",
+          "step3d": "OpenSubtitles calls an API key a \"consumer\". Open it from your profile menu → API consumers, or with the button above.",
+          "step4": "Create a consumer",
+          "step4d": "Click \"New consumer\", enter the name \"Theama\" and a short description such as \"personal use\", accept the terms and save.",
+          "step5": "Copy the API key and save it here",
+          "step5d": "Your new consumer appears in the list with an \"API key\". Copy it, choose OpenSubtitles below, paste it and press Save. Optional: sign in with your OpenSubtitles username in the subtitle settings of Theama to raise the daily download limit."
+        },
+        "subdl": {
+          "title": "SubDL",
+          "step1": "Create a SubDL account",
+          "step1d": "Open subdl.com and click Register. Enter an email and password.",
+          "step2": "Confirm your email and log in",
+          "step2d": "Verify through the email if SubDL asks, then log in.",
+          "step3": "Open the API panel",
+          "step3d": "Press the button above (subdl.com/panel/api), or choose API in your account panel.",
+          "step4": "Copy the API key and save it here",
+          "step4d": "The panel shows your API key. Copy it, choose SubDL below, paste it and press Save."
+        }
       }
     },
-    "run": "Run setup wizard"
+    "run": "Run setup wizard",
+    "installed": "Installed",
+    "progressCount": "{done} of {total} configured"
   }
 }

@@ -109,7 +109,7 @@ export const guide: SetupGuide = {
       summary: 'Optional. qBittorrent performs downloads; Theama submits selected releases and monitors them. The connection needs a Web UI login, not an API key.',
       blocks: [
         links(['qbittorrent', 'qBittorrent official downloads'], ['qbittorrentOptions', 'qBittorrent options and Web UI documentation']),
-        steps('Install qBittorrent for Windows and start it. Open Tools → Options → Web UI, enable the Web User Interface (Remote control), and note its HTTP port. For this-PC setup, use a local address and keep access local. Theama’s default example is http://localhost:8080.',
+        steps('Install qBittorrent for Windows and start it. Open Tools → Options → Web UI, enable the Web User Interface (Remote control), and note its HTTP port. For this-PC setup, use a local address and keep access local. Put the port shown there into the address; 8080 is only the usual default, for example http://localhost:8080.',
           'Set the Web UI username and a strong password, then apply the changes. If your qBittorrent version generates a temporary password, follow its startup/log instructions to sign in and set your own password. Do not assume adminadmin is valid.',
           'Open the configured Web UI address in your browser and verify that the same username/password logs in. Keep authentication and the normal host/CSRF protections enabled; do not disable them to work around a typo.',
           'In this step or Settings → Downloads, enter Address, Username and Password under qBittorrent, then Connect. Use the full http:// or https:// URL, not the BitTorrent peer port. A configured but closed client is shown as unreachable; a rejected login must be corrected.',

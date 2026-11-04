@@ -13,6 +13,8 @@ import { useSetupStatus } from '@/composables/useSetupStatus'
 import { SETUP_ITEMS, type SetupItem } from '@/setup/content'
 import { ITEM_CONTENT } from '@/setup/items'
 import SetupServiceCard from '@/components/setup/SetupServiceCard.vue'
+import SetupLanguageSelect from '@/components/setup/SetupLanguageSelect.vue'
+import logoMark from '@/assets/logo-mark.svg'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -32,6 +34,13 @@ function skip(item: SetupItem): void { setup.setSkipped(item, true); overrides[i
 function unskip(item: SetupItem): void { setup.setSkipped(item, false); overrides[item] = true }
 const allConfigured = computed(() => SETUP_ITEMS.every((i) => statusOf(i) === 'configured'))
 const disabled = computed(() => !connection.isConnected)
+const configuredCount = computed(() => SETUP_ITEMS.filter((i) => statusOf(i) === 'configured').length)
+// Found on this computer (desktop app) or already answering as connected.
+const foundApps = ref<Partial<Record<'prowlarr' | 'qbittorrent', boolean>>>({})
+const installed = computed(() => ({
+  prowlarr: foundApps.value.prowlarr === true || statusOf('prowlarr') === 'configured',
+  qbittorrent: foundApps.value.qbittorrent === true || statusOf('qbittorrent') === 'configured',
+}))
 
 const busy = reactive<Record<SetupItem, boolean>>({ tmdb: false, prowlarr: false, qbittorrent: false, subtitles: false })
 const problem = reactive<Record<SetupItem, string | null>>({ tmdb: null, prowlarr: null, qbittorrent: null, subtitles: null })
@@ -101,6 +110,7 @@ onMounted(async () => {
   setup.start()
   try {
     const found = DetectedServices.parse(await getBridge()?.downloadTools.detect())
+    foundApps.value = { prowlarr: found.prowlarr.installed, qbittorrent: found.qbittorrent.installed }
     if (found.prowlarr.url && found.prowlarr.apiKey) { pUrl.value = found.prowlarr.url; pKey.value = found.prowlarr.apiKey; detectedNote.value.prowlarr = true }
     if (found.qbittorrent.url) { qUrl.value = found.qbittorrent.url; qUser.value = found.qbittorrent.username ?? ''; detectedNote.value.qbittorrent = true }
     if (found.qbittorrent.webUiEnabled === false) notice.qbittorrent = t('setup.items.qbittorrent.webUiOff')
@@ -116,22 +126,30 @@ function skipAll(): void {
 
 <template>
   <div class="th-page wizard" data-test="setup-wizard">
-    <header>
-      <h1 class="th-display">{{ $t('setup.title') }}</h1>
-      <p class="th-muted">{{ $t('setup.pageIntro') }}</p>
+    <header class="hero">
+      <img class="logo" :src="logoMark" alt="" />
+      <div class="hero-text">
+        <h1 class="th-display">{{ $t('setup.title') }}</h1>
+        <p class="th-muted">{{ $t('setup.pageIntro') }}</p>
+      </div>
+      <SetupLanguageSelect />
     </header>
+    <div class="progress" data-test="setup-progress">
+      <span>{{ $t('setup.progressCount', { done: configuredCount, total: SETUP_ITEMS.length }) }}</span>
+      <v-progress-linear :model-value="(configuredCount / SETUP_ITEMS.length) * 100" color="success" rounded height="8" :aria-label="$t('setup.progress')" />
+    </div>
     <v-alert v-if="!setup.storageAvailable" type="warning" variant="tonal">{{ $t('setup.storageWarning') }}</v-alert>
     <v-alert v-if="disabled" type="info" variant="tonal">{{ $t('setup.backendRequired') }}</v-alert>
     <v-alert v-else-if="allConfigured" type="success" variant="tonal" data-test="setup-all-done">{{ $t('setup.allDone') }}</v-alert>
 
-    <SetupServiceCard item="tmdb" :status="statusOf('tmdb')" :open="isOpen('tmdb')" @toggle="toggle('tmdb')" @skip="skip('tmdb')" @unskip="unskip('tmdb')">
+    <SetupServiceCard item="tmdb" :installed="installed" :status="statusOf('tmdb')" :open="isOpen('tmdb')" @toggle="toggle('tmdb')" @skip="skip('tmdb')" @unskip="unskip('tmdb')">
       <form class="form" @submit.prevent="saveTmdb">
         <v-text-field v-model="tmdbKey" type="password" :label="$t('setup.items.tmdb.apiKey')" autocomplete="off" spellcheck="false" :error-messages="problem.tmdb ?? undefined" :disabled="disabled" data-test="setup-tmdb-key" />
         <div><v-btn type="submit" color="primary" :loading="busy.tmdb" :disabled="disabled || !tmdbKey.trim()">{{ $t('setup.save') }}</v-btn></div>
       </form>
     </SetupServiceCard>
 
-    <SetupServiceCard item="prowlarr" :status="statusOf('prowlarr')" :open="isOpen('prowlarr')" @toggle="toggle('prowlarr')" @skip="skip('prowlarr')" @unskip="unskip('prowlarr')">
+    <SetupServiceCard item="prowlarr" :installed="installed" :status="statusOf('prowlarr')" :open="isOpen('prowlarr')" @toggle="toggle('prowlarr')" @skip="skip('prowlarr')" @unskip="unskip('prowlarr')">
       <p v-if="detectedNote.prowlarr" class="th-muted">{{ $t('setup.detected') }}</p>
       <form class="form" @submit.prevent="savePr">
         <v-text-field v-model="pUrl" :label="$t('downloads.address')" spellcheck="false" autocomplete="off" :disabled="disabled" data-test="setup-prowlarr-url" />
@@ -145,7 +163,7 @@ function skipAll(): void {
       <p v-if="notice.prowlarr">{{ notice.prowlarr }}</p>
     </SetupServiceCard>
 
-    <SetupServiceCard item="qbittorrent" :status="statusOf('qbittorrent')" :open="isOpen('qbittorrent')" @toggle="toggle('qbittorrent')" @skip="skip('qbittorrent')" @unskip="unskip('qbittorrent')">
+    <SetupServiceCard item="qbittorrent" :installed="installed" :status="statusOf('qbittorrent')" :open="isOpen('qbittorrent')" @toggle="toggle('qbittorrent')" @skip="skip('qbittorrent')" @unskip="unskip('qbittorrent')">
       <p v-if="detectedNote.qbittorrent" class="th-muted">{{ $t('setup.detected') }}</p>
       <v-alert v-if="notice.qbittorrent" type="warning" variant="tonal" density="compact">{{ notice.qbittorrent }}</v-alert>
       <form class="form" @submit.prevent="saveQb">
@@ -156,7 +174,7 @@ function skipAll(): void {
       </form>
     </SetupServiceCard>
 
-    <SetupServiceCard item="subtitles" :status="statusOf('subtitles')" :open="isOpen('subtitles')" @toggle="toggle('subtitles')" @skip="skip('subtitles')" @unskip="unskip('subtitles')">
+    <SetupServiceCard item="subtitles" :installed="installed" :status="statusOf('subtitles')" :open="isOpen('subtitles')" @toggle="toggle('subtitles')" @skip="skip('subtitles')" @unskip="unskip('subtitles')">
       <form class="form" @submit.prevent="saveSub">
         <v-select v-model="provider" :items="providerItems" :label="$t('setup.items.subtitles.provider')" :disabled="disabled" />
         <v-text-field v-model="subKey" type="password" :label="$t('setup.items.subtitles.apiKey')" autocomplete="off" spellcheck="false" :error-messages="problem.subtitles ?? undefined" :disabled="disabled" data-test="setup-sub-key" />
@@ -174,9 +192,13 @@ function skipAll(): void {
 
 <style scoped>
 .wizard { max-width: 900px; margin: 0 auto; display: grid; gap: 20px; }
-h1 { font-size: clamp(1.6rem, 3vw, 2.4rem); margin: 0 0 8px; }
-header p { margin: 0; max-width: 70ch; }
+h1 { font-size: clamp(1.6rem, 3vw, 2.4rem); margin: 0 0 6px; }
+.hero { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 20px; }
+.hero-text { flex: 1 1 18rem; min-width: 0; }
+.hero-text p { margin: 0; max-width: 70ch; }
+.logo { width: 56px; height: 56px; flex: none; }
+.progress { display: grid; gap: 6px; font-size: .9rem; }
 .form { display: grid; gap: 8px; max-width: 35rem; }
 .row, .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.actions { padding-top: 16px; border-top: 1px solid rgb(var(--v-theme-hairline)); }
+.actions { position: sticky; bottom: 0; z-index: 1; padding: 14px 0; border-top: 1px solid rgb(var(--v-theme-hairline)); background: rgb(var(--v-theme-background)); }
 </style>

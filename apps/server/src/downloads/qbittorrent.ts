@@ -115,6 +115,13 @@ export class QBittorrentClient {
     )
   }
 
+  /** qBittorrent's warnings and errors, oldest first. File errors such as "Access is denied" are only reported here. */
+  async problemLog(): Promise<string[]> {
+    const raw = JSON.parse(await this.text('GET', '/api/v2/log/main?normal=false&info=false&warning=true&critical=true&last_known_id=-1')) as unknown
+    if (!Array.isArray(raw)) return []
+    return raw.flatMap((e: Record<string, unknown>) => (typeof e.message === 'string' ? [e.message] : []))
+  }
+
   /** The files in a torrent. Empty while a magnet link's details are still being fetched. */
   async files(hash: string): Promise<QBittorrentFile[]> {
     const raw = JSON.parse(await this.text('GET', `/api/v2/torrents/files?hash=${encodeURIComponent(hash)}`)) as unknown

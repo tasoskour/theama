@@ -964,6 +964,7 @@
       "empty": "Nothing is downloading.",
       "unreachable": "qBittorrent is not answering, so progress cannot be shown. Is it running, with its Web UI on?",
       "checkSettings": "Check the connection",
+      "problemUnknown": "qBittorrent stopped this download but did not say why. Open qBittorrent's log (View → Log) for details.",
       "state": {
         "downloading": "Downloading",
         "stalled": "Waiting for sources",

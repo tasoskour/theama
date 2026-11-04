@@ -19,6 +19,20 @@ export function stateOf(torrent: Pick<QBittorrentTorrent, 'state' | 'progress'>)
   return 'queued'
 }
 
+/**
+ * The newest log line that names this torrent, trimmed to the part worth reading. qBittorrent words them like
+ * `File error alert. Torrent: "Name". File: "D:\x.mkv". Reason: "x.mkv file_open (...) error: Access is denied"`.
+ */
+export function problemFor(name: string, log: readonly string[]): string | null {
+  for (let i = log.length - 1; i >= 0; i--) {
+    const line = log[i]!
+    if (!line.includes(name)) continue
+    const reason = /Reason:\s*"?(.+?)"?\s*$/.exec(line)?.[1]
+    return (reason ?? line).slice(0, 400)
+  }
+  return null
+}
+
 export function toItem(torrent: QBittorrentTorrent, tag: string): DownloadItem {
   const tags = torrent.tags.split(',').map((t) => t.trim())
   const kind = tags.includes(`${tag}-movie`) ? 'movie' : tags.includes(`${tag}-series`) ? 'series' : null

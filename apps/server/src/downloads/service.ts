@@ -3,7 +3,7 @@ import type { Logger } from 'pino'
 import { z } from 'zod'
 import type { DownloadClientState, DownloadClientStatus, DownloadFile, DownloadList, IndexerStatus, Release, ReleaseKind, ReleaseList, ReleaseQuery } from '@theama/contracts'
 import type { CredentialStore } from '../metadata/credentials'
-import { toItem } from './items'
+import { problemFor, toItem } from './items'
 import { ProwlarrClient, isDownloadLink, type IndexerHit, type ProwlarrConnection } from './prowlarr'
 import { DownloadClientError, QBittorrentClient, type DownloadClientErrorKind, type QBittorrentConnection, type QBittorrentOptions } from './qbittorrent'
 import { isCollectionPack, matchesQuery, parseRelease, rankReleases, type RawRelease } from './release'
@@ -195,7 +195,13 @@ export class DownloadsService {
     if (!this.connection()) return { reachable: false, items: [] }
     try {
       const torrents = await this.qbittorrent.torrents(this.scope())
-      return { reachable: true, items: torrents.map((t) => toItem(t, THEAMA_TAG)).sort((a, b) => (b.addedAt ?? '').localeCompare(a.addedAt ?? '')) }
+      const items = torrents.map((t) => toItem(t, THEAMA_TAG)).sort((a, b) => (b.addedAt ?? '').localeCompare(a.addedAt ?? ''))
+      if (items.some((i) => i.state === 'error')) {
+        // Best effort: the reason is a nicety, never worth failing the list for.
+        const log = await this.qbittorrent.problemLog().catch(() => [])
+        for (const item of items) if (item.state === 'error') item.problem = problemFor(item.name, log)
+      }
+      return { reachable: true, items }
     } catch (err) {
       if (err instanceof DownloadClientError) return { reachable: false, items: [] }
       throw err

@@ -198,6 +198,7 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
           <span v-if="item.size > 0" class="stat"><v-icon :icon="mdiHarddisk" size="1em" />{{ formatBytes(item.size, locale) }}</span>
           <v-chip v-if="!item.own" size="x-small" label variant="outlined" data-test="not-ours">{{ $t('downloads.active.notOurs') }}</v-chip>
         </div>
+        <p v-if="item.state === 'error'" class="card__problem" data-test="download-problem">{{ item.problem ?? $t('downloads.active.problemUnknown') }}</p>
       </li>
     </ul>
 
@@ -371,6 +372,12 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
   align-items: center;
   gap: 6px 14px;
   font-size: 0.82rem;
+}
+.card__problem {
+  margin: 0;
+  font-size: 0.82rem;
+  color: rgb(var(--v-theme-error));
+  overflow-wrap: anywhere;
 }
 .stat {
   display: inline-flex;

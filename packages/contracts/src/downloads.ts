@@ -142,6 +142,8 @@ export const DownloadItem = z.object({
   /** Added by Theama (carries its tag). False only for the person's other torrents. */
   own: z.boolean(),
   addedAt: z.string().nullable(),
+  /** qBittorrent's own words for why a torrent in the `error` state stopped (e.g. "Access is denied"), when its log says. */
+  problem: z.string().nullable().optional(),
 })
 export type DownloadItem = z.infer<typeof DownloadItem>
 

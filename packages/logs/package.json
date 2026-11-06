@@ -1,6 +1,6 @@
 {
   "name": "@theama/logs",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "description": "Node-only log file writing and reading, shared by the server and the desktop shell.",

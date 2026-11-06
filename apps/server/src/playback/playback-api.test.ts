@@ -145,6 +145,24 @@ describe('watched state', () => {
     expect((await send('DELETE', '/playback/continue/movie:nothing')).status).toBe(404)
     await send('PUT', `/playback/files/${fileId}`, { watched: true })
   })
+
+  it('scopes continue watching by kind before applying its limit', async () => {
+    const filmId = (await detail((await byTitle('Film')).key)).files[0]!.id
+    const showId = await episodeId(1)
+    await send('PUT', `/playback/files/${filmId}`, { watched: false })
+    await send('POST', `/playback/files/${filmId}/launched`)
+    await new Promise(r => setTimeout(r, 5))
+    await send('PUT', `/playback/files/${showId}`, { watched: true })
+
+    expect(ContinueList.parse(await get('/playback/continue?limit=1')).items[0]?.summary.kind).toBe('series')
+    expect(ContinueList.parse(await get('/playback/continue?kind=movie&limit=1')).items.map(i => i.summary.title)).toEqual(['Film'])
+    expect(ContinueList.parse(await get('/playback/continue?kind=series&limit=1')).items.map(i => i.summary.title)).toEqual(['Show'])
+    expect(ContinueList.parse(await get('/playback/continue?kind=video')).items).toEqual([])
+    expect((await send('GET', '/playback/continue?kind=invalid')).status).toBe(400)
+
+    await send('PUT', `/playback/files/${filmId}`, { watched: true })
+    await send('PUT', '/playback/titles', { key: (await byTitle('Show')).key, watched: false })
+  })
 })
 
 describe('where playback stopped', () => {

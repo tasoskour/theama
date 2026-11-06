@@ -67,7 +67,11 @@ export const GenreQuery = z.object({ kind: TitleKind.optional() })
 export type GenreQuery = z.input<typeof GenreQuery>
 
 /** Every genre that at least one library title has, alphabetically. */
-export const GenreList = z.object({ genres: z.array(z.string()) })
+export const GenreList = z.object({
+  genres: z.array(z.string()),
+  /** Library title counts by genre; provider genre lists do not include counts. */
+  counts: z.record(z.string(), z.number().int().nonnegative()).optional(),
+})
 export type GenreList = z.infer<typeof GenreList>
 
 export const TitlePage = z.object({

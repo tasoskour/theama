@@ -7,12 +7,16 @@ import { useConnectionStore } from '@/stores/connection'
 export function useGenres(kind: () => TitleKind | undefined) {
   const connection = useConnectionStore()
   const genres = ref<string[]>([])
+  const counts = ref<Record<string, number>>({})
 
   const latest = useLatestRequest()
   async function load(): Promise<void> {
     const client = connection.client
     if (!client) return
-    await latest(signal => client.get('/library/genres', GenreList, { kind: kind() }, { signal }), result => { genres.value = result.genres })
+    await latest(signal => client.get('/library/genres', GenreList, { kind: kind() }, { signal }), result => {
+      genres.value = result.genres
+      counts.value = result.counts ?? {}
+    })
   }
 
   // Metadata status changes arrive in bursts while titles are being identified.
@@ -30,5 +34,5 @@ export function useGenres(kind: () => TitleKind | undefined) {
     clearTimeout(debounce)
   })
 
-  return { genres }
+  return { genres, counts }
 }

@@ -5,7 +5,8 @@ import type { RouteLocationRaw } from 'vue-router'
 import type { TitleSummary } from '@theama/contracts'
 import PosterCard from './PosterCard.vue'
 
-const props = defineProps<{ heading: string; titles: TitleSummary[]; seeAll?: RouteLocationRaw; total?: number; captions?: Record<string, string>; continueList?: boolean }>()
+const props = defineProps<{ heading: string; titles: TitleSummary[]; seeAll?: RouteLocationRaw; browseAll?: boolean; total?: number; captions?: Record<string, string>; continueList?: boolean }>()
+defineEmits<{ seeAll: [] }>()
 
 const scroller = ref<HTMLElement | null>(null)
 const active = ref(0)
@@ -91,6 +92,9 @@ watch(
       <router-link v-if="seeAll" :to="seeAll" class="rail__all">
         {{ $t('titles.seeAll') }}<span v-if="total" class="th-muted"> ({{ total }})</span>
       </router-link>
+      <button v-else-if="browseAll" type="button" class="rail__all" @click="$emit('seeAll')">
+        {{ $t('titles.seeAll') }}<span v-if="total" class="th-muted"> ({{ total }})</span>
+      </button>
     </header>
     <div class="rail__frame">
       <button type="button" class="rail__nav rail__nav--prev" :aria-label="$t('titles.scrollLeft')" tabindex="-1" @click="page(-1)">
@@ -127,6 +131,11 @@ watch(
   margin: 0;
 }
 .rail__all {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
   color: rgb(var(--v-theme-primary));
   font-size: 0.9rem;
   text-decoration: none;

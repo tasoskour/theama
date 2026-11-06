@@ -188,6 +188,17 @@ describe('automatic identification', () => {
     expect(GenreList.parse(await get('/library/genres?kind=video')).genres).toEqual([])
     expect(GenreList.parse(await get('/library/genres?kind=series')).genres).toEqual(expect.arrayContaining(['Drama']))
 
+    // Counts describe cards, not files: Severance has three episodes but is one series.
+    for (const kind of ['', 'movie', 'series', 'video']) {
+      const result = GenreList.parse(await get(`/library/genres${kind ? `?kind=${kind}` : ''}`))
+      expect(Object.keys(result.counts!)).toEqual(result.genres)
+      for (const genre of result.genres) {
+        const page = TitlePage.parse(await get(`/library/titles?genres=${encodeURIComponent(genre)}${kind ? `&kind=${kind}` : ''}`))
+        expect(result.counts![genre]).toBe(page.total)
+      }
+    }
+    expect(GenreList.parse(await get('/library/genres?kind=series')).counts).toMatchObject({ Drama: 1, 'Sci-Fi & Fantasy': 1 })
+
     const names = async (q: string) => (await titles(q)).map((t) => t.title)
     expect(await names(`?genres=${encodeURIComponent('Sci-Fi & Fantasy')}`)).toContain('Severance')
     expect(await names(`?genres=${encodeURIComponent('Sci-Fi & Fantasy')}&kind=movie`)).not.toContain('Severance')

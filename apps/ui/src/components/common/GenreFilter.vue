@@ -4,7 +4,7 @@ import type { GenreMode } from '@theama/contracts'
 // Multi-select of genres with an Any/All switch ("comedy or crime" vs "comedy and crime").
 // Shared by the library pages, global search and the downloads finder.
 // `flush` drops the field and switch chrome and keeps both on one line, for use inside a toolbar that already has a border.
-defineProps<{ items: string[]; flush?: boolean }>()
+defineProps<{ items: string[]; counts?: Record<string, number>; flush?: boolean }>()
 const model = defineModel<string[]>({ required: true })
 const mode = defineModel<GenreMode>('mode', { default: 'any' })
 </script>
@@ -29,8 +29,18 @@ const mode = defineModel<GenreMode>('mode', { default: 'any' })
       hide-details
       class="genre-filter__select th-search-control"
     >
-      <template #selection="{ index }">
-        <v-chip v-if="index < 2" size="small" label :text="model[index]" class="genre-filter__chip" />
+      <template #item="{ props: itemProps, item }">
+        <v-list-item v-bind="itemProps">
+          <template #prepend="{ isSelected }">
+            <v-checkbox-btn :model-value="isSelected" :ripple="false" tabindex="-1" />
+          </template>
+          <template v-if="counts?.[item] !== undefined" #append>
+            <span class="genre-filter__count">{{ counts[item] }}</span>
+          </template>
+        </v-list-item>
+      </template>
+      <template #chip="{ index, props: chipProps }">
+        <v-chip v-if="index < 2" v-bind="chipProps" size="small" label :text="model[index]" class="genre-filter__chip" />
         <span v-else-if="index === 2" class="th-muted text-caption ml-1 text-no-wrap">{{ $t('titles.genresMore', { n: model.length - 2 }) }}</span>
       </template>
     </v-select>
@@ -65,6 +75,11 @@ const mode = defineModel<GenreMode>('mode', { default: 'any' })
 }
 .genre-filter__chip {
   max-width: 8rem;
+}
+.genre-filter__count {
+  margin-inline-start: 16px;
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-variant-numeric: tabular-nums;
 }
 /* A quiet segmented control: a recessed track, and the chosen segment sits on it like a raised chip.
    Scoped here on purpose; the global .v-btn-toggle look is shared with other screens. */

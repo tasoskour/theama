@@ -50,6 +50,7 @@ import {
   LogQuery,
   MediaFileQuery,
   TitleQuery,
+  TitleKind,
   GenreQuery,
   RelocateSourceRequest,
   UpdateSourceRequest,
@@ -432,7 +433,7 @@ export async function buildApp(deps: AppDeps) {
 
   app.get(`${API_PREFIX}/library/titles`, async (req): Promise<TitlePage> => titles.list(TitleQuery.parse(req.query)))
 
-  app.get(`${API_PREFIX}/library/genres`, async (req): Promise<GenreList> => ({ genres: titles.genres(GenreQuery.parse(req.query).kind) }))
+  app.get(`${API_PREFIX}/library/genres`, async (req): Promise<GenreList> => titles.genres(GenreQuery.parse(req.query).kind))
 
   app.get(`${API_PREFIX}/library/title`, async (req): Promise<TitleDetail> => {
     const { key } = z.object({ key: z.string().min(1).max(1000) }).parse(req.query)
@@ -822,8 +823,8 @@ export async function buildApp(deps: AppDeps) {
   })
 
   app.get(`${API_PREFIX}/playback/continue`, async (req): Promise<ContinueList> => {
-    const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(60).default(20) }).parse(req.query)
-    return { items: playback.continueWatching(limit) }
+    const { limit, kind } = z.object({ limit: z.coerce.number().int().min(1).max(60).default(20), kind: TitleKind.optional() }).parse(req.query)
+    return { items: playback.continueWatching(limit, kind) }
   })
 
   app.delete(`${API_PREFIX}/playback/continue/:key`, async (req) => {

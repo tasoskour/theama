@@ -17,6 +17,7 @@ interface Snapshot {
   genres: string[]
   genreMode: GenreMode
   hideUnavailable: boolean
+  view: 'browse' | 'all'
   scrollY: number
   focusKey: string | null
   /** The library revision when this was saved; a later one means the list may have changed while away. */
@@ -63,6 +64,7 @@ export function useTitles(options: UseTitlesOptions) {
   const genres = options.genres ?? ref<string[]>(snap?.genres ?? [])
   const genreMode = options.genreMode ?? ref<GenreMode>(snap?.genreMode ?? 'any')
   const hideUnavailable = ref(snap?.hideUnavailable ?? false)
+  const view = ref<'browse' | 'all'>(snap?.view ?? 'browse')
 
   let keepSize = 0 // the first page of the next reload is at least this long
   let generation = 0 // drops responses that belong to an older query
@@ -152,7 +154,7 @@ export function useTitles(options: UseTitlesOptions) {
         if (from.fullPath === routeKey) {
           snapshots.set(routeKey, {
             items: items.value, total: total.value, nextCursor: nextCursor.value, q: q.value, sort: sort.value, genres: genres.value, genreMode: genreMode.value,
-            hideUnavailable: hideUnavailable.value, scrollY: window.scrollY, focusKey: focusedKey(), revision: connection.getLibraryRevision(),
+            hideUnavailable: hideUnavailable.value, view: view.value, scrollY: window.scrollY, focusKey: focusedKey(), revision: connection.getLibraryRevision(),
           })
           // Query strings can create arbitrarily many route keys during a long session.
           if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value!)
@@ -212,7 +214,7 @@ export function useTitles(options: UseTitlesOptions) {
     clearTimeout(debounce)
   })
 
-  return { items, total, nextCursor, loading, loaded, error, q, sort, genres, genreMode, hideUnavailable, reload, loadMore }
+  return { items, total, nextCursor, loading, loaded, error, q, sort, genres, genreMode, hideUnavailable, view, reload, loadMore }
 }
 
 export type TitlesList = ReturnType<typeof useTitles>

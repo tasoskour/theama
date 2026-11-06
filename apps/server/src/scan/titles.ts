@@ -1,7 +1,7 @@
 import { win32 } from 'node:path'
 import type Database from 'better-sqlite3'
 import { z } from 'zod'
-import type { LibraryType, MediaKind, ProviderIdentity, ReclassifyTitleResult, RemoveTitleResult, TitleDetail, TitleKind, TitlePage, TitleQuery, TitleSort, TitleSummary } from '@theama/contracts'
+import type { GenreList, LibraryType, MediaKind, ProviderIdentity, ReclassifyTitleResult, RemoveTitleResult, TitleDetail, TitleKind, TitlePage, TitleQuery, TitleSort, TitleSummary } from '@theama/contracts'
 import { GENRE_SEPARATOR } from '@theama/contracts'
 import { collectionRefsFor } from '../collections/refs'
 import { artworkUrl } from '../metadata/artwork'
@@ -402,18 +402,18 @@ export class TitleRepo {
     return { items: page.flatMap((p) => described.get(p.key) ?? []), nextCursor, total }
   }
 
-  /** The genres of identified titles that are in the library (optionally of one kind), alphabetically. */
-  genres(kind?: TitleKind): string[] {
+  /** Genres and distinct title counts, so episodes and duplicate files count as one library card. */
+  genres(kind?: TitleKind): GenreList {
     const rows = this.raw
       .prepare(
-        `SELECT DISTINCT j.value AS genre
+        `SELECT j.value AS genre, COUNT(DISTINCT d.title_key) AS count
            FROM title_metadata d, json_each(d.genres) j
           WHERE d.title_key IN (SELECT title_key FROM media_file WHERE excluded = 0 AND ${kind ? 'kind = ?' : "kind <> 'extra'"})
             AND j.value <> ''
-          ORDER BY lower(j.value)`,
+          GROUP BY j.value ORDER BY lower(j.value)`,
       )
-      .all(...(kind ? [KIND_TO_DB[kind]] : [])) as { genre: string }[]
-    return rows.map((r) => r.genre)
+      .all(...(kind ? [KIND_TO_DB[kind]] : [])) as { genre: string; count: number }[]
+    return { genres: rows.map((r) => r.genre), counts: Object.fromEntries(rows.map((r) => [r.genre, r.count])) }
   }
 
   /** Library cards for specific title keys (collections use this); unknown keys are simply absent. */

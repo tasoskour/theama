@@ -10,16 +10,35 @@ import { useLibraryStore } from '@/stores/library'
 import { useTitleActionsStore } from '@/stores/titleActions'
 import IdentifyDialog from './IdentifyDialog.vue'
 import PosterGrid from './PosterGrid.vue'
+import TitleShelves from './TitleShelves.vue'
 import GenreFilter from '@/components/common/GenreFilter.vue'
 import SearchField from '@/components/common/SearchField.vue'
 
-const props = defineProps<{ list: TitlesList; label: string; kind?: TitleKind }>()
+const props = defineProps<{ list: TitlesList; label: string; kind?: TitleKind; shelves?: boolean }>()
 const { t } = useI18n()
 const resultsVersion = ref(0)
 
 // Refs are destructured so the template can v-model them (and they unwrap as top-level bindings).
-const { items, total, nextCursor, loading, loaded, error, q, sort, genres, genreMode, hideUnavailable, loadMore } = props.list
-const { genres: genreItems } = useGenres(() => props.kind)
+const { items, total, nextCursor, loading, loaded, error, q, sort, genres, genreMode, hideUnavailable, view, loadMore } = props.list
+const { genres: genreItems, counts: genreCounts } = useGenres(() => props.kind)
+const showShelves = computed(() => props.shelves && view.value === 'browse' && !selecting.value && !q.value.trim() && genres.value.length === 0 && !hideUnavailable.value && sort.value === 'added')
+
+function setView(value: unknown): void {
+  view.value = value === 'browse' ? 'browse' : 'all'
+  if (view.value === 'browse') {
+    q.value = ''
+    genres.value = []
+    hideUnavailable.value = false
+    sort.value = 'added'
+    stopSelecting()
+  }
+}
+
+function browseAll(genre?: string): void {
+  view.value = 'all'
+  genres.value = genre ? [genre] : []
+  sort.value = 'added'
+}
 
 const SORTS: TitleSort[] = ['title', 'added', 'year']
 const sortItems = computed(() => SORTS.map((s) => ({ value: s, title: t(`titles.sort.${s}`) })))
@@ -121,7 +140,7 @@ async function moveSelected(): Promise<void> {
         class="search"
         :loading="loading && !loaded"
       />
-      <GenreFilter v-model="genres" v-model:mode="genreMode" :items="genreItems" class="genres" />
+      <GenreFilter v-model="genres" v-model:mode="genreMode" :items="genreItems" :counts="genreCounts" class="genres" />
       <v-select v-model="sort" :items="sortItems" :label="$t('titles.sortBy')" density="compact" variant="solo-filled" flat bg-color="surface-bright" hide-details class="sort th-search-control" />
       <v-switch v-model="hideUnavailable" :label="$t('files.hideUnavailable')" color="primary" density="compact" hide-details inset class="availability" />
       <v-btn
@@ -135,6 +154,20 @@ async function moveSelected(): Promise<void> {
       <span class="count" aria-live="polite">{{ $t('titles.count', total) }}</span>
       <v-progress-linear v-if="loading && loaded" indeterminate color="primary" height="2" class="toolbar__progress" />
     </div>
+
+    <v-btn-toggle
+      v-if="shelves"
+      :model-value="showShelves ? 'browse' : 'all'"
+      mandatory
+      density="compact"
+      variant="text"
+      class="mb-5"
+      :aria-label="$t('titles.view')"
+      @update:model-value="setView"
+    >
+      <v-btn value="browse" size="small">{{ $t('titles.browse') }}</v-btn>
+      <v-btn value="all" size="small">{{ $t('titles.allTitles') }}</v-btn>
+    </v-btn-toggle>
 
     <div v-if="selecting" class="selection th-filter-panel" role="toolbar" :aria-label="$t('titles.select.bar')" data-test="selection-bar">
       <span class="selection__count" aria-live="polite">{{ $t('titles.select.count', selected.size) }}</span>
@@ -155,7 +188,8 @@ async function moveSelected(): Promise<void> {
     </div>
 
     <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-3">{{ error }}</v-alert>
-    <transition name="results" mode="out-in">
+    <TitleShelves v-if="showShelves && kind" :kind="kind" :genres="genreItems" :recent="items" :total="total" @browse="browseAll" />
+    <transition v-else name="results" mode="out-in">
       <div :key="resultsVersion">
         <p v-if="loaded && items.length === 0" class="th-muted none">{{ $t('titles.noMatches') }}</p>
         <PosterGrid v-else :titles="items" :label="label" :has-more="nextCursor !== null" :loading="loading" :selecting="selecting" :selected="selected" @load-more="loadMore()" @toggle="toggle" @paint="paint" />

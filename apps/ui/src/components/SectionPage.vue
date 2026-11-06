@@ -34,7 +34,8 @@ const flow = useAddFolder(() => SECTION_TYPE[props.sectionKey] ?? 'auto')
 /** Pages that browse titles, and which kind of title each one shows. */
 const SECTION_KIND: Partial<Record<Section, TitleKind>> = { movies: 'movie', series: 'series', videos: 'video' }
 const kind = SECTION_KIND[props.sectionKey] ?? null
-const list = useTitles({ kind: () => kind, remember: true })
+const shelves = kind === 'movie' || kind === 'series'
+const list = useTitles({ kind: () => kind, sort: shelves ? 'added' : 'title', remember: true })
 const { total, q, genres, hideUnavailable, loaded, error } = list
 // The 3D backdrop (immersive mode) can follow the kind of title listed and the genres picked in the filter.
 useSceneHint(() => (kind ? { kind, genres: genres.value, genreOrder: 'listed' } : {}))
@@ -76,7 +77,7 @@ const showHeaderAdd = computed(() => canAddMediaFolder.value && library.count > 
     <!-- One swap, once: skeleton -> content. The empty state never shows while the first page is still on its way. -->
     <transition name="th-fade" mode="out-in">
       <PosterGridSkeleton v-if="pending" key="pending" />
-      <TitleBrowser v-else-if="showList" key="list" :list="list" :label="$t(titleKey)" :kind="kind ?? undefined" />
+      <TitleBrowser v-else-if="showList" key="list" :list="list" :label="$t(titleKey)" :kind="kind ?? undefined" :shelves="shelves" />
       <div v-else-if="showContent" key="content"><slot /></div>
 
       <div v-else key="empty">

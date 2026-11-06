@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3'
-import { MIN_TRACKED_SECONDS, WATCHED_FRACTION, type ContinueItem, type MediaKind, type NextEpisode, type ProgressResult, type SubtitleTrack } from '@theama/contracts'
+import { MIN_TRACKED_SECONDS, WATCHED_FRACTION, type ContinueItem, type MediaKind, type NextEpisode, type ProgressResult, type SubtitleTrack, type TitleKind } from '@theama/contracts'
 import { parseTracks } from '../scan/store'
 import type { TitleRepo } from '../scan/titles'
 import { episodeAfter, nextEpisode, toEpisodeFile, type EpisodeFile } from './next'
@@ -179,7 +179,8 @@ export class PlaybackRepo {
   }
 
   /** The "continue watching" rail: series with a next episode, and films started but not marked watched. */
-  continueWatching(limit: number): ContinueItem[] {
+  continueWatching(limit: number, kind?: TitleKind): ContinueItem[] {
+    const mediaKind = kind === 'series' ? 'episode' : kind
     const candidates = this.raw
       .prepare(
         `SELECT f.title_key AS key, f.kind AS kind,
@@ -187,10 +188,11 @@ export class PlaybackRepo {
            FROM playback_state p JOIN media_file f ON f.id = p.file_id
            LEFT JOIN continue_dismissal d ON d.title_key = f.title_key
           WHERE f.kind IN ('movie', 'episode', 'video') AND f.title_key IS NOT NULL AND (p.last_played_at IS NOT NULL OR p.watched = 1)
+            ${mediaKind ? 'AND f.kind = ?' : ''}
           GROUP BY f.title_key HAVING d.dismissed_at IS NULL OR activity > d.dismissed_at
           ORDER BY activity DESC, f.title_key LIMIT ?`,
       )
-      .all(limit * 3) as { key: string; kind: MediaKind; activity: string }[]
+      .all(...(mediaKind ? [mediaKind] : []), limit * 3) as { key: string; kind: MediaKind; activity: string }[]
 
     const picked: { key: string; fileId: number; label: string | null; resumeSeconds: number | null; activity: string }[] = []
     for (const c of candidates) {

@@ -102,6 +102,16 @@ describe('TmdbProvider', () => {
     expect(fake.requests).toHaveLength(4)
   })
 
+  it('lists only the genres of the asked kind, since TV-only ones such as "Action & Adventure" match no movie', async () => {
+    const p = provider()
+    const movies = await p.genres('en-US', 'movie')
+    const series = await p.genres('en-US', 'series')
+    expect(movies).toContain('Action')
+    expect(movies).not.toContain('Sci-Fi & Fantasy')
+    expect(series).toContain('Sci-Fi & Fantasy')
+    expect(series).not.toContain('Science Fiction')
+  })
+
   it('applies Any and All genres to discovery and skips media kinds that cannot match', async () => {
     const p = provider()
     const query = { section: 'year' as const, year: 2015, page: 1, language: 'en-US', today: '2026-10-24' }

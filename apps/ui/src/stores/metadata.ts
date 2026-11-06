@@ -71,10 +71,10 @@ export const useMetadataStore = defineStore('metadata', () => {
     }
   }
 
-  async function genres(): Promise<({ ok: true } & GenreList) | { ok: false; code: string; message: string }> {
+  async function genres(kind?: MatchKind): Promise<({ ok: true } & GenreList) | { ok: false; code: string; message: string }> {
     if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
     try {
-      return { ok: true, ...await connection.client.get('/metadata/genres', GenreList) }
+      return { ok: true, ...await connection.client.get('/metadata/genres', GenreList, { kind }) }
     } catch (err) {
       return failure(err) as { ok: false; code: string; message: string }
     }

@@ -173,6 +173,10 @@ export type MetadataSuggestionDetails = z.infer<typeof MetadataSuggestionDetails
 export const MetadataSearchResult = z.object({ items: z.array(Suggestion) })
 export type MetadataSearchResult = z.infer<typeof MetadataSearchResult>
 
+/** Movies and series have different genre catalogs; without a kind the list covers both. */
+export const MetadataGenresQuery = z.object({ kind: MatchKind.optional() })
+export type MetadataGenresQuery = z.input<typeof MetadataGenresQuery>
+
 export const MetadataPersonTitlesQuery = z.object({
   externalId: z.string().regex(/^\d{1,12}$/),
   category: z.enum(['actor', 'director']),

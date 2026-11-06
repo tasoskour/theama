@@ -494,11 +494,11 @@ export class MetadataManager {
     }
   }
 
-  /** The provider's complete genre catalog, independent of the library or loaded suggestion pages. */
-  async genres(): Promise<GenreList> {
+  /** The provider's complete genre catalog (for one kind, or both), independent of the library or loaded suggestion pages. */
+  async genres(kind?: MatchKind): Promise<GenreList> {
     this.requireKey()
     try {
-      return { genres: await this.d.provider.genres(this.tag()) }
+      return { genres: await this.d.provider.genres(this.tag(), kind) }
     } catch (err) {
       return this.translate(err)
     }

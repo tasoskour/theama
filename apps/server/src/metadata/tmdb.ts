@@ -249,8 +249,8 @@ export class TmdbProvider implements MetadataProvider {
     })
   }
 
-  async genres(language: string): Promise<string[]> {
-    const lists = await Promise.all([this.genreList('movie', language), this.genreList('series', language)])
+  async genres(language: string, kind?: MatchKind): Promise<string[]> {
+    const lists = await Promise.all((kind ? [kind] : (['movie', 'series'] as const)).map((k) => this.genreList(k, language)))
     return [...new Set(lists.flatMap((list) => [...list.values()]))].sort((a, b) => a.localeCompare(b))
   }
 

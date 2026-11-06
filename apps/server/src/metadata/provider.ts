@@ -105,7 +105,7 @@ export type ImageSize = 'thumb' | 'poster' | 'backdrop' | 'still'
 export interface MetadataProvider {
   readonly id: string
   /** All movie and TV genre names in the requested language. */
-  genres(language: string): Promise<string[]>
+  genres(language: string, kind?: MatchKind): Promise<string[]>
   search(query: SearchQuery): Promise<ProviderCandidate[]>
   personTitles(externalId: string, category: 'actor' | 'director', language: string): Promise<ProviderCandidate[]>
   /** One page of popular movies and series together, alternating, for a "new" or a "year" section. */

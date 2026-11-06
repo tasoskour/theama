@@ -67,7 +67,9 @@ onBeforeUnmount(() => { searchGeneration += 1; searchController?.abort() })
 const setUp = computed(() => downloads.canFindReleases)
 const hasKey = computed(() => metadata.status?.configured === true)
 const noKey = computed(() => metadata.status !== null && !hasKey.value)
-watch([hasKey, genreRetry], async ([configured], _previous, onCleanup) => {
+// Movies and series have different genre catalogs (TMDB has "Action & Adventure" for TV, but "Action" and
+// "Adventure" for movies), so the choices follow the selected kind and a selection the kind lacks is dropped.
+watch([hasKey, genreRetry, kind], async ([configured, , selectedKind], _previous, onCleanup) => {
   let current = true
   onCleanup(() => { current = false })
   genreProblem.value = null
@@ -76,11 +78,14 @@ watch([hasKey, genreRetry], async ([configured], _previous, onCleanup) => {
     suggestionGenres.value = []
     return
   }
-  const res = await metadata.genres()
+  const res = await metadata.genres(selectedKind === 'all' ? undefined : selectedKind)
   if (!current) return
   genreLoading.value = false
-  if (res.ok) suggestionGenres.value = res.genres
-  else genreProblem.value = res.message
+  if (res.ok) {
+    suggestionGenres.value = res.genres
+    const offered = new Set(genreItems.value)
+    if (genres.value.some((genre) => !offered.has(genre))) genres.value = genres.value.filter((genre) => offered.has(genre))
+  } else genreProblem.value = res.message
 }, { immediate: true })
 const activeCount = computed(() => downloads.list?.items.length ?? 0)
 

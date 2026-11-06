@@ -29,6 +29,7 @@ import {
   CreateExclusionRequest,
   IdentifyRequest,
   MetadataSearchQuery,
+  MetadataGenresQuery,
   MetadataPersonTitlesQuery,
   AwardsQuery,
   MetadataSuggestionsQuery,
@@ -619,9 +620,10 @@ export async function buildApp(deps: AppDeps) {
     }
   })
 
-  app.get(`${API_PREFIX}/metadata/genres`, async (): Promise<GenreList> => {
+  app.get(`${API_PREFIX}/metadata/genres`, async (req): Promise<GenreList> => {
+    const q = MetadataGenresQuery.parse(req.query)
     try {
-      return await metadata.genres()
+      return await metadata.genres(q.kind)
     } catch (err) {
       return metadataFailure(err)
     }

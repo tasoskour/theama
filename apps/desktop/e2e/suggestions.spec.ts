@@ -20,6 +20,8 @@ let releaseRequests: URL[] = []
 let detailsHandler: ((route: Route) => Promise<void>) | null = null
 let suggestionsHandler: ((route: Route) => Promise<void>) | null = null
 let suggestionRequests: URL[] = []
+let searchRequests: URL[] = []
+let releaseHandler: ((route: Route) => Promise<void>) | null = null
 
 const longTitle = 'Clayface: A very long movie title that must wrap without hiding the rating'
 const overview = 'Matt Hagen’s meteoric rise from Gotham street kid to Hollywood leading man is tragically cut short when a local crime boss leaves him horribly disfigured. '
@@ -96,11 +98,15 @@ test.beforeAll(async () => {
     } else await route.continue()
   })
   await page.route(/\/api\/v1\/metadata\/search\?/, async (route) => {
-    const kind = new URL(route.request().url()).searchParams.get('kind')
-    await route.fulfill({ json: { items: kind === 'movie' ? [movie] : [items[2]] } })
+    const url = new URL(route.request().url())
+    searchRequests.push(url)
+    const kind = url.searchParams.get('kind')
+    const year = url.searchParams.get('year')
+    await route.fulfill({ json: { items: (kind === 'movie' ? [movie] : [items[2]!]).filter(c => !year || String(c.year) === year) } })
   })
   await page.route(/\/api\/v1\/downloads\/releases\?/, async (route) => {
     releaseRequests.push(new URL(route.request().url()))
+    if (releaseHandler) return releaseHandler(route)
     await route.fulfill({ status: 503, json: { error: { code: 'not_configured', message: 'Test indexer is not configured.' } } })
   })
   await page.route(/\/api\/v1\/downloads$/, async (route) => {
@@ -124,6 +130,8 @@ test.afterAll(async () => {
 test.beforeEach(async () => {
   detailsRequests = 0
   releaseRequests = []
+  searchRequests = []
+  releaseHandler = null
   detailsHandler = null
   suggestionsHandler = null
   suggestionRequests = []
@@ -139,21 +147,25 @@ test('Find and Favorites filters survive page navigation and reset on reload', a
   const genre = page.locator('[data-test="find-genre"]')
   await page.locator('[data-test="suggestion-filter-movie"]').click()
   await page.locator('[data-test="find-title"] input').fill('Remember this title')
-  await page.getByRole('combobox', { name: 'Year', exact: true }).fill('2014')
+  await page.getByRole('combobox', { name: 'Years', exact: true }).fill('2014')
   await page.getByRole('option', { name: '2014', exact: true }).click()
+  await page.keyboard.press('Escape')
   await genre.locator('.v-select .v-field').click()
   await page.getByRole('option', { name: 'Drama', exact: true }).click()
   await page.getByRole('option', { name: 'Science Fiction', exact: true }).click()
   await page.keyboard.press('Escape')
   await genre.getByRole('button', { name: 'All', exact: true }).click()
+  await page.locator('[data-test="find-rating"] [role="slider"]').first().focus()
+  await page.keyboard.press('ArrowRight')
 
   await navigateAwayAndBack()
   await expect(page.locator('[data-test="tab-find"]')).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('[data-test="suggestion-filter-movie"]')).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('[data-test="find-title"] input')).toHaveValue('Remember this title')
-  await expect(page.getByRole('combobox', { name: 'Year', exact: true })).toHaveValue('2014')
+  await expect(page.locator('[data-test="find-year"] .v-chip')).toHaveText(['2014'])
   await expect(genre.locator('.v-chip')).toHaveText(['Drama', 'Science Fiction'])
   await expect(genre.getByRole('button', { name: 'All', exact: true })).toHaveClass(/v-btn--active/)
+  await expect(page.locator('[data-test="find-rating"]')).toContainText('0.1–10.0')
 
   await page.locator('[data-test="suggestion-filter-series"]').click()
   await page.locator('[data-test="find-season"] input').fill('2')
@@ -170,7 +182,7 @@ test('Find and Favorites filters survive page navigation and reset on reload', a
   await expect(page.locator('[data-test="favorites-filter-series"]')).toHaveAttribute('aria-pressed', 'true')
   await page.locator('[data-test="tab-find"]').click()
   await expect(page.locator('[data-test="find-title"] input')).toHaveValue('Remember this title')
-  await expect(genre.locator('.v-chip')).toHaveText(['Drama', 'Science Fiction'])
+  await expect(genre.locator('.v-chip')).toHaveText(['Drama'])
 
   await page.reload()
   await expect(page.locator('[data-test="tab-find"]')).toHaveAttribute('aria-selected', 'true')
@@ -178,13 +190,222 @@ test('Find and Favorites filters survive page navigation and reset on reload', a
   await expect(page.locator('[data-test="find-title"] input')).toHaveValue('')
   await expect(genre.locator('.v-chip')).toHaveCount(0)
   await expect(genre.getByRole('button', { name: 'Any', exact: true })).toHaveClass(/v-btn--active/)
+  await expect(page.locator('[data-test="find-rating"]')).toContainText('0.0–10.0')
   await page.locator('[data-test="suggestion-filter-movie"]').click()
-  await expect(page.getByRole('combobox', { name: 'Year', exact: true })).toHaveValue('')
+  await expect(page.locator('[data-test="find-year"] .v-chip')).toHaveCount(0)
   await page.locator('[data-test="suggestion-filter-series"]').click()
   await expect(page.locator('[data-test="find-season"] input')).toHaveValue('')
   await expect(page.locator('[data-test="find-episode"] input')).toHaveValue('')
   await page.locator('[data-test="tab-favorites"]').click()
   await expect(page.locator('[data-test="favorites-filter-all"]')).toHaveAttribute('aria-pressed', 'true')
+})
+
+async function selectYears(...years: number[]): Promise<void> {
+  for (const year of years) {
+    await page.getByRole('combobox', { name: 'Years', exact: true }).fill(String(year))
+    await page.getByRole('option', { name: String(year), exact: true }).click()
+    await page.keyboard.press('Escape')
+  }
+}
+
+async function switchTab(tab: string): Promise<void> {
+  // Do not scroll to the header before clicking: verify the pane's actual saved position.
+  await page.locator(`[data-test="tab-${tab}"]`).evaluate((el: HTMLElement) => el.click())
+}
+
+async function expectScroll(y: number): Promise<void> {
+  await expect.poll(async () => Math.abs(await page.evaluate(() => window.scrollY) - y)).toBeLessThan(2)
+}
+
+test('loaded pages, expanded years and separate scroll positions survive tabs, navigation and releases', async () => {
+  suggestionsHandler = async (route) => {
+    const url = new URL(route.request().url())
+    const fresh = url.searchParams.get('section') === 'new'
+    const pageNumber = Number(url.searchParams.get('page'))
+    const year = fresh ? 2026 : Number(url.searchParams.get('year'))
+    const count = fresh ? 20 : 4
+    const entries = Array.from({ length: count }, (_, i) => ({ ...movie, year, genres: ['Drama'], externalId: `${year}${pageNumber}${i}`, title: `${fresh ? 'Fresh' : year} title ${pageNumber}-${i}` }))
+    await route.fulfill({ json: { items: entries, hasMore: fresh && pageNumber === 1 } })
+  }
+  const genre = page.locator('[data-test="find-genre"]')
+  await genre.locator('.v-select .v-field').click()
+  await page.getByRole('option', { name: 'Drama', exact: true }).click()
+  await page.keyboard.press('Escape')
+  const section = page.locator('[data-test="suggestion-section"]').first()
+  await expect(section.locator('[data-test="suggestion-item"]')).toHaveCount(20)
+  await section.locator('[data-test="suggestion-more"]').click()
+  await expect(section.locator('[data-test="suggestion-item"]')).toHaveCount(40)
+  await page.locator('[data-test="suggestion-years-sentinel"]').scrollIntoViewIfNeeded()
+  await expect.poll(() => page.locator('[data-test="suggestion-section"]').count()).toBeGreaterThan(6)
+  await page.evaluate(() => window.scrollTo(0, 1100))
+  await expectScroll(1100)
+  const expanded = await page.locator('[data-test="suggestion-section"]').count()
+  const titles = await section.locator('.card__title').allTextContents()
+  const newRequests = () => suggestionRequests.filter(url => url.searchParams.get('section') === 'new').length
+  const before = newRequests()
+  await navigateAwayAndBack()
+  await expect(section.locator('.card__title')).toHaveText(titles)
+  await expectScroll(1100)
+  expect(await page.locator('[data-test="suggestion-section"]').count()).toBe(expanded)
+  expect(newRequests()).toBe(before)
+  await switchTab('favorites')
+  await expectScroll(0)
+  await switchTab('find')
+  await expectScroll(1100)
+  await switchTab('active')
+  await expectScroll(0)
+  await switchTab('find')
+  await expectScroll(1100)
+  expect(newRequests()).toBe(before)
+
+  releaseHandler = async (route) => {
+    await route.fulfill({ json: { source: 'prowlarr', received: 50, items: Array.from({ length: 50 }, (_, i) => ({
+      id: `release-${i}`, title: `Fresh title 1-0 ${i}.1080p`, size: 1000, seeders: i + 1, leechers: 0, indexer: 'Test', resolution: '1080p', quality: 'WEB-DL', codec: null, season: null, episode: null, pack: false,
+    })) } })
+  }
+  await card('Fresh title 1-0').click()
+  const browseY = await page.evaluate(() => window.scrollY)
+  await page.locator('[data-test="suggestion-releases"]').click()
+  await expect(page.locator('[data-test="release-list"] .release')).toHaveCount(50)
+  await page.locator('[data-test="release-sort"]').click()
+  await page.getByRole('option', { name: 'Most seeders', exact: true }).click()
+  await page.locator('[data-test="release-min-seeders"] input').fill('5')
+  await page.locator('[data-test="release-title"] input').fill('Draft title')
+  await expect(page.locator('[data-test="release-list"] .release')).toHaveCount(46)
+  await page.evaluate(() => window.scrollTo(0, 700))
+  await expectScroll(700)
+  await switchTab('active')
+  await switchTab('find')
+  await expectScroll(700)
+  await navigateAwayAndBack()
+  await expectScroll(700)
+  await expect(page.locator('[data-test="release-sort"]')).toContainText('Most seeders')
+  await expect(page.locator('[data-test="release-min-seeders"] input')).toHaveValue('5')
+  await expect(page.locator('[data-test="release-title"] input')).toHaveValue('Draft title')
+  await expect(page.locator('[data-test="release-list"] .release')).toHaveCount(46)
+  expect(releaseRequests).toHaveLength(1)
+  await page.locator('[data-test="releases-back"]').evaluate((el: HTMLElement) => el.click())
+  await expect(section.locator('.card__title')).toHaveText(titles)
+  await expectScroll(browseY)
+  expect(newRequests()).toBe(before)
+})
+
+test('multiple years and rating bounds filter suggestions and search results and survive navigation', async () => {
+  const unrated = { ...movie, externalId: 'unrated', title: 'Unrated', rating: null }
+  const lower = { ...movie, externalId: 'lower', title: 'Lower rated', rating: 2 }
+  suggestionsHandler = async (route) => {
+    const url = new URL(route.request().url())
+    const year = Number(url.searchParams.get('year'))
+    const matching = [movie, items[2]!, unrated, lower].filter(c => c.year === year)
+    await route.fulfill({ json: { items: matching, hasMore: false } })
+  }
+  await selectYears(2014, 2022)
+  await expect(page.locator('[data-test="suggestion-section"] h2')).toHaveText(['From 2022', 'From 2014'])
+  await expect(page.locator('[data-test="suggestion-item"]')).toHaveCount(4)
+  await expect(page.locator('[data-test="suggestion-years-sentinel"]')).toHaveCount(0)
+  const sliders = page.locator('[data-test="find-rating"] [role="slider"]')
+  await sliders.first().focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(card('Unrated')).toHaveCount(0)
+  await sliders.last().focus()
+  for (let i = 0; i < 17; i++) await page.keyboard.press('ArrowLeft')
+  await expect(page.locator('[data-test="find-rating"]')).toContainText('0.1–8.3')
+  await expect(page.locator('[data-test="suggestion-item"]')).toHaveCount(1)
+  await expect(card('Lower rated')).toBeVisible()
+  expect(suggestionRequests.at(-1)!.searchParams.get('ratingMax')).toBe('8.3')
+  await page.locator('[data-test="find-rating-reset"]').click()
+  await expect(page.locator('[data-test="suggestion-item"]')).toHaveCount(4)
+
+  await page.locator('[data-test="find-title"] input').fill('a')
+  await page.locator('[data-test="find-search"]').click()
+  await expect(page.locator('[data-test="match-list"] [data-test="suggestion-item"]')).toHaveCount(2)
+  expect(searchRequests.map(url => [url.searchParams.get('kind'), url.searchParams.get('year')])).toEqual([
+    ['movie', '2022'], ['series', '2022'], ['movie', '2014'], ['series', '2014'],
+  ])
+  const before = searchRequests.length
+  await navigateAwayAndBack()
+  await expect(page.locator('[data-test="match-list"] [data-test="suggestion-item"]')).toHaveCount(2)
+  await expect(page.locator('[data-test="find-year"] .v-chip')).toHaveText(['2014', '2022'])
+  expect(searchRequests).toHaveLength(before)
+  await page.locator('[data-test="suggestion-filter-series"]').click()
+  await expect(page.locator('[data-test="match-list"] [data-test="suggestion-item"]')).toHaveCount(1)
+  await expect(card('Severance')).toBeVisible()
+  await page.locator('[data-test="find-title"] input').fill('')
+  await page.locator('[data-test="find-year"]').getByRole('button', { name: /clear/i }).click()
+  await expect(page.locator('[data-test="find-year"] .v-chip')).toHaveCount(0)
+  await expect(page.locator('[data-test="suggestion-years-sentinel"]')).toHaveCount(1)
+  await expect.poll(() => suggestionRequests.at(-1)?.searchParams.get('section') === 'new'
+    || suggestionRequests.some(url => url.searchParams.get('section') === 'new' && !url.searchParams.has('year'))).toBe(true)
+  await resize(360)
+  expect(await page.locator('.find__row').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+})
+
+test('direct searches without metadata use a year only when exactly one year is selected', async () => {
+  expect((await api('/metadata/credentials', { tmdbApiKey: null })).ok).toBe(true)
+  try {
+    await expect(page.locator('[data-test="find-genre"]')).toHaveCount(0)
+    await page.locator('[data-test="suggestion-filter-movie"]').click()
+    await selectYears(2014)
+    await page.locator('[data-test="find-title"] input').fill('Direct title')
+    await page.locator('[data-test="find-search"]').click()
+    await expect.poll(() => releaseRequests.length).toBe(1)
+    expect(releaseRequests[0]!.searchParams.get('year')).toBe('2014')
+    await page.locator('[data-test="releases-back"]').click()
+    await selectYears(2022)
+    await page.locator('[data-test="find-search"]').click()
+    await expect.poll(() => releaseRequests.length).toBe(2)
+    expect(releaseRequests[1]!.searchParams.has('year')).toBe(false)
+    expect(searchRequests).toHaveLength(0)
+  } finally { expect((await api('/metadata/credentials', { tmdbApiKey: GOOD_KEY })).ok).toBe(true) }
+})
+
+test('person lists retain their context and loaded titles and apply years and ratings to both kinds', async () => {
+  let requests = 0
+  const handler = async (route: Route) => { requests++; await route.continue() }
+  await page.route(/\/api\/v1\/metadata\/person\/titles\?/, handler)
+  try {
+    await page.goto(`${page.url().split('#')[0]}#/downloads?personId=42&personCategory=actor&personName=Test`)
+    await expect(page.locator('[data-test="person-suggestions"] [data-test="suggestion-item"]')).toHaveCount(20)
+    await selectYears(2020, 2021)
+    await page.locator('[data-test="find-rating"] [role="slider"]').first().focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(page.locator('[data-test="person-suggestions"] [data-test="suggestion-item"]')).toHaveCount(10)
+    await navigateAwayAndBack()
+    await expect(page.locator('[data-test="person-suggestions"] h2')).toContainText('Test')
+    await expect(page.locator('[data-test="person-suggestions"] [data-test="suggestion-item"]')).toHaveCount(10)
+    expect(requests).toBe(1)
+    await page.goBack()
+    await expect(page.locator('h1')).toHaveText('Movies')
+    await page.goBack()
+    await expect(page.locator('[data-test="person-suggestions"] [data-test="suggestion-item"]')).toHaveCount(10)
+    expect(requests).toBe(1)
+    await page.locator('[data-test="suggestion-filter-series"]').click()
+    await expect(page.locator('[data-test="person-suggestions-empty"]')).toBeVisible()
+    await page.locator('[data-test="find-rating-reset"]').click()
+    await expect(page.locator('[data-test="person-suggestions"] [data-test="suggestion-item"]')).toHaveCount(10)
+    await card('Series 0').click()
+    await page.locator('[data-test="suggestion-releases"]').click()
+    await expect(page.locator('[data-test="release-error"]')).toBeVisible()
+    await page.locator('[data-test="releases-back"]').click()
+    await expect(page.locator('[data-test="find-year"] .v-chip')).toHaveText(['2020', '2021'])
+    await expect(page.locator('[data-test="person-suggestions"] [data-test="suggestion-item"]')).toHaveCount(10)
+    expect(requests).toBe(1)
+    await page.goto(`${page.url().split('#')[0]}#/movies`)
+    await expect(page.locator('h1')).toHaveText('Movies')
+    // Use an application navigation: native hash assignments reuse Vue Router's history position.
+    await page.evaluate(async () => {
+      const root = document.querySelector('#app') as HTMLElement & {
+        __vue_app__: { config: { globalProperties: { $router: { push(path: string): Promise<unknown> } } } }
+      }
+      await root.__vue_app__.config.globalProperties.$router.push('/downloads?personId=42&personCategory=actor&personName=Test')
+    })
+    await expect(page.locator('[data-test="person-suggestions"] [data-test="suggestion-item"]')).toHaveCount(20)
+    await expect(page.locator('[data-test="find-year"] .v-chip')).toHaveCount(0)
+    expect(requests).toBe(2)
+    await page.locator('[data-test="person-back"]').click()
+    await expect(page.locator('[data-test="person-suggestions"]')).toHaveCount(0)
+    await expect(card('Interstellar')).toBeVisible()
+  } finally { await page.unroute(/\/api\/v1\/metadata\/person\/titles\?/, handler) }
 })
 
 test('Active filters and sorting survive navigation, clearing persists, and reload restores defaults', async () => {
@@ -264,7 +485,7 @@ test('explicit title and person links start Find without resetting Favorites or 
   await expect(page.locator('[data-test="find-title"] input')).toHaveValue('')
   await expect(genre.locator('.v-chip')).toHaveCount(0)
   await page.locator('[data-test="suggestion-filter-movie"]').click()
-  await expect(page.getByRole('combobox', { name: 'Year', exact: true })).toHaveValue('')
+  await expect(page.locator('[data-test="find-year"] .v-chip')).toHaveCount(0)
   await page.locator('[data-test="suggestion-filter-series"]').click()
   await expect(page.locator('[data-test="find-season"] input')).toHaveValue('')
   await expect(page.locator('[data-test="find-episode"] input')).toHaveValue('')
@@ -382,7 +603,7 @@ test('one type filter shares the search row and genres filter suggestions and mi
   await expect(toggle.getByRole('button')).toHaveText(['All', 'Series', 'Movies'])
   for (const filter of ['all', 'series', 'movie']) {
     await page.locator(`[data-test="suggestion-filter-${filter}"]`).click()
-    const boxes = await Promise.all([toggle.boundingBox(), field.boundingBox(), genre.boundingBox(), page.locator('[data-test="find-search"]').boundingBox()])
+    const boxes = await Promise.all([toggle.boundingBox(), field.boundingBox(), page.locator('[data-test="find-search"]').boundingBox()])
     const centers = boxes.map((box) => box!.y + box!.height / 2)
     expect(Math.max(...centers) - Math.min(...centers), JSON.stringify({ filter, boxes })).toBeLessThan(3)
   }

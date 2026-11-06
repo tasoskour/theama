@@ -105,11 +105,14 @@ export const useMetadataStore = defineStore('metadata', () => {
     genres: string[] = [],
     genreMode: GenreMode = 'any',
     signal?: AbortSignal,
+    ratingMin?: number,
+    ratingMax?: number,
   ): Promise<({ ok: true } & MetadataSuggestionsResult) | { ok: false; code: string; message: string }> {
     if (!connection.client) return { ok: false, code: 'unreachable', message: 'Not connected' }
     try {
       const res = await connection.client.get('/metadata/suggestions', MetadataSuggestionsResult, {
         section, year, page, genres: genres.join(GENRE_SEPARATOR) || undefined, genreMode: genres.length > 1 ? genreMode : undefined,
+        ratingMin, ratingMax,
       }, signal ? { signal } : undefined)
       return { ok: true, ...res }
     } catch (err) {

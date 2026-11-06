@@ -168,6 +168,7 @@ export async function startFakeTmdb(options = {}) {
       }
       const list = (tv ? SHOWS : MOVIES)
         .filter(matchesGenre)
+        .filter((x) => (x.vote_average ?? 0) >= Number(query['vote_average.gte'] ?? 0) && (x.vote_average ?? 0) <= Number(query['vote_average.lte'] ?? 10))
         .filter((x) => (!year || dateOf(x).slice(0, 4) === year) && (!from || dateOf(x) >= from) && (!to || dateOf(x) <= to) && (x.vote_count ?? 0) >= Number(query['vote_count.gte'] ?? 0))
         .sort((a, b) => b.popularity - a.popularity)
       return results(list, tv, Number(query.page ?? 1))

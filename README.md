@@ -32,9 +32,21 @@ No Windows service and no administrator rights are needed for development. If yo
 | `yarn ffprobe:fetch` | Downloads FFmpeg 9.0.2 (SHA-256 verified) and keeps only `ffprobe.exe` in `tools/ffprobe/bin/` |
 | `yarn nssm:fetch` | Downloads NSSM 2.24 (SHA-256 verified) to `tools/nssm/bin/` |
 | `yarn dist` | Builds everything and makes `build/installer/Theama-Setup-<version>.exe` (needs `yarn nssm:fetch` and `yarn ffprobe:fetch --force` once) |
+| `yarn release [patch\|minor\|major]` | Installs locked dependencies, bumps all workspace versions, builds the installer, commits and pushes the versions and tag, then publishes a GitHub Release (default: minor) |
+| `yarn release --version 1.2.0` | Builds and publishes an exact version; it must be at least the current version |
+| `yarn test:release` | Tests release arguments, rollback, commits, pushes and retries using temporary local Git repositories |
 | `yarn pack:dir` · `yarn test:packaged` | Builds the unpacked app · drives it with the packaged smoke test |
 | `yarn perf` · `yarn perf --small` | Timing against the performance budgets on a synthetic 5,000-title library |
 | `yarn service:install` · `:repair` · `:uninstall` | Install/repair/remove the real Windows service (UAC prompt) |
+
+Releasing requires Git and an authenticated GitHub CLI (`gh auth login`). Commit source changes first;
+pending changes that only update package versions are accepted. The release pushes the current branch
+to its upstream (or `origin` with the same branch name when no upstream is configured), together with
+the version tag. `--patch`, `--minor` and `--major` remain supported; `--signed`, `--draft` and
+`--notes "text"` can be combined with a version selection. A failed build restores the version files.
+After a failed push or publication, fix the error and run `yarn release --no-bump` to retry with the
+existing installer, version and commit. This flag skips installation and building; to rebuild an
+already bumped version instead, use `yarn release --version 1.2.0` (with your current version).
 
 ## Running as a Windows service (NSSM)
 

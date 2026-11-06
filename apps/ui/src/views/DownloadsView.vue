@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRoute } from 'vue-router'
+import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { mdiClose, mdiMagnify } from '@mdi/js'
 import { useI18n } from 'vue-i18n'
-import type { MatchCandidate, ReleaseKind, Suggestion } from '@theama/contracts'
+import type { MatchCandidate, ReleaseKind } from '@theama/contracts'
 import { MetadataPersonTitlesQuery } from '@theama/contracts'
 import GenreFilter from '@/components/common/GenreFilter.vue'
 import ActiveDownloads from '@/components/downloads/ActiveDownloads.vue'
@@ -17,31 +17,26 @@ import SuggestionSection from '@/components/downloads/SuggestionSection.vue'
 import type { SuggestionItem } from '@/components/downloads/suggestion'
 import TitlePreviewHost from '@/components/titles/TitlePreviewHost.vue'
 import { useDownloadsStore } from '@/stores/downloads'
-import { useDownloadsViewStore } from '@/stores/downloadsView'
+import { useDownloadsViewStore, type DownloadsPane, type ReleaseQuery } from '@/stores/downloadsView'
 import { useMetadataStore } from '@/stores/metadata'
 import { useFavoritesStore } from '@/stores/favorites'
 import { releaseSearchFromRoute } from '@/utils/releaseSearch'
-
-type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined; collectionName?: string | undefined; externalId?: string | undefined }
+import { matchesFindFilters, searchFindYears } from '@/utils/downloadsFilters'
 
 const route = useRoute()
 const { t } = useI18n()
 const downloads = useDownloadsStore()
 const metadata = useMetadataStore()
 const favorites = useFavoritesStore()
-const person = computed(() => {
-  const parsed = MetadataPersonTitlesQuery.safeParse({ externalId: route.query.personId, category: route.query.personCategory })
-  if (!parsed.success) return null
-  return { ...parsed.data, name: typeof route.query.personName === 'string' ? route.query.personName : t(parsed.data.category === 'actor' ? 'detail.actor' : 'detail.director') }
-})
-
-const { tab, favoriteKind, kind, genres, genreMode, text, year, season, episode } = storeToRefs(useDownloadsViewStore())
+const view = useDownloadsViewStore()
+const { tab, favoriteKind, kind, genres, genreMode, text, selectedYears, ratingRange, season, episode, matches, query, person, yearCount, searchProblem: problem } = storeToRefs(view)
 const shownFavorites = computed(() => favorites.items.filter((item) => favoriteKind.value === 'all' || item.kind === favoriteKind.value))
 const suggestionGenres = ref<string[]>([])
 const genreProblem = ref<string | null>(null)
 const genreRetry = ref(0)
 const genreLoading = ref(false)
-const suggestionFilterKey = computed(() => JSON.stringify([[...genres.value].sort(), genres.value.length > 1 ? genreMode.value : 'any']))
+const suggestionFilterKey = computed(() => JSON.stringify([kind.value, [...selectedYears.value].sort(), [...genres.value].sort(), genres.value.length > 1 ? genreMode.value : 'any', ratingRange.value]))
+const filters = computed(() => ({ kind: kind.value, years: selectedYears.value, genres: genres.value, genreMode: genreMode.value, ratingRange: ratingRange.value }))
 
 /** Newest first: this year (and next, for what is announced) back to the first films. */
 const FIRST_YEAR = 1900
@@ -49,12 +44,7 @@ const lastYear = new Date().getFullYear() + 1
 const years = Array.from({ length: lastYear - FIRST_YEAR + 1 }, (_, i) => lastYear - i)
 
 const searching = ref(false)
-const matches = ref<Suggestion[] | null>(null)
-const problem = ref<string | null>(null)
-const query = ref<Query[] | null>(null)
-const shownMatches = computed(() => matches.value?.filter((c) => genres.value.length === 0 || (
-  genreMode.value === 'all' ? genres.value.every((genre) => c.genres?.includes(genre)) : genres.value.some((genre) => c.genres?.includes(genre))
-)) ?? [])
+const shownMatches = computed(() => matches.value?.filter((c) => matchesFindFilters(c, filters.value)) ?? [])
 const genreItems = computed(() => [...new Set([
   ...suggestionGenres.value,
   ...(matches.value ?? []).flatMap((c) => c.genres ?? []),
@@ -62,7 +52,23 @@ const genreItems = computed(() => [...new Set([
 
 let searchGeneration = 0
 let searchController: AbortController | undefined
-onBeforeUnmount(() => { searchGeneration += 1; searchController?.abort() })
+let leaving = false
+let mounted = false
+onBeforeUnmount(() => { if (!leaving) savePlace(); leaving = true; searchGeneration += 1; searchController?.abort() })
+
+const pane = computed<DownloadsPane>(() => tab.value === 'find' && query.value ? 'releases' : tab.value)
+let restoreGeneration = 0
+function savePlace(key = pane.value): void { view.scrolls[key] = window.scrollY }
+async function restorePlace(): Promise<void> {
+  const mine = ++restoreGeneration
+  await nextTick()
+  requestAnimationFrame(() => {
+    if (!leaving && mine === restoreGeneration) window.scrollTo({ top: view.scrolls[pane.value], behavior: 'instant' })
+  })
+}
+onBeforeRouteLeave(() => { savePlace(); leaving = true; restoreGeneration++ })
+watch(pane, (_next, previous) => { if (mounted && !leaving) { savePlace(previous); void restorePlace() } })
+onMounted(() => { mounted = true; void restorePlace(); if (view.searchPending) void search() })
 
 const setUp = computed(() => downloads.canFindReleases)
 const hasKey = computed(() => metadata.status?.configured === true)
@@ -92,9 +98,10 @@ const activeCount = computed(() => downloads.list?.items.length ?? 0)
 // The suggestion sections: what is new, then this year and the years before it, five at a time.
 const THIS_YEAR = new Date().getFullYear()
 const YEARS_PER_STEP = 5
-const yearCount = ref(YEARS_PER_STEP)
-const sectionYears = computed(() => Array.from({ length: yearCount.value }, (_, i) => THIS_YEAR - i).filter((y) => y >= FIRST_YEAR))
-const hasOlderYears = computed(() => THIS_YEAR - yearCount.value >= FIRST_YEAR)
+const sectionYears = computed(() => selectedYears.value.length
+  ? [...new Set(selectedYears.value)].sort((a, b) => b - a)
+  : Array.from({ length: yearCount.value }, (_, i) => THIS_YEAR - i).filter((y) => y >= FIRST_YEAR))
+const hasOlderYears = computed(() => selectedYears.value.length === 0 && THIS_YEAR - yearCount.value >= FIRST_YEAR)
 
 // Scrolling near the end of the list adds the next few years. Observing again after each step
 // asks once more if the new sections are still too short to push the sentinel out of range.
@@ -102,7 +109,7 @@ const yearsSentinel = ref<HTMLElement | null>(null)
 watch(yearsSentinel, (el, _, onCleanup) => {
   if (!el) return
   const observer = new IntersectionObserver((entries) => {
-    if (!entries.some((e) => e.isIntersecting)) return
+    if (leaving || tab.value !== 'find' || query.value || !entries.some((e) => e.isIntersecting)) return
     yearCount.value += YEARS_PER_STEP
     observer.unobserve(el)
     void nextTick(() => observer.observe(el))
@@ -120,6 +127,7 @@ watch(text, (v) => {
   searchGeneration += 1
   searchController?.abort()
   searching.value = false
+  view.searchPending = false
   matches.value = null
   query.value = null
   problem.value = null
@@ -134,9 +142,11 @@ function openReleases(title: string, y?: number, selectedKind = kind.value, exte
   const t = title.trim()
   if (!t) return
   const kinds: ReleaseKind[] = selectedKind === 'all' ? ['movie', 'series'] : [selectedKind]
-  query.value = kinds.map((k) =>
-    k === 'movie' ? { kind: 'movie', title: t, year: y ?? year.value ?? undefined, ...(externalId ? { externalId } : {}) } : { kind: 'series', title: t, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) },
+  const next: ReleaseQuery[] = kinds.map((k) =>
+    k === 'movie' ? { kind: 'movie', title: t, year: y ?? (selectedYears.value.length === 1 ? selectedYears.value[0] : undefined), ...(externalId ? { externalId } : {}) } : { kind: 'series', title: t, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) },
   )
+  if (!next.every((q) => view.releases[q.kind]?.sourceKey === JSON.stringify(q))) view.scrolls.releases = 0
+  query.value = next
 }
 
 async function search(): Promise<void> {
@@ -145,23 +155,25 @@ async function search(): Promise<void> {
   problem.value = null
   matches.value = null
   query.value = null
-  if (person.value) return
+  if (person.value) { view.searchPending = false; return }
   if (!hasKey.value) {
+    view.searchPending = false
     openReleases(q)
     return
   }
   searching.value = true
+  view.searchPending = true
   const mine = ++searchGeneration
   searchController?.abort()
   searchController = new AbortController()
   const kinds: ReleaseKind[] = kind.value === 'all' ? ['movie', 'series'] : [kind.value]
-  const results = await Promise.all(kinds.map((k) => metadata.search(k, q, k === 'movie' ? (year.value ?? undefined) : undefined, searchController!.signal)))
+  const controller = searchController
+  const results = await searchFindYears(kinds, selectedYears.value, (k, year) => metadata.search(k, q, year, controller.signal), controller.signal)
   if (mine !== searchGeneration) return
   searching.value = false
-  const successful = results.filter((res) => res.ok)
-  if (successful.length > 0) matches.value = successful.flatMap((res) => res.items)
-  const failure = results.find((res) => !res.ok)
-  if (failure && !failure.ok) problem.value = failure.message
+  view.searchPending = false
+  matches.value = results.items
+  problem.value = results.problem
 }
 
 // Suggestions mix movies and series, so the pick decides which kind of release to look for.
@@ -174,6 +186,7 @@ function changeKind(): void {
   searchGeneration += 1
   searchController?.abort()
   searching.value = false
+  view.searchPending = false
   matches.value = null
   query.value = null
   problem.value = null
@@ -181,33 +194,62 @@ function changeKind(): void {
 
 function backFromReleases(): void {
   query.value = null
-  if (person.value) {
-    text.value = ''
-    year.value = null
-  }
 }
+
+function leavePerson(): void {
+  person.value = null
+  text.value = ''
+  view.scrolls.find = 0
+  void restorePlace()
+}
+
+// Changing filters intentionally replaces affected results, but navigation never does.
+watch([kind, selectedYears, ratingRange, genres, genreMode], () => {
+  if (leaving) return
+  const rerun = matches.value !== null || searching.value
+  searchGeneration++
+  searchController?.abort()
+  searching.value = false
+  view.searchPending = false
+  view.suggestionPages = {}
+  view.scrolls.find = 0
+  if (rerun && !person.value && !query.value) void search()
+}, { deep: true })
 
 // Deep links work both on arrival and when another search reuses this mounted view.
 watch(() => route.query, (params) => {
   // The outgoing view can observe the next page's query before it unmounts.
   if (route.name !== 'downloads') return
+  const target = releaseSearchFromRoute(params)
+  const parsedPerson = MetadataPersonTitlesQuery.safeParse({ externalId: params.personId, category: params.personCategory })
+  // Ordinary navigation restores the controls; explicit links start a new Find context.
+  if (!target && !parsedPerson.success) return
+  const contextKey = JSON.stringify(params)
+  const contextPosition = window.history.state?.position as number | undefined
+  if (view.contextKey === contextKey && view.contextPosition === (contextPosition ?? null)) return
+  view.contextKey = contextKey
+  view.contextPosition = contextPosition ?? null
   changeKind()
   previewHost.value?.close()
-  const target = releaseSearchFromRoute(params)
-  // Ordinary navigation restores the controls; explicit links start a new Find context.
-  if (!target && !person.value) return
+  person.value = parsedPerson.success ? { ...parsedPerson.data, name: typeof params.personName === 'string' ? params.personName : t(parsedPerson.data.category === 'actor' ? 'detail.actor' : 'detail.director') } : null
   tab.value = 'find'
   kind.value = 'all'
   genres.value = []
   genreMode.value = 'any'
   text.value = ''
-  year.value = null
+  selectedYears.value = []
+  ratingRange.value = [0, 10]
   season.value = ''
   episode.value = ''
+  view.suggestionPages = {}
+  view.personResults = {}
+  view.releases = {}
+  view.scrolls.find = 0
+  view.scrolls.releases = 0
   if (!target) return
   kind.value = target.kind
   text.value = target.title
-  year.value = target.year ?? null
+  selectedYears.value = target.year === undefined ? [] : [target.year]
   season.value = target.season === undefined ? '' : String(target.season)
   episode.value = target.episode === undefined ? '' : String(target.episode)
   if (params.releases === '1') query.value = [target]
@@ -242,10 +284,10 @@ watch(() => route.query, (params) => {
       <router-link to="/settings/downloads">{{ $t('downloads.find.openSettings') }}</router-link>
     </v-alert>
 
-    <section v-show="tab === 'find'" class="find">
+    <section v-if="tab === 'find'" class="find">
       <!-- Releases bring their own title and filters; this bar would only drop the user out of them. -->
       <form v-if="!query" class="find__row" role="search" @submit.prevent="search">
-        <v-btn-toggle v-model="kind" mandatory divided variant="outlined" density="compact" color="primary" class="find__kind th-toggle-control" :aria-label="$t('downloads.suggestions.filter')" data-test="suggestion-filter" @update:model-value="changeKind">
+        <v-btn-toggle v-model="kind" mandatory divided variant="outlined" density="compact" color="primary" class="find__kind th-toggle-control" :aria-label="$t('downloads.suggestions.filter')" data-test="suggestion-filter">
           <v-btn v-for="filter in (['all', 'series', 'movie'] as const)" :key="filter" :value="filter" :aria-pressed="kind === filter" :data-test="`suggestion-filter-${filter}`">
             {{ $t(`downloads.suggestions.filters.${filter}`) }}
           </v-btn>
@@ -267,34 +309,45 @@ watch(() => route.query, (params) => {
           data-test="find-title"
           @click:clear="text = ''"
         />
-        <GenreFilter
-          v-if="hasKey"
-          v-model="genres"
-          v-model:mode="genreMode"
-          :items="genreItems"
-          flush
-          class="find__genre"
-          data-test="find-genre"
-        />
-        <v-autocomplete
-          v-if="kind === 'movie'"
-          v-model="year"
-          :items="years"
-          :placeholder="$t('downloads.find.year')"
-          :aria-label="$t('downloads.find.year')"
-          density="compact"
-          variant="solo-filled"
-          flat
-          bg-color="surface-bright"
-          hide-details
-          clearable
-          auto-select-first
-          class="find__year th-search-control"
-          data-test="find-year"
-        />
-        <div v-else-if="kind === 'series'" class="find__episodes">
-          <v-text-field v-model="season" :placeholder="$t('downloads.find.season')" :aria-label="$t('downloads.find.season')" inputmode="numeric" density="compact" variant="solo-filled" flat bg-color="surface-bright" hide-details class="find__small th-search-control" data-test="find-season" />
-          <v-text-field v-model="episode" :placeholder="$t('downloads.find.episode')" :aria-label="$t('downloads.find.episode')" inputmode="numeric" density="compact" variant="solo-filled" flat bg-color="surface-bright" :disabled="num(season) === undefined" hide-details class="find__small th-search-control" data-test="find-episode" />
+        <div class="find__filters">
+          <GenreFilter
+            v-if="hasKey"
+            v-model="genres"
+            v-model:mode="genreMode"
+            :items="genreItems"
+            flush
+            class="find__genre"
+            data-test="find-genre"
+          />
+          <v-autocomplete
+            v-model="selectedYears"
+            :items="years"
+            :placeholder="$t('downloads.find.years')"
+            :aria-label="$t('downloads.find.years')"
+            multiple
+            chips
+            closable-chips
+            density="compact"
+            variant="solo-filled"
+            flat
+            bg-color="surface-bright"
+            hide-details
+            clearable
+            auto-select-first
+            class="find__year th-search-control"
+            data-test="find-year"
+          />
+          <div v-if="hasKey" class="find__rating" data-test="find-rating">
+            <div class="find__rating-label">
+              <span>{{ $t('downloads.find.rating') }}: {{ ratingRange[0].toFixed(1) }}–{{ ratingRange[1].toFixed(1) }}</span>
+              <v-btn variant="text" size="x-small" :disabled="ratingRange[0] === 0 && ratingRange[1] === 10" data-test="find-rating-reset" @click="ratingRange = [0, 10]">{{ $t('downloads.find.resetRating') }}</v-btn>
+            </div>
+            <v-range-slider v-model="ratingRange" :min="0" :max="10" :step="0.1" strict hide-details density="compact" thumb-label :aria-label="$t('downloads.find.rating')" />
+          </div>
+          <div v-if="kind === 'series'" class="find__episodes">
+            <v-text-field v-model="season" :placeholder="$t('downloads.find.season')" :aria-label="$t('downloads.find.season')" inputmode="numeric" density="compact" variant="solo-filled" flat bg-color="surface-bright" hide-details class="find__small th-search-control" data-test="find-season" />
+            <v-text-field v-model="episode" :placeholder="$t('downloads.find.episode')" :aria-label="$t('downloads.find.episode')" inputmode="numeric" density="compact" variant="solo-filled" flat bg-color="surface-bright" :disabled="num(season) === undefined" hide-details class="find__small th-search-control" data-test="find-episode" />
+          </div>
         </div>
         <v-btn type="submit" color="primary" :loading="searching" :disabled="!text.trim()" data-test="find-search">{{ $t('downloads.find.search') }}</v-btn>
       </form>
@@ -307,13 +360,13 @@ watch(() => route.query, (params) => {
 
       <div class="find__body" aria-live="polite">
         <template v-if="query">
-          <div v-for="q in query" :key="q.kind" class="find__releases">
+          <div v-for="q in query" :key="JSON.stringify(q)" class="find__releases">
             <p v-if="query.length > 1" class="th-eyebrow">{{ $t(`downloads.suggestions.filters.${q.kind}`) }}</p>
             <ReleaseList :query="q" @back="backFromReleases" />
           </div>
         </template>
 
-        <PersonSuggestions v-else-if="person" v-bind="person" :kind="kind" :genres="genres" :genre-mode="genreMode" :query="text" :year="year" @preview="openPreview" />
+        <PersonSuggestions v-else-if="person" v-bind="person" :kind="kind" :genres="genres" :genre-mode="genreMode" :query="text" :years="selectedYears" :rating-range="ratingRange" @preview="openPreview" @back="leavePerson" />
 
         <template v-else-if="matches">
           <p v-if="shownMatches.length === 0" class="th-muted">{{ $t('downloads.find.noMatches') }}</p>
@@ -325,12 +378,15 @@ watch(() => route.query, (params) => {
           <p v-if="noKey" class="th-muted">{{ $t('downloads.find.noKey') }}</p>
           <template v-else-if="hasKey">
             <SuggestionSection
+              v-if="selectedYears.length === 0"
               :key="`new:${suggestionFilterKey}`"
               :heading="$t('downloads.suggestions.new')"
               section="new"
               :kind="kind"
               :genres="genres"
               :genre-mode="genreMode"
+              :rating-range="ratingRange"
+              :show-empty="ratingRange[0] > 0 || ratingRange[1] < 10"
               @preview="openPreview"
             />
             <SuggestionSection
@@ -341,6 +397,8 @@ watch(() => route.query, (params) => {
               :kind="kind"
               :genres="genres"
               :genre-mode="genreMode"
+              :rating-range="ratingRange"
+              :show-empty="selectedYears.length > 0 || ratingRange[0] > 0 || ratingRange[1] < 10"
               :year="y"
               @preview="openPreview"
             />
@@ -396,6 +454,8 @@ watch(() => route.query, (params) => {
 .find__row:focus-within {
   border-color: rgba(var(--v-theme-primary), 0.5);
 }
+.find__filters { display: flex; flex: 1 0 100%; order: 2; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.find__filters > :first-child { padding-inline-start: 0; background: none; }
 .find__kind.v-btn-toggle {
   flex: 0 0 auto;
   padding: 0 7px 0 0 !important;
@@ -415,6 +475,7 @@ watch(() => route.query, (params) => {
 }
 .find__genre,
 .find__year,
+.find__rating,
 .find__episodes {
   padding-inline-start: 7px;
   background: linear-gradient(rgba(var(--v-theme-hairline), 0.9), rgba(var(--v-theme-hairline), 0.9)) left center / 1px 55% no-repeat;
@@ -434,9 +495,12 @@ watch(() => route.query, (params) => {
   min-width: 0;
 }
 .find__year {
-  flex: 0 1 8rem;
-  min-width: 6.5rem;
+  flex: 0 1 14rem;
+  min-width: 9rem;
 }
+.find__rating { flex: 1 1 15rem; min-width: min(100%, 13rem); padding-inline: 12px; }
+.find__rating-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.8rem; }
+.find__rating :deep(.v-input__control) { min-height: 24px; }
 /* The toolbar draws the border; fields inside only show a soft fill on hover and focus. */
 .find__row :deep(.th-search-control .v-field) {
   background: transparent !important;
@@ -450,6 +514,7 @@ watch(() => route.query, (params) => {
 }
 /* Match the height of the fields next to it. */
 .find__row > .v-btn[type='submit'] {
+  order: 1;
   flex: 0 0 auto;
   min-height: var(--th-control-h);
   border-radius: var(--th-radius);
@@ -473,6 +538,7 @@ watch(() => route.query, (params) => {
   }
   .find__genre,
   .find__year,
+  .find__rating,
   .find__episodes {
     padding-inline-start: 0;
     background: none;
@@ -492,6 +558,8 @@ watch(() => route.query, (params) => {
     flex-basis: auto;
     min-width: 0;
   }
+  .find__filters { flex-direction: column; align-items: stretch; }
+  .find__filters > * { flex-basis: auto; min-width: 0; }
   .find__kind.v-btn-toggle {
     max-width: 100%;
   }

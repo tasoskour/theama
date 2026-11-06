@@ -88,6 +88,21 @@ describe('TmdbProvider', () => {
     expect(movieCall?.query).toMatchObject({ 'primary_release_date.gte': '2021-12-31', 'primary_release_date.lte': '2022-03-01' })
   })
 
+  it('sends rating bounds for both kinds, excludes unrated titles and preserves yearly vote thresholds', async () => {
+    const p = provider()
+    const query = { section: 'year' as const, year: 2017, page: 1, language: 'en-US', today: '2026-10-24' }
+    const exact = await p.suggestions({ ...query, ratingMin: 8.4, ratingMax: 8.4 })
+    expect(exact.items.map(c => c.title)).toEqual(['Dark'])
+    for (const call of fake.requests.filter(r => r.path.startsWith('/discover/'))) {
+      expect(call.query).toMatchObject({ 'vote_average.gte': '8.4', 'vote_average.lte': '8.4', 'vote_count.gte': '100' })
+    }
+    expect((await p.suggestions({ ...query, ratingMax: 8.3 })).items).toEqual([])
+    fake.requests.length = 0
+    await p.suggestions({ ...query, section: 'new', ratingMax: 9 })
+    for (const call of fake.requests.filter(r => r.path.startsWith('/discover/'))) expect(call.query['vote_count.gte']).toBe('1')
+    p.close()
+  })
+
   it('lists the complete, sorted movie and TV genre catalog and reuses language-specific lists', async () => {
     const p = provider()
     const genres = await p.genres('en-US')
@@ -153,6 +168,25 @@ describe('TmdbProvider', () => {
     expect(second.items.map((c) => c.externalId)).toEqual(Array.from({ length: 10 }, (_, i) => String(i + 31)))
     expect(third.items.map((c) => c.externalId)).toEqual(Array.from({ length: 5 }, (_, i) => String(i + 41)))
     expect([first.hasMore, second.hasMore, third.hasMore]).toEqual([true, true, false])
+  })
+
+  it('filters ratings before pagination so matching titles beyond the original page remain discoverable', async () => {
+    const catalog = Array.from({ length: 45 }, (_, i) => ({ id: i + 1, title: `Title ${i + 1}`, vote_average: i < 20 ? 4 : 8, vote_count: 200 }))
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+      const url = new URL(String(input))
+      const min = Number(url.searchParams.get('vote_average.gte') ?? 0)
+      const max = Number(url.searchParams.get('vote_average.lte') ?? 10)
+      const filtered = catalog.filter(c => c.vote_average >= min && c.vote_average <= max)
+      const list = url.pathname.endsWith('/tv') ? [] : filtered
+      const page = Number(url.searchParams.get('page'))
+      return new Response(JSON.stringify({ results: list.slice((page - 1) * 20, page * 20), total_pages: Math.ceil(list.length / 20) }))
+    })
+    const p = provider(GOOD_KEY, new ResilientHttp({ fetch, minIntervalMs: 0 }))
+    const query = { section: 'year' as const, year: 2026, language: 'en-US', today: '2026-10-24', ratingMin: 7, ratingMax: 9 }
+    const pages = await Promise.all([1, 2, 3].map(page => p.suggestions({ ...query, page })))
+    expect(pages.flatMap(page => page.items).map(c => c.externalId)).toEqual(Array.from({ length: 25 }, (_, i) => String(i + 21)))
+    expect(pages.map(page => page.hasMore)).toEqual([true, true, false])
+    p.close()
   })
 
   it('finds a title by its translated or original name', async () => {

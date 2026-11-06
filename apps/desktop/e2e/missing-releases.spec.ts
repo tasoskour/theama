@@ -237,7 +237,10 @@ test('refreshes mounted release searches and drops stale requests and episode co
   expect(releaseParams()).toMatchObject({ kind: 'movie', year: '1979' })
   expect(releaseParams()).not.toHaveProperty('season')
   await show('/downloads')
-  await expect(page.locator('[data-test="find-title"] input')).toHaveValue('')
+  await expect(page.locator('[data-test="release-title"] input')).toHaveValue('Mad Max')
+  expect(releaseRequests).toHaveLength(3)
+  await page.locator('[data-test="releases-back"]').click()
+  await expect(page.locator('[data-test="find-title"] input')).toHaveValue('Mad Max')
   await expect(page.locator('[data-test="release-search"]')).toHaveCount(0)
 })
 
@@ -267,15 +270,17 @@ test('hides shortcuts without providers and shows search failures for configured
   releaseFailure = true
   await page.reload()
   await page.locator('[data-test="find-episode-releases"]').click()
-  await expect(page.locator('[data-test="release-error"]')).toContainText('Indexer is unavailable.')
+  await expect(page.locator('[data-test="open-tool-dialog"]')).toContainText('Prowlarr is not running')
+  await page.locator('[data-test="open-tool-cancel"]').click()
+  await expect(page.locator('[data-test="release-error"]')).toContainText('Prowlarr is not running')
 })
 
 test('keeps the original title download shortcut and localized missing searches usable on narrow screens', async ({ browserName: _browserName }, testInfo) => {
   await show(`/title?key=${encodeURIComponent(seriesKey)}`)
   await page.locator('[data-test="find-download"]').click()
-  await expect(page.locator('[data-test="match-list"]')).toBeVisible()
-  expect(metadataSearches).toBe(1)
-  expect(releaseRequests).toHaveLength(0)
+  await expect(page.locator('[data-test="release-title"] input')).toHaveValue('Severance')
+  await expect.poll(() => releaseRequests.length).toBe(1)
+  expect(metadataSearches).toBe(0)
   expect((await request('PUT', '/settings', { language: 'el', theme: 'light' })).ok).toBe(true)
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(380, 850))
   await show(`/title?key=${encodeURIComponent(seriesKey)}`)

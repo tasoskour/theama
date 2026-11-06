@@ -505,17 +505,19 @@ export class MetadataManager {
   }
 
   /** One page of popular movies and series, remembered for an hour for each set of filters. */
-  async suggestions(q: { section: SuggestionSection; year?: number | undefined; page: number; genres?: string | undefined; genreMode?: GenreMode | undefined }): Promise<MetadataSuggestionsResult> {
+  async suggestions(q: { section: SuggestionSection; year?: number | undefined; page: number; genres?: string | undefined; genreMode?: GenreMode | undefined; ratingMin?: number | undefined; ratingMax?: number | undefined }): Promise<MetadataSuggestionsResult> {
     this.requireKey()
     const language = this.tag()
     const today = this.now().toISOString().slice(0, 10)
     // The date is part of the key so "new" moves on at midnight.
     const genres = [...new Set((q.genres ?? '').split(GENRE_SEPARATOR).map((genre) => genre.trim()).filter(Boolean))].sort()
     const genreMode = genres.length > 1 ? q.genreMode ?? 'any' : 'any'
-    const cacheKey = JSON.stringify([q.section, q.year, q.page, language, today, genres, genreMode])
+    const ratingMin = q.ratingMin && q.ratingMin > 0 ? q.ratingMin : undefined
+    const ratingMax = q.ratingMax !== undefined && q.ratingMax < 10 ? q.ratingMax : undefined
+    const cacheKey = JSON.stringify([q.section, q.year, q.page, language, today, genres, genreMode, ratingMin, ratingMax])
     return this.suggestionCache.get(cacheKey, async () => {
       try {
-        const page = await this.d.provider.suggestions({ section: q.section, year: q.year, page: q.page, genres, genreMode, language, today })
+        const page = await this.d.provider.suggestions({ section: q.section, year: q.year, page: q.page, genres, genreMode, ratingMin, ratingMax, language, today })
         const items: MetadataSuggestionsResult['items'] = new Array(page.items.length)
         await runPool(page.items.map((candidate, index) => ({ candidate, index })), 4, async ({ candidate, index }) => {
           const file = await this.d.artwork.ensure(candidate.posterPath, 'thumb')

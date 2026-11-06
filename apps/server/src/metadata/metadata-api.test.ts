@@ -273,6 +273,23 @@ describe('manual identification', () => {
     expect(fresh).toEqual({ items: [], hasMore: false }) // nothing in the fake data came out in the last weeks
   })
 
+  it('validates inclusive rating bounds and separates filtered suggestion caches', async () => {
+    const path = '/metadata/suggestions?section=year&year=2022'
+    for (const invalid of ['ratingMin=-0.1', 'ratingMax=10.1', 'ratingMin=9&ratingMax=8', 'ratingMin=nope']) {
+      expect((await send('GET', `${path}&${invalid}`)).status).toBe(400)
+    }
+    const exact = MetadataSuggestionsResult.parse(await get(`${path}&ratingMin=8.4&ratingMax=8.4`))
+    expect(exact.items.map(c => c.title)).toEqual(['Severance'])
+    const before = fake.requests.length
+    expect(MetadataSuggestionsResult.parse(await get(`${path}&ratingMin=8.4&ratingMax=8.4`))).toEqual(exact)
+    expect(fake.requests).toHaveLength(before)
+    expect(MetadataSuggestionsResult.parse(await get(`${path}&ratingMax=8.3`))).toEqual({ items: [], hasMore: false })
+    const unrestricted = MetadataSuggestionsResult.parse(await get(path))
+    const cached = fake.requests.length
+    expect(MetadataSuggestionsResult.parse(await get(`${path}&ratingMin=0&ratingMax=10`))).toEqual(unrestricted)
+    expect(fake.requests).toHaveLength(cached)
+  })
+
   it('provides the full provider genre catalog, including genres absent from suggestions or the library', async () => {
     const { genres } = GenreList.parse(await get('/metadata/genres'))
     expect(genres).toEqual([...new Set(genres)].sort((a, b) => a.localeCompare(b)))

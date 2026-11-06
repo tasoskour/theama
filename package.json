@@ -1,6 +1,6 @@
 {
   "name": "theama",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Θέαμα — a personal cinematic media library for Windows",
@@ -19,6 +19,7 @@
     "typecheck": "yarn workspaces foreach -A --topological run typecheck",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:release": "node --test tools/package/release.test.mjs",
     "test:e2e": "yarn workspace @theama/ui run build && yarn workspace @theama/desktop run test:e2e",
     "icons": "yarn workspace @theama/brand run build",
     "service:install": "yarn workspace @theama/desktop run service install",

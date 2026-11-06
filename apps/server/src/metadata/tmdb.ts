@@ -318,7 +318,15 @@ export class TmdbProvider implements MetadataProvider {
         }
         withGenres = ids.join(q.genreMode === 'all' ? ',' : '|')
       }
-      return parse(SearchResponse, await this.call(`/discover/${kind === 'series' ? 'tv' : 'movie'}`, { ...base, ...filter, with_genres: withGenres }))
+      const ratedOnly = (q.ratingMin ?? 0) > 0 || (q.ratingMax ?? 10) < 10
+      return parse(SearchResponse, await this.call(`/discover/${kind === 'series' ? 'tv' : 'movie'}`, {
+        ...base, ...filter, with_genres: withGenres,
+        ...(ratedOnly ? {
+          'vote_average.gte': q.ratingMin ?? 0,
+          'vote_average.lte': q.ratingMax ?? 10,
+          'vote_count.gte': Math.max(Number(filter['vote_count.gte'] ?? 0), 1),
+        } : {}),
+      }))
     }
     const [m, s] = await Promise.all([discover('movie', movieFilter), discover('series', tvFilter)])
     const [movieAll, seriesAll] = await Promise.all([

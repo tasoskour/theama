@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { GenreMode, MatchKind, Suggestion } from '@theama/contracts'
+import type { GenreMode, MatchKind } from '@theama/contracts'
 import { useMetadataStore } from '@/stores/metadata'
 import { useConnectionStore } from '@/stores/connection'
+import { useDownloadsViewStore } from '@/stores/downloadsView'
+import { useSettingsStore } from '@/stores/settings'
+import { matchesFindFilters } from '@/utils/downloadsFilters'
 import SuggestionGrid from './SuggestionGrid.vue'
 import type { SuggestionItem } from './suggestion'
 
@@ -14,42 +17,49 @@ const props = defineProps<{
   genres: string[]
   genreMode: GenreMode
   query: string
-  year: number | null
+  years: number[]
+  ratingRange: number[]
 }>()
-defineEmits<{ preview: [candidate: SuggestionItem] }>()
+defineEmits<{ preview: [candidate: SuggestionItem]; back: [] }>()
 const metadata = useMetadataStore()
 const connection = useConnectionStore()
-const items = ref<Suggestion[]>([])
+const view = useDownloadsViewStore()
+const settings = useSettingsStore()
+const key = computed(() => JSON.stringify([props.externalId, props.category, settings.settings.language]))
+const state = computed(() => view.personResults[key.value] ?? { items: [], loaded: false, problem: null })
+const items = computed(() => state.value.items)
 const loading = ref(false)
-const problem = ref<string | null>(null)
+const problem = computed(() => state.value.problem)
 const retry = ref(0)
 const fold = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 const shown = computed(() => items.value.filter((item) =>
-  (props.kind === 'all' || item.kind === props.kind)
-  && (props.kind !== 'movie' || props.year === null || item.year === props.year)
-  && (!props.query.trim() || fold(`${item.title} ${item.originalTitle ?? ''}`).includes(fold(props.query.trim())))
-  && (props.genres.length === 0 || (props.genreMode === 'all'
-    ? props.genres.every((genre) => item.genres?.includes(genre))
-    : props.genres.some((genre) => item.genres?.includes(genre)))),
+  matchesFindFilters(item, { kind: props.kind, years: props.years, genres: props.genres, genreMode: props.genreMode, ratingRange: props.ratingRange })
+  && (!props.query.trim() || fold(`${item.title} ${item.originalTitle ?? ''}`).includes(fold(props.query.trim()))),
 ))
 
-watch([() => props.externalId, () => props.category, () => connection.phase, retry], async ([id, category, phase], _old, onCleanup) => {
+watch([() => props.externalId, () => props.category, () => connection.phase, retry, () => settings.settings.language], async ([id, category, phase, attempt], old, onCleanup) => {
   const controller = new AbortController()
   onCleanup(() => controller.abort())
-  items.value = []
-  problem.value = null
-  loading.value = true
+  view.personResults[key.value] ??= { items: [], loaded: false, problem: null }
+  const target = state.value
+  loading.value = false
   if (phase !== 'connected') return
+  const retryRequested = old.length > 0 && attempt !== old[3]
+  if (target.loaded && !retryRequested) return
+  target.problem = null
+  loading.value = true
   const result = await metadata.personTitles(id, category, controller.signal)
   if (controller.signal.aborted) return
   loading.value = false
-  if (result.ok) items.value = result.items
-  else problem.value = result.message
+  target.loaded = true
+  if (result.ok) target.items = result.items
+  else target.problem = result.message
 }, { immediate: true })
 </script>
 
 <template>
   <section class="mt-4" data-test="person-suggestions" :aria-label="$t(category === 'actor' ? 'detail.actorSuggestions' : 'detail.directorSuggestions', { name })">
+    <v-btn variant="text" size="small" class="mb-2" data-test="person-back" @click="$emit('back')">{{ $t('downloads.find.allTitles') }}</v-btn>
     <h2 class="th-display mb-3">{{ $t(category === 'actor' ? 'detail.actorSuggestions' : 'detail.directorSuggestions', { name }) }}</h2>
     <v-progress-linear v-if="loading" indeterminate :aria-label="$t('detail.loadingPersonTitles')" />
     <v-alert v-else-if="problem" type="warning" variant="tonal" data-test="person-suggestions-error">

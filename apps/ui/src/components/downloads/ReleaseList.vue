@@ -1,18 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, toRefs, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { mdiArrowLeft, mdiClose, mdiMagnify } from '@mdi/js'
-import type { DownloadTool, Release, ReleaseKind, Resolution } from '@theama/contracts'
+import type { DownloadTool, Release } from '@theama/contracts'
 import { getBridge } from '@/api/bridge'
 import { useSettingsStore } from '@/stores/settings'
 import { useDownloadsStore } from '@/stores/downloads'
 import { useDownloadToolsStore } from '@/stores/downloadTools'
+import { releaseState, useDownloadsViewStore, type ReleaseQuery as Query } from '@/stores/downloadsView'
 import { formatBytes } from '@/utils/format'
 import { toolLogos } from './toolLogos'
 import { groupReleases, type ReleaseGroup } from './releaseGroups'
-import { episodesOf, filterReleases, seasonsOf, sortReleases, type ReleaseSort } from './releaseSort'
-
-type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined; collectionName?: string | undefined; externalId?: string | undefined }
+import { episodesOf, filterReleases, seasonsOf, sortReleases } from './releaseSort'
 
 const props = defineProps<{ query: Query }>()
 defineEmits<{ back: [] }>()
@@ -22,26 +21,14 @@ const downloads = useDownloadsStore()
 const settings = useSettingsStore()
 const tools = useDownloadToolsStore()
 
-// The search that is on screen. The fields below are edited freely and only replace it on Search.
-const active = ref<Query>(props.query)
-const title = ref('')
-const year = ref('')
-const season = ref('')
-const episode = ref('')
+// Keep edits, fetched results and release filters when the view is temporarily unmounted.
+const view = useDownloadsViewStore()
+view.releases[props.query.kind] ??= releaseState(props.query)
+const state = view.releases[props.query.kind]!
+const { active, title, year, season, episode, error, items, received, resolution, minSeeders, sort, seasonFilter, episodeFilter, unmatched, sent } = toRefs(state)
 
 const loading = ref(false)
-const error = ref<{ code: string; message: string; tool: DownloadTool } | null>(null)
-const items = ref<Release[]>([])
-const received = ref(0)
-const resolution = ref<Resolution | null>(null)
-const minSeeders = ref('')
-const sort = ref<ReleaseSort>('quality')
-const seasonFilter = ref<number | null>(null)
-const episodeFilter = ref<number | null>(null)
-/** Asks the server to keep results that do not look like the title. Off for every new title. */
-const unmatched = ref(false)
 const adding = ref<string | null>(null)
-const sent = ref(new Set<string>())
 const snackbar = ref('')
 let generation = 0
 let controller: AbortController | undefined
@@ -50,13 +37,6 @@ onBeforeUnmount(() => { generation++; controller?.abort() })
 const num = (v: string): number | undefined => {
   const n = Number.parseInt(v, 10)
   return Number.isFinite(n) && n >= 0 ? n : undefined
-}
-
-function fill(q: Query): void {
-  title.value = q.title
-  year.value = q.year === undefined ? '' : String(q.year)
-  season.value = q.season === undefined ? '' : String(q.season)
-  episode.value = q.episode === undefined ? '' : String(q.episode)
 }
 
 const resolutions = computed(() => (['2160p', '1080p', '720p', '480p'] as const).filter((r) => items.value.some((i) => i.resolution === r)))
@@ -88,6 +68,7 @@ async function run(): Promise<void> {
   controller?.abort()
   controller = new AbortController()
   loading.value = true
+  state.loaded = false
   error.value = null
   items.value = []
   const res = await downloads.findReleases({ ...active.value, unmatched: unmatched.value }, controller.signal)
@@ -99,6 +80,7 @@ async function run(): Promise<void> {
   } else {
     await failed({ code: res.code, message: res.message, tool: failedTool(res.message, 'prowlarr') }, true)
   }
+  if (mine === generation) state.loaded = true
 }
 
 /**
@@ -121,18 +103,12 @@ async function failed(problem: { code: string; message: string; tool: DownloadTo
   if (mine === generation && search) void run()
 }
 
-// A new query (another title picked) starts a new search; the list lives only as long as it is on screen.
+// A different title starts a search; returning to the same query restores the existing list.
 watch(
   () => props.query,
   (q) => {
-    active.value = q
-    fill(q)
-    resolution.value = null
-    seasonFilter.value = null
-    episodeFilter.value = null
-    unmatched.value = false
-    sent.value = new Set()
-    void run()
+    if (state.sourceKey !== JSON.stringify(q)) Object.assign(state, releaseState(q))
+    if (!state.loaded) void run()
   },
   { immediate: true },
 )

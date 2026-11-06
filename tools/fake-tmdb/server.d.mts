@@ -5,6 +5,7 @@ export interface FakeTmdb {
   mode: 'ok' | 'down' | 'rate' | 'dead'
   requests: { path: string; query: Record<string, string>; auth: string | null }[]
   imageRequests: number
+  collectionDelayMs: number
   url: string
   imageUrl: string
   close(): Promise<void>

@@ -156,8 +156,11 @@ export const MetadataSuggestionsQuery = z
     /** Genre names separated by GENRE_SEPARATOR, as in TitleQuery. */
     genres: z.string().max(1000).optional(),
     genreMode: GenreMode.default('any'),
+    ratingMin: z.coerce.number().min(0).max(10).optional(),
+    ratingMax: z.coerce.number().min(0).max(10).optional(),
   })
   .refine((q) => q.section !== 'year' || q.year !== undefined, { message: 'A year section needs a year', path: ['year'] })
+  .refine((q) => (q.ratingMin ?? 0) <= (q.ratingMax ?? 10), { message: 'Minimum rating must not exceed maximum rating', path: ['ratingMin'] })
 export type MetadataSuggestionsQuery = z.input<typeof MetadataSuggestionsQuery>
 
 export const MetadataSuggestionsResult = z.object({ items: z.array(Suggestion), hasMore: z.boolean() })

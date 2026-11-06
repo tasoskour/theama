@@ -44,6 +44,8 @@ export interface SuggestionsQuery {
   page: number
   genres?: string[] | undefined
   genreMode?: GenreMode | undefined
+  ratingMin?: number | undefined
+  ratingMax?: number | undefined
   language: string
   /** Today as `YYYY-MM-DD`; "new" counts back from here. */
   today: string

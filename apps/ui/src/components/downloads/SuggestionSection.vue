@@ -1,33 +1,34 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import type { GenreMode, MatchKind, Suggestion, SuggestionSection } from '@theama/contracts'
+import { computed, onBeforeUnmount, onMounted, ref, toRefs } from 'vue'
+import type { GenreMode, MatchKind, SuggestionSection } from '@theama/contracts'
 import { useMetadataStore } from '@/stores/metadata'
+import { suggestionPage, useDownloadsViewStore } from '@/stores/downloadsView'
+import { useSettingsStore } from '@/stores/settings'
+import { matchesFindFilters } from '@/utils/downloadsFilters'
 import SuggestionGrid from './SuggestionGrid.vue'
 import type { SuggestionItem } from './suggestion'
 
-const props = defineProps<{ heading: string; section: SuggestionSection; kind?: MatchKind | 'all'; genres: string[]; genreMode: GenreMode; year?: number }>()
+const props = defineProps<{ heading: string; section: SuggestionSection; kind?: MatchKind | 'all'; genres: string[]; genreMode: GenreMode; year?: number; ratingRange: number[]; showEmpty?: boolean }>()
 const emit = defineEmits<{ preview: [candidate: SuggestionItem] }>()
 
 const metadata = useMetadataStore()
-
-const items = ref<Suggestion[]>([])
-const page = ref(0)
-const hasMore = ref(false)
+const view = useDownloadsViewStore()
+const key = JSON.stringify([props.section, props.year, props.kind, [...props.genres].sort(), props.genreMode, props.ratingRange, useSettingsStore().settings.language])
+view.suggestionPages[key] ??= suggestionPage()
+const { items, page, hasMore, loaded, problem } = toRefs(view.suggestionPages[key]!)
 const loading = ref(false)
-const loaded = ref(false)
-const problem = ref<string | null>(null)
 let active = true
 const controller = new AbortController()
-const shown = computed(() => items.value.filter((c) =>
-  !props.kind || props.kind === 'all' || c.kind === props.kind,
-))
+const shown = computed(() => items.value.filter((c) => matchesFindFilters(c, {
+  kind: props.kind, years: props.year === undefined ? [] : [props.year], genres: props.genres, genreMode: props.genreMode, ratingRange: props.ratingRange,
+})))
 
 /** One page at a time; a second click while a page is on its way does nothing. */
 async function loadNext(): Promise<void> {
   if (!active || loading.value) return
   loading.value = true
   problem.value = null
-  const res = await metadata.suggestions(props.section, props.year, page.value + 1, props.genres, props.genreMode, controller.signal)
+  const res = await metadata.suggestions(props.section, props.year, page.value + 1, props.genres, props.genreMode, controller.signal, props.ratingRange[0], props.ratingRange[1])
   // Filter changes remount this section. An old response must not update the new results or errors.
   if (!active) return
   loading.value = false
@@ -51,6 +52,7 @@ async function loadNext(): Promise<void> {
 const root = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | undefined
 onMounted(() => {
+  if (loaded.value) return
   observer = new IntersectionObserver(
     (entries) => {
       if (!entries.some((e) => e.isIntersecting)) return
@@ -69,7 +71,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section v-if="!loaded || items.length > 0 || genres.length > 0 || problem" ref="root" class="sugg" :aria-label="heading" data-test="suggestion-section">
+  <section v-if="!loaded || items.length > 0 || genres.length > 0 || showEmpty || problem" ref="root" class="sugg" :aria-label="heading" data-test="suggestion-section">
     <h2 class="sugg__heading th-display">{{ heading }}</h2>
     <v-progress-linear v-if="loading && items.length === 0" indeterminate height="2" :aria-label="heading" />
     <div v-else-if="!loaded" class="sugg__wait" aria-hidden="true" />

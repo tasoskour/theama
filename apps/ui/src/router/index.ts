@@ -81,9 +81,11 @@ export const router = createRouter({
   // Hash history keeps routing independent of the app:// protocol's path handling.
   history: createWebHashHistory(),
   routes,
-  scrollBehavior(_to, _from, saved) {
+  scrollBehavior(to, _from, saved) {
     // A saved position only exists for back/forward moves; browsing pages use this to restore their place.
     navState.arrivedByHistory = saved !== null
+    // Downloads restores its own per-tab position after its cached pages render.
+    if (to.name === 'downloads') return false
     return saved ?? { top: 0 }
   },
 })

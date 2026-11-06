@@ -288,6 +288,7 @@
     "hideHint": "Hide this title and exclude its files from future scans",
     "hidden": "{title} hidden. You can restore it from Settings → Library → Exclusions.",
     "partlyHint": "Some files of this title are not available right now.",
+    "downloading": "Downloading {percent}%",
     "partial": "{available} of {total} files available",
     "actions": {
       "menu": "Actions for {title}",

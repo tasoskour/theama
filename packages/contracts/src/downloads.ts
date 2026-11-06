@@ -118,6 +118,8 @@ export const AddDownloadRequest = z.object({
   kind: ReleaseKind,
   /** A folder chosen for this one download; overrides the saved download folder. */
   savePath: z.string().min(1).max(1000).optional(),
+  /** The TMDB id of the movie this release is for; lets the poster fill in as it downloads. */
+  externalId: z.string().regex(/^\d{1,12}$/).optional(),
 })
 export type AddDownloadRequest = z.infer<typeof AddDownloadRequest>
 
@@ -151,6 +153,8 @@ export const DownloadItem = z.object({
   /** Seconds left; null when unknown or not moving. */
   eta: z.number().int().min(0).nullable(),
   kind: ReleaseKind.nullable(),
+  /** The TMDB id of the movie Theama added this for; null/absent for other torrents. */
+  tmdbId: z.string().nullable().optional(),
   /** Added by Theama (carries its tag). False only for the person's other torrents. */
   own: z.boolean(),
   addedAt: z.string().nullable(),

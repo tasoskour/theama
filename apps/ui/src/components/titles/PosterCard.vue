@@ -5,6 +5,8 @@ import { mdiCheckBold, mdiCheckCircle, mdiCloudOffOutline } from '@mdi/js'
 import type { TitleSummary } from '@theama/contracts'
 import { useTilt } from '@/composables/useTilt'
 import { useConnectionStore } from '@/stores/connection'
+import { useDownloadsStore } from '@/stores/downloads'
+import { downloadProgressFor } from '@/utils/posterProgress'
 import PosterArt from './PosterArt.vue'
 import TitleActionsMenu from './TitleActionsMenu.vue'
 
@@ -30,12 +32,16 @@ function onLinkClick(e: Event): void {
 }
 const { t } = useI18n()
 const connection = useConnectionStore()
+const downloads = useDownloadsStore()
 
 // Immersive mode only: the poster leans toward the pointer. Inert otherwise (see useTilt).
 const art = ref<HTMLElement | null>(null)
 const tilt = useTilt(art)
 
 const offline = computed(() => props.title.availableCount === 0)
+/** A movie still downloading: how far along (0–1), so the poster fills in; null otherwise. */
+const progress = computed(() => (props.title.kind === 'movie' ? downloadProgressFor(downloads.list?.items, props.title.tmdbId) : null))
+const percent = computed(() => Math.floor((progress.value ?? 0) * 100))
 const partly = computed(() => props.title.availableCount > 0 && props.title.availableCount < props.title.fileCount)
 
 /** One short line under the title: what is inside, in the viewer's words. */
@@ -56,7 +62,7 @@ const detail = computed(() => {
 const needsId = computed(() => props.title.matchState === 'ambiguous' || props.title.matchState === 'unmatched')
 
 const label = computed(() =>
-  [props.title.title, props.caption ?? detail.value, props.title.rating != null ? t('detail.personRating', { value: props.title.rating.toFixed(1) }) : '', offline.value ? t('files.offline') : '', partly.value ? t('titles.partial', { available: props.title.availableCount, total: props.title.fileCount }) : '', props.title.watchState === 'all' ? t('play.watched') : '', needsId.value ? t('match.notIdentified') : '']
+  [props.title.title, props.caption ?? detail.value, props.title.rating != null ? t('detail.personRating', { value: props.title.rating.toFixed(1) }) : '', offline.value ? t('files.offline') : '', progress.value !== null ? t('titles.downloading', { percent: percent.value }) : '', partly.value ? t('titles.partial', { available: props.title.availableCount, total: props.title.fileCount }) : '', props.title.watchState === 'all' ? t('play.watched') : '', needsId.value ? t('match.notIdentified') : '']
     .filter(Boolean)
     .join(', '),
 )
@@ -84,12 +90,14 @@ const label = computed(() =>
           :year="title.kind === 'movie' ? title.year : null"
           :kind="title.kind"
           :image-url="connection.assetUrl(title.posterUrl)"
+          :progress="progress"
         />
+        <span v-if="progress !== null && !offline" class="card__badge card__badge--progress" :title="$t('titles.downloading', { percent })">{{ percent }}%</span>
         <span v-if="offline" class="card__badge card__badge--offline" :title="$t('files.offlineHint')">
           <svg viewBox="0 0 24 24" class="th-icon card__badge-icon" aria-hidden="true"><path :d="mdiCloudOffOutline" fill="currentColor" /></svg>
           {{ $t('files.offline') }}
         </span>
-        <span v-else-if="partly" class="card__badge" :title="$t('titles.partlyHint')" :data-text="`${title.availableCount}/${title.fileCount}`" />
+        <span v-else-if="partly && progress === null" class="card__badge" :title="$t('titles.partlyHint')" :data-text="`${title.availableCount}/${title.fileCount}`" />
         <span v-if="title.watchState === 'all'" class="card__seen" :title="$t('play.watched')">
           <svg viewBox="0 0 24 24" class="th-icon card__seen-icon" aria-hidden="true"><path :d="mdiCheckCircle" fill="currentColor" /></svg>
         </span>

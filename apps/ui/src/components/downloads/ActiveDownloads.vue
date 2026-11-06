@@ -19,9 +19,13 @@ import {
 } from '@mdi/js'
 import type { DownloadItem } from '@theama/contracts'
 import FilesDialog from '@/components/downloads/FilesDialog.vue'
+import PosterArt from '@/components/titles/PosterArt.vue'
 import { BUCKETS, SORT_KEYS, bucket, counts, filterAndSort, totalSpeed } from '@/components/downloads/activeList'
 import { useConnectionStore } from '@/stores/connection'
+import { toolLogos } from '@/components/downloads/toolLogos'
 import { useDownloadsStore } from '@/stores/downloads'
+import { useFavoritesStore } from '@/stores/favorites'
+import { useDownloadToolsStore } from '@/stores/downloadTools'
 import { useDownloadsViewStore } from '@/stores/downloadsView'
 import { useSettingsStore } from '@/stores/settings'
 import { formatBytes, formatDuration } from '@/utils/format'
@@ -31,7 +35,14 @@ defineEmits<{ find: [] }>()
 const { t, locale } = useI18n()
 const connection = useConnectionStore()
 const downloads = useDownloadsStore()
+const favorites = useFavoritesStore()
 const settings = useSettingsStore()
+
+const tools = useDownloadToolsStore()
+
+async function openClient(): Promise<void> {
+  if (await tools.open('qbittorrent')) await downloads.load()
+}
 
 const items = computed(() => downloads.list?.items ?? [])
 const unreachable = computed(() => downloads.list !== null && !downloads.list.reachable && downloads.client?.state !== 'not_configured')
@@ -84,6 +95,9 @@ function confirmDelete(): void {
 const percent = (item: DownloadItem): number => Math.floor(item.progress * 100)
 const moving = (item: DownloadItem): boolean => item.state === 'downloading' && item.downloadSpeed > 0
 const speedText = (bytes: number): string => `${formatBytes(bytes, locale.value)}/s`
+/** The poster of a movie Theama downloaded for a known title, when it is one the person saved; otherwise null (a generated one is drawn). */
+const posterOf = (item: DownloadItem): string | null =>
+  connection.assetUrl(favorites.items.find((f) => f.provider === 'tmdb' && f.kind === 'movie' && f.externalId === item.tmdbId)?.posterUrl ?? null)
 const kindIcon = (item: DownloadItem): string => (item.kind === 'movie' ? mdiMovieOpenOutline : item.kind === 'series' ? mdiTelevisionClassic : mdiDownloadOutline)
 /** What the status chip and the accent bar are coloured by; waiting states stay neutral. */
 const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primary', completed: 'success', paused: 'warning', error: 'error' })[item.state as string]
@@ -94,6 +108,20 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
     <v-alert v-if="unreachable" type="warning" variant="tonal" density="compact" class="mb-4" data-test="downloads-unreachable">
       {{ $t('downloads.active.unreachable') }}
       <router-link to="/settings/downloads">{{ $t('downloads.active.checkSettings') }}</router-link>
+      <template v-if="tools.available" #append>
+        <v-btn
+          variant="tonal"
+          size="small"
+          :loading="tools.opening.qbittorrent === true"
+          :disabled="tools.opening.qbittorrent === true"
+          :aria-label="$t('downloads.tools.openLabel.qbittorrent')"
+          data-test="downloads-open-qbittorrent"
+          @click="openClient"
+        >
+          <img :src="toolLogos.qbittorrent" alt="" width="18" height="18" class="mr-2">
+          {{ $t('downloads.tools.openLabel.qbittorrent') }}
+        </v-btn>
+      </template>
     </v-alert>
 
     <div class="bar">
@@ -160,7 +188,10 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
     <ul v-if="shown.length > 0" class="cards" role="list" data-test="download-list">
       <li v-for="item in shown" :key="item.hash" class="card" :class="[`card--${bucket(item.state)}`, tone(item) ? `card--${tone(item)}` : '']" :data-hash="item.hash">
         <div class="card__top">
-          <v-icon :icon="kindIcon(item)" size="1.25em" class="card__kind" />
+          <div v-if="item.tmdbId && item.kind === 'movie'" class="card__poster" data-test="download-poster">
+            <PosterArt :seed="`tmdb:${item.tmdbId}`" :title="item.name" kind="movie" :image-url="posterOf(item)" :progress="item.state === 'completed' ? null : item.progress" />
+          </div>
+          <v-icon v-else :icon="kindIcon(item)" size="1.25em" class="card__kind" />
           <span class="card__name">{{ item.name }}</span>
           <div class="card__actions">
             <v-btn
@@ -330,6 +361,10 @@ const tone = (item: DownloadItem): string | undefined => ({ downloading: 'primar
   display: flex;
   align-items: flex-start;
   gap: 10px;
+}
+.card__poster {
+  flex: none;
+  width: 3.5rem;
 }
 .card__kind {
   margin-top: 2px;

@@ -119,10 +119,10 @@ export const useDownloadsStore = defineStore('downloads', () => {
     }
   }
 
-  async function download(releaseId: string, kind: ReleaseKind, savePath?: string): Promise<DownloadResult> {
+  async function download(releaseId: string, kind: ReleaseKind, savePath?: string, externalId?: string): Promise<DownloadResult> {
     if (!connection.client) return notConnected
     try {
-      await connection.client.post('/downloads', { releaseId, kind, ...(savePath ? { savePath } : {}) }, Done)
+      await connection.client.post('/downloads', { releaseId, kind, ...(savePath ? { savePath } : {}), ...(externalId ? { externalId } : {}) }, Done)
       return { ok: true }
     } catch (err) {
       return failure(err)

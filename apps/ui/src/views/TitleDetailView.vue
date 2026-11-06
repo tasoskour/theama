@@ -25,6 +25,7 @@ import { useDownloadsStore } from '@/stores/downloads'
 import { useMetadataStore } from '@/stores/metadata'
 import { usePlayersStore } from '@/stores/players'
 import { episodeCode, formatBytes, formatClock, formatDuration, resolutionLabel } from '@/utils/format'
+import { downloadProgressFor } from '@/utils/posterProgress'
 import { releaseSearchRoute } from '@/utils/releaseSearch'
 
 const route = useRoute()
@@ -90,6 +91,8 @@ const meta = computed(() => detail.value?.metadata ?? null)
 useSceneHint(() => ({ kind: summary.value?.kind ?? null, genres: meta.value?.genres ?? [], genreOrder: 'priority' }))
 const match = computed(() => detail.value?.match ?? null)
 const canIdentify = computed(() => summary.value !== null && summary.value.kind !== 'video')
+/** A movie still downloading: how far along (0–1), so the poster fills in. */
+const posterProgress = computed(() => (summary.value?.kind === 'movie' ? downloadProgressFor(downloadsStore.list?.items, summary.value.tmdbId) : null))
 const posterSrc = computed(() => connection.assetUrl(meta.value?.posterUrl ?? summary.value?.posterUrl))
 const heroStyle = computed(() => {
   const backdrop = connection.assetUrl(meta.value?.backdropUrl)
@@ -400,7 +403,7 @@ const metaChips = computed(() => {
 
     <template v-if="summary">
       <section class="hero" :style="heroStyle">
-        <div class="hero__poster"><PosterArt :seed="summary.key" :title="summary.title" :year="summary.kind === 'movie' ? summary.year : null" :kind="summary.kind" :image-url="posterSrc" /></div>
+        <div class="hero__poster"><PosterArt :seed="summary.key" :title="summary.title" :year="summary.kind === 'movie' ? summary.year : null" :kind="summary.kind" :image-url="posterSrc" :progress="posterProgress" /></div>
         <div class="hero__info">
           <p class="th-eyebrow">{{ kindLabel }}</p>
           <h1 ref="heading" tabindex="-1" class="th-display hero__title">{{ summary.title }}</h1>
@@ -477,7 +480,7 @@ const metaChips = computed(() => {
                 v-if="summary.kind !== 'video' && canFindDownload"
                 variant="text"
                 class="th-btn-quiet th-btn-quiet--text"
-                :to="{ name: 'downloads', query: { releases: '1', kind: summary.kind, title: meta?.title ?? summary.title, ...(summary.year ? { year: String(summary.year) } : {}), ...(summary.kind === 'movie' && detail?.collections.find(c => c.kind === 'official') ? { collectionName: detail.collections.find(c => c.kind === 'official')?.name } : {}) } }"
+                :to="{ name: 'downloads', query: { releases: '1', kind: summary.kind, title: meta?.title ?? summary.title, ...(summary.year ? { year: String(summary.year) } : {}), ...(summary.kind === 'movie' && summary.tmdbId ? { externalId: summary.tmdbId } : {}), ...(summary.kind === 'movie' && detail?.collections.find(c => c.kind === 'official') ? { collectionName: detail.collections.find(c => c.kind === 'official')?.name } : {}) } }"
                 data-test="find-download"
               >{{ $t('detail.findDownload') }}</v-btn>
             </div>

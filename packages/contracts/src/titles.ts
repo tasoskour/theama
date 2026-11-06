@@ -38,6 +38,8 @@ export const TitleSummary = z.object({
   missingEpisodes: z.number().int().nullable(),
   /** None, some or all of it watched (a series counts episodes, not files). */
   watchState: z.enum(['none', 'some', 'all']),
+  /** TMDB id when the title is matched to TMDB; lets a card find its download. */
+  tmdbId: z.string().nullable().optional(),
   /** True when the person chose a category instead of using the library folder setting. */
   categoryOverride: z.boolean(),
 })

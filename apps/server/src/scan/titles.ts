@@ -36,6 +36,7 @@ interface GroupRow {
   watched_files: number
   watched_episodes: number
   category_override: number
+  tmdb_id: string | null
 }
 
 function toSummary(r: GroupRow): TitleSummary | null {
@@ -58,6 +59,7 @@ function toSummary(r: GroupRow): TitleSummary | null {
     missingEpisodes: r.missing_episodes,
     watchState: watchState(r),
     categoryOverride: r.category_override === 1,
+    tmdbId: r.tmdb_id,
   }
 }
 
@@ -99,6 +101,7 @@ const GROUP_SELECT = `
          MAX(d.poster_file) AS poster_file,
          MAX(d.rating) AS rating,
          MAX(m.state) AS match_state,
+         MAX(CASE WHEN m.state = 'matched' AND m.provider = 'tmdb' THEN m.external_id END) AS tmdb_id,
          NULL AS missing_episodes,
          SUM(coalesce(pb.watched, 0)) AS watched_files,
          COUNT(DISTINCT CASE WHEN pb.watched = 1 AND f.episode IS NOT NULL THEN coalesce(f.season, -1) * 100000 + f.episode END) AS watched_episodes

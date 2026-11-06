@@ -22,7 +22,7 @@ import { useMetadataStore } from '@/stores/metadata'
 import { useFavoritesStore } from '@/stores/favorites'
 import { releaseSearchFromRoute } from '@/utils/releaseSearch'
 
-type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined; collectionName?: string | undefined }
+type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined; collectionName?: string | undefined; externalId?: string | undefined }
 
 const route = useRoute()
 const { t } = useI18n()
@@ -130,12 +130,12 @@ const num = (v: string): number | undefined => {
   return Number.isFinite(n) && n >= 0 ? n : undefined
 }
 
-function openReleases(title: string, y?: number, selectedKind = kind.value): void {
+function openReleases(title: string, y?: number, selectedKind = kind.value, externalId?: string): void {
   const t = title.trim()
   if (!t) return
   const kinds: ReleaseKind[] = selectedKind === 'all' ? ['movie', 'series'] : [selectedKind]
   query.value = kinds.map((k) =>
-    k === 'movie' ? { kind: 'movie', title: t, year: y ?? year.value ?? undefined } : { kind: 'series', title: t, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) },
+    k === 'movie' ? { kind: 'movie', title: t, year: y ?? year.value ?? undefined, ...(externalId ? { externalId } : {}) } : { kind: 'series', title: t, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) },
   )
 }
 
@@ -167,7 +167,7 @@ async function search(): Promise<void> {
 // Suggestions mix movies and series, so the pick decides which kind of release to look for.
 const pick = (c: MatchCandidate): void => {
   tab.value = 'find'
-  openReleases(c.title, c.year ?? undefined, c.kind)
+  openReleases(c.title, c.year ?? undefined, c.kind, c.kind === 'movie' && c.provider === 'tmdb' ? c.externalId : undefined)
 }
 
 function changeKind(): void {

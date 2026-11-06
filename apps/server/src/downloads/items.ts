@@ -36,6 +36,7 @@ export function problemFor(name: string, log: readonly string[]): string | null 
 export function toItem(torrent: QBittorrentTorrent, tag: string): DownloadItem {
   const tags = torrent.tags.split(',').map((t) => t.trim())
   const kind = tags.includes(`${tag}-movie`) ? 'movie' : tags.includes(`${tag}-series`) ? 'series' : null
+  const tmdbId = tags.find((t) => t.startsWith(`${tag}-tmdb-`))?.slice(`${tag}-tmdb-`.length)
   const state = stateOf(torrent)
   return {
     hash: torrent.hash,
@@ -46,6 +47,7 @@ export function toItem(torrent: QBittorrentTorrent, tag: string): DownloadItem {
     size: torrent.size,
     eta: state === 'downloading' && torrent.eta >= 0 && torrent.eta < ETA_NEVER ? Math.round(torrent.eta) : null,
     kind,
+    tmdbId: tmdbId && /^\d{1,12}$/.test(tmdbId) ? tmdbId : null,
     own: tags.includes(tag),
     addedAt: torrent.addedOn > 0 ? new Date(torrent.addedOn * 1000).toISOString() : null,
   }

@@ -322,6 +322,13 @@ describe('downloading', () => {
     expect(((await res.json()) as { error: { code: string } }).error.code).toBe('release_expired')
     expect(qb.added).toHaveLength(1)
   })
+
+  it('tags a movie download with its TMDB id, and ignores a malformed one', async () => {
+    const list = ReleaseList.parse(await (await releases('kind=movie&title=Dune&year=2021')).json())
+    expect((await send('POST', '/downloads', { releaseId: list.items[0]!.id, kind: 'movie', externalId: '438631' })).status).toBe(201)
+    expect(qb.added[1]).toContain('theama,theama-movie,theama-tmdb-438631')
+    expect((await send('POST', '/downloads', { releaseId: list.items[0]!.id, kind: 'movie', externalId: 'x;y' })).status).toBe(400)
+  })
 })
 
 describe('Prowlarr requirement', () => {

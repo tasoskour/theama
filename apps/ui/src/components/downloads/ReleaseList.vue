@@ -12,7 +12,7 @@ import { toolLogos } from './toolLogos'
 import { groupReleases, type ReleaseGroup } from './releaseGroups'
 import { episodesOf, filterReleases, seasonsOf, sortReleases, type ReleaseSort } from './releaseSort'
 
-type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined; collectionName?: string | undefined }
+type Query = { kind: ReleaseKind; title: string; year?: number | undefined; season?: number | undefined; episode?: number | undefined; collectionName?: string | undefined; externalId?: string | undefined }
 
 const props = defineProps<{ query: Query }>()
 defineEmits<{ back: [] }>()
@@ -148,7 +148,7 @@ function apply(): void {
   if (!text) return
   const kind = props.query.kind
   active.value = kind === 'movie'
-    ? { kind, title: text, year: num(year.value), ...(text === props.query.title ? { collectionName: props.query.collectionName } : {}) }
+    ? { kind, title: text, year: num(year.value), ...(text === props.query.title ? { collectionName: props.query.collectionName, externalId: props.query.externalId } : {}) }
     : { kind, title: text, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) }
   resolution.value = null
   seasonFilter.value = null
@@ -167,7 +167,7 @@ async function add(r: Release): Promise<void> {
     savePath = picked
   }
   adding.value = r.id
-  const res = await downloads.download(r.id, props.query.kind, savePath)
+  const res = await downloads.download(r.id, props.query.kind, savePath, active.value.kind === 'movie' ? active.value.externalId : undefined)
   adding.value = null
   if (res.ok) {
     sent.value = new Set([...sent.value, r.id])
@@ -303,7 +303,6 @@ const heading = computed(() => {
           v-if="tools.available && error.code === 'unreachable'"
           variant="tonal"
           size="small"
-          class="mr-1"
           :loading="tools.opening[error.tool] === true"
           :disabled="tools.opening[error.tool] === true"
           :aria-label="$t(`downloads.tools.openLabel.${error.tool}`)"
@@ -313,7 +312,7 @@ const heading = computed(() => {
           <img :src="toolLogos[error.tool]" alt="" width="18" height="18" class="mr-2">
           {{ $t(`downloads.tools.openLabel.${error.tool}`) }}
         </v-btn>
-        <v-btn variant="text" size="small" @click="run">{{ $t('common.retry') }}</v-btn>
+        <v-btn v-if="!(tools.available && error.code === 'unreachable')" variant="text" size="small" data-test="release-retry" @click="run">{{ $t('common.retry') }}</v-btn>
       </template>
     </v-alert>
 

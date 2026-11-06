@@ -187,13 +187,13 @@ export class DownloadsService {
   }
 
   /** Hands a release found by `findReleases` to qBittorrent. Only those links are ever accepted, never a typed-in one. */
-  async download(releaseId: string, kind: ReleaseKind, savePath?: string): Promise<void> {
+  async download(releaseId: string, kind: ReleaseKind, savePath?: string, externalId?: string): Promise<void> {
     const entry = this.releases.get(releaseId)
     if (!entry || this.now() - entry.at > RELEASE_CACHE_MS) {
       this.releases.delete(releaseId)
       throw new ReleaseExpired()
     }
-    await this.qbittorrent.add(entry.link, { savePath: savePath ?? this.options.savePath?.(kind) ?? null, tags: [THEAMA_TAG, `${THEAMA_TAG}-${kind}`] })
+    await this.qbittorrent.add(entry.link, { savePath: savePath ?? this.options.savePath?.(kind) ?? null, tags: [THEAMA_TAG, `${THEAMA_TAG}-${kind}`, ...(kind === 'movie' && externalId ? [`${THEAMA_TAG}-tmdb-${externalId}`] : [])] })
     this.options.logger.info({ kind }, 'Download added to qBittorrent')
   }
 

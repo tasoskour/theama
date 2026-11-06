@@ -552,10 +552,10 @@ export async function buildApp(deps: AppDeps) {
   })
 
   app.post(`${API_PREFIX}/downloads`, async (req, reply) => {
-    const { releaseId, kind, savePath } = AddDownloadRequest.parse(req.body ?? {})
+    const { releaseId, kind, savePath, externalId } = AddDownloadRequest.parse(req.body ?? {})
     if (!downloads.connection()) throw new ApiProblem('not_configured', 'qBittorrent is not set up', 409)
     try {
-      await downloads.download(releaseId, kind, savePath)
+      await downloads.download(releaseId, kind, savePath, externalId)
     } catch (err) {
       if (err instanceof ReleaseExpired) throw new ApiProblem('release_expired', err.message, 410)
       return downloadFailure(err)

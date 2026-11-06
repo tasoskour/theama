@@ -1,5 +1,5 @@
 import type { LocationQuery } from 'vue-router'
-import { ReleaseQuery, type CollectionKind, type CollectionMember, type ReleaseKind } from '@theama/contracts'
+import { AddDownloadRequest, ReleaseQuery, type CollectionKind, type CollectionMember, type ReleaseKind } from '@theama/contracts'
 
 export interface ReleaseSearchTarget {
   kind: ReleaseKind
@@ -8,6 +8,8 @@ export interface ReleaseSearchTarget {
   season?: number | undefined
   episode?: number | undefined
   collectionName?: string | undefined
+  /** Movies only: the TMDB id, so the download can be tied back to the title and its poster fill in. */
+  externalId?: string | undefined
 }
 
 /** Deep links accept whole numbers only, within the same bounds as the release API. */
@@ -23,7 +25,8 @@ export function releaseSearchFromRoute(query: LocationQuery): ReleaseSearchTarge
   const { kind, title } = parsed.data
   if (kind === 'movie') {
     const collectionName = typeof query.collectionName === 'string' ? ReleaseQuery.shape.collectionName.safeParse(query.collectionName) : null
-    return { kind, title, year: routeNumber(query.year, 'year'), ...(collectionName?.success ? { collectionName: collectionName.data } : {}) }
+    const externalId = AddDownloadRequest.shape.externalId.safeParse(query.externalId)
+    return { kind, title, year: routeNumber(query.year, 'year'), ...(collectionName?.success ? { collectionName: collectionName.data } : {}), ...(externalId.success && externalId.data ? { externalId: externalId.data } : {}) }
   }
   const season = routeNumber(query.season, 'season')
   return { kind, title, season, episode: season === undefined ? undefined : routeNumber(query.episode, 'episode') }
@@ -36,6 +39,7 @@ export function releaseSearchRoute(target: ReleaseSearchTarget): { name: 'downlo
       releases: '1', kind: target.kind, title: target.title,
       ...(target.kind === 'movie' && target.year !== undefined ? { year: String(target.year) } : {}),
       ...(target.kind === 'movie' && target.collectionName ? { collectionName: target.collectionName } : {}),
+      ...(target.kind === 'movie' && target.externalId ? { externalId: target.externalId } : {}),
       ...(target.kind === 'series' && target.season !== undefined ? {
         season: String(target.season),
         ...(target.episode !== undefined ? { episode: String(target.episode) } : {}),
@@ -50,5 +54,5 @@ export function collectionReleaseTarget(member: CollectionMember, kind: Collecti
   const releaseKind = kind === 'official' || member.titleKey?.startsWith('movie:') ? 'movie'
     : member.titleKey?.startsWith('series:') ? 'series' : null
   if (!releaseKind) return null
-  return { kind: releaseKind, title: member.title, ...(releaseKind === 'movie' && member.year !== null ? { year: member.year } : {}), ...(kind === 'official' && collectionName ? { collectionName } : {}) }
+  return { kind: releaseKind, title: member.title, ...(releaseKind === 'movie' && member.year !== null ? { year: member.year } : {}), ...(kind === 'official' && collectionName ? { collectionName } : {}), ...(releaseKind === 'movie' && member.provider === 'tmdb' && member.externalId ? { externalId: member.externalId } : {}) }
 }

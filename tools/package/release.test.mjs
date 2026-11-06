@@ -62,7 +62,7 @@ function fixture(t) {
   git('push', '-u', 'origin', 'main')
   const initial = git('rev-parse', 'HEAD')
   const calls = []
-  const state = { failBuild: false, failInstall: false, failPush: false, failPublish: false, releaseExists: false, stale: false }
+  const state = { failBuild: false, failInstall: false, failPush: false, failPublish: false, releaseExists: false, stale: false, remoteTag: undefined }
   const version = () => JSON.parse(readFileSync(join(root, paths[1]), 'utf8')).version
   const artifacts = () => {
     const dir = join(root, 'build/installer')
@@ -78,6 +78,8 @@ function fixture(t) {
         throw Object.assign(new Error('not found'), { stderr: 'release not found' })
       }
       if (args[0] === 'release' && args[1] === 'create') {
+        // Reproduce gh 2.20.2, which cannot publish with --verify-tag.
+        assert.ok(!args.includes('--verify-tag'), 'unknown flag: --verify-tag')
         if (state.failPublish) throw new Error('publication unavailable')
         // Publication must see both the branch and tag at the release commit on the remote.
         const refs = git('ls-remote', 'origin', 'refs/heads/main', `refs/tags/${args[2]}`)
@@ -99,6 +101,7 @@ function fixture(t) {
       return ''
     }
     if (command === 'git' && args[0] === 'push' && state.failPush) throw new Error('push rejected')
+    if (command === 'git' && args[0] === 'ls-remote' && state.remoteTag !== undefined) return state.remoteTag
     return execFileSync(command, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] })
   }
   return { root, git, paths, initial, state, calls, version, artifacts,
@@ -115,7 +118,9 @@ test('builds, commits every version file and pushes the exact release tag before
   assert.deepEqual(f.git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').split('\n').sort(), f.paths.sort())
   assert.equal(f.git('rev-parse', 'v1.1.1'), f.git('rev-parse', 'HEAD'))
   const create = f.calls.find((call) => call[0] === 'gh' && call[2] === 'create')
-  assert.ok(create.includes('--verify-tag'))
+  const verify = f.calls.find((call) => call[0] === 'git' && call[1] === 'ls-remote')
+  assert.deepEqual(verify, ['git', 'ls-remote', '--refs', 'origin', 'refs/tags/v1.1.1'])
+  assert.ok(f.calls.indexOf(verify) < f.calls.indexOf(create))
   assert.equal(create[create.indexOf('--target') + 1], f.git('rev-parse', 'HEAD'))
   assert.equal(create[create.indexOf('--notes') + 1], notes)
   assert.ok(create.includes('--draft'))
@@ -215,3 +220,17 @@ test('a conflicting remote tag prevents both the branch push and publication', (
   assert.ok(remoteRefs.split('\n').every((line) => line.startsWith(`${f.initial}\t`)))
   assert.ok(!f.calls.some((call) => call[0] === 'gh' && call[2] === 'create'))
 })
+
+for (const remoteTag of ['', `${'0'.repeat(40)}\trefs/tags/v1.2.0`]) {
+  test(`refuses publication when the pushed remote tag is ${remoteTag ? 'different' : 'missing'}`, (t) => {
+    const f = fixture(t)
+    f.state.remoteTag = remoteTag
+    assert.throws(() => f.release(['minor']), /Remote tag v1\.2\.0 is missing or does not point/)
+    assert.ok(!f.calls.some((call) => call[0] === 'gh' && call[2] === 'create'))
+    f.state.remoteTag = undefined
+    f.calls.length = 0
+    f.release(['--no-bump'])
+    assert.ok(f.calls.some((call) => call[0] === 'gh' && call[2] === 'create'))
+    assert.ok(!f.calls.some((call) => call[0] === process.execPath))
+  })
+}

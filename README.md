@@ -42,7 +42,8 @@ No Windows service and no administrator rights are needed for development. If yo
 Releasing requires Git and an authenticated GitHub CLI (`gh auth login`). Commit source changes first;
 pending changes that only update package versions are accepted. The release pushes the current branch
 to its upstream (or `origin` with the same branch name when no upstream is configured), together with
-the version tag. `--patch`, `--minor` and `--major` remain supported; `--signed`, `--draft` and
+the version tag. Git verifies the remote tag before publication, including with older GitHub CLI
+versions that lack `--verify-tag`. `--patch`, `--minor` and `--major` remain supported; `--signed`, `--draft` and
 `--notes "text"` can be combined with a version selection. A failed build restores the version files.
 After a failed push or publication, fix the error and run `yarn release --no-bump` to retry with the
 existing installer, version and commit. This flag skips installation and building; to rebuild an

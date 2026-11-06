@@ -168,11 +168,18 @@ export function runRelease({ root = repoRoot, args = process.argv.slice(2), exec
     throw new Error(`Push failed; ${tag} is committed locally. Fix the push error, then retry with "yarn release --no-bump".\n${error.stderr || error.message}`, { cause: error })
   }
 
-  const create = ['release', 'create', tag, ...files, '--verify-tag', '--target', commit,
+  const create = ['release', 'create', tag, ...files, '--target', commit,
     '--title', `Theama ${version}`, '--notes', options.notes ?? `Theama ${version}`]
   if (options.draft) create.push('--draft')
   console.log(`Publishing ${tag}${options.draft ? ' (draft)' : ''}...`)
-  try { console.log(gh(...create)) } catch (error) {
+  try {
+    // Verify with Git so older gh versions do not need the --verify-tag flag.
+    const remoteTag = git('ls-remote', '--refs', remote, `refs/tags/${tag}`)
+    if (remoteTag !== `${commit}\trefs/tags/${tag}`) {
+      throw new Error(`Remote tag ${tag} is missing or does not point to release commit ${commit}.`)
+    }
+    console.log(gh(...create))
+  } catch (error) {
     throw new Error(`Publication failed; the commit and tag are already pushed. Retry with "yarn release --no-bump".\n${error.stderr || error.message}`, { cause: error })
   }
 }

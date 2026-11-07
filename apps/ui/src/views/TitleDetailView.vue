@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { mdiCheckCircle, mdiCheckCircleOutline, mdiCloudOffOutline, mdiDotsVertical, mdiEye, mdiMagnify, mdiOpenInNew, mdiPlayCircleOutline, mdiStar, mdiYoutube } from '@mdi/js'
 import { z } from 'zod'
-import { TitleDetail, type EpisodeInfo, type EpisodeStatus, type ExternalLinkRequest, type MediaFile } from '@theama/contracts'
+import { DismissContinueResult, TitleDetail, type EpisodeInfo, type EpisodeStatus, type ExternalLinkRequest, type MediaFile } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
 import AddToCollectionMenu from '@/components/collections/AddToCollectionMenu.vue'
 import FileFacts from '@/components/titles/FileFacts.vue'
@@ -195,6 +195,18 @@ function onPlayed(ok: boolean): void {
   if (ok) return
   const failure = players.lastFailure
   playNotice.value = failure?.message ?? t(failure?.code === 'no_player' ? 'play.noPlayer' : 'play.failed')
+}
+
+/** Forgets the remembered position of the file the big Play button would resume, so it starts from 0 again. */
+async function resetPosition(): Promise<void> {
+  const id = playTarget.value.fileId
+  if (!connection.client || id === null) return
+  try {
+    await connection.client.delete(`/playback/files/${id}/position`, DismissContinueResult)
+    await load()
+  } catch (err) {
+    notices.notify(err instanceof Error ? err.message : t('play.resetFailed'), true)
+  }
 }
 
 const Changed = z.object({ changed: z.number().int() })
@@ -450,7 +462,7 @@ const metaChips = computed(() => {
 
           <div class="cta">
             <div class="cta__row">
-              <PlayButton :file-id="playTarget.fileId" :label="playTarget.label" :blocked-reason="blockedReason" :resumable="playTarget.resumable" @played="onPlayed" />
+              <PlayButton :file-id="playTarget.fileId" :label="playTarget.label" :blocked-reason="blockedReason" :resumable="playTarget.resumable" @played="onPlayed" @reset="resetPosition" />
               <v-menu location="bottom start">
                 <template #activator="{ props: menuProps }">
                   <v-btn v-bind="menuProps" variant="outlined" class="th-btn-quiet" :prepend-icon="mdiEye" data-test="watched-menu">{{ summary.watchState === 'all' ? $t('play.watched') : $t('play.watchedMenu') }}</v-btn>

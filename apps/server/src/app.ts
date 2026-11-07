@@ -815,6 +815,14 @@ export async function buildApp(deps: AppDeps) {
     return { changed }
   })
 
+  /** Forgets the remembered resume position of a file (and its copies), so it starts from 0 again. */
+  app.delete(`${API_PREFIX}/playback/files/:id/position`, async (req) => {
+    const { id } = IdParams.parse(req.params)
+    if (!playback.resetPosition(id)) throw new ApiProblem('not_found', 'No such file', 404)
+    events.broadcast({ type: 'library.changed' })
+    return { ok: true }
+  })
+
   app.put(`${API_PREFIX}/playback/titles`, async (req) => {
     const body = SetTitleWatchedRequest.parse(req.body ?? {})
     const changed = playbackCall(() => playback.setTitleWatched(body.key, body.watched, body.season, nowIso()))

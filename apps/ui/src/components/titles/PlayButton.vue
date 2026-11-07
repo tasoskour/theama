@@ -17,7 +17,7 @@ const props = withDefaults(
   }>(),
   { blockedReason: null, size: 'large', icon: false, resumable: false },
 )
-const emit = defineEmits<{ played: [ok: boolean] }>()
+const emit = defineEmits<{ played: [ok: boolean]; reset: [] }>()
 
 const players = usePlayersStore()
 const disabled = computed(() => props.fileId === null || props.blockedReason !== null || !players.canPlay)
@@ -56,6 +56,7 @@ async function start(playerId?: string, fromStart = false): Promise<void> {
       </template>
       <v-list density="compact" :aria-label="$t('play.with')">
         <v-list-item v-if="resumable" :title="$t('play.fromStart')" data-test="play-from-start" @click="start(undefined, true)" />
+        <v-list-item v-if="resumable" :title="$t('play.resetPosition')" data-test="play-reset-position" @click="emit('reset')" />
         <v-list-subheader v-if="players.available.length > 1">{{ $t('play.with') }}</v-list-subheader>
         <v-list-item v-for="p in (players.available.length > 1 ? players.available : [])" :key="p.id" :title="p.name" :subtitle="p.isDefault ? $t('play.default') : undefined" @click="start(p.id)" />
       </v-list>

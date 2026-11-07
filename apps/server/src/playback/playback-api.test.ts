@@ -191,6 +191,17 @@ describe('where playback stopped', () => {
     expect(await resume(id)).toBe(754)
   })
 
+  it('forgets the position when reset, without marking anything watched', async () => {
+    const id = await episodeId(1)
+    expect(await resume(id)).toBe(754)
+    expect((await send('DELETE', `/playback/files/${id}/position`)).status).toBe(200)
+    expect(await resume(id)).toBeNull()
+    expect((await detail((await byTitle('Show')).key)).files.find((f) => f.id === id)).toMatchObject({ positionSeconds: null, watched: false })
+    expect((await send('DELETE', '/playback/files/99999/position')).status).toBe(404)
+    // Put it back for the tests that follow.
+    expect(await report(id, 754.9, 2700.75)).toMatchObject({ outcome: 'saved' })
+  })
+
   it('counts the file as watched from 90 %, which moves the next episode on and clears the position', async () => {
     const id = await episodeId(1)
     expect(await report(id, 2430, 2700, true)).toMatchObject({ outcome: 'watched' })

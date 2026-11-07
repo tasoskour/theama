@@ -119,6 +119,24 @@ export class PlaybackRepo {
     return 'saved'
   }
 
+  /**
+   * Forgets where playback stopped, so the next start begins at 0. Copies of the same episode are cleared too,
+   * because "resume" is offered from any of them. Watched marks and play history are left alone.
+   * Returns false when the file does not exist.
+   */
+  resetPosition(fileId: number): boolean {
+    const f = this.raw.prepare('SELECT title_key AS key, season, episode FROM media_file WHERE id = ?').get(fileId) as { key: string | null; season: number | null; episode: number | null } | undefined
+    if (!f) return false
+    const copies = f.key !== null && f.season !== null && f.episode !== null
+      ? (this.raw.prepare('SELECT id FROM media_file WHERE title_key = ? AND season = ? AND episode = ?').all(f.key, f.season, f.episode) as { id: number }[]).map((r) => r.id)
+      : [fileId]
+    const clear = this.raw.prepare('UPDATE playback_state SET position_seconds = NULL, duration_seconds = NULL WHERE file_id = ?')
+    this.raw.transaction(() => {
+      for (const id of copies) clear.run(id)
+    })()
+    return true
+  }
+
   /** Where a player should start on this file, or null to start from the beginning. */
   resumeSeconds(fileId: number): number | null {
     const r = this.raw.prepare('SELECT watched, position_seconds AS pos FROM playback_state WHERE file_id = ?').get(fileId) as { watched: number; pos: number | null } | undefined

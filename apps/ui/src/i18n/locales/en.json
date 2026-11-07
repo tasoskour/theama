@@ -1181,6 +1181,8 @@
     "resumeFilm": "Resume · {time}",
     "stoppedAt": "Stopped at {time}",
     "fromStart": "Play from start",
+    "resetPosition": "Reset to 0:00",
+    "resetFailed": "Could not reset the position.",
     "with": "Play with…",
     "default": "Default player",
     "unavailable": "Not available right now: the drive is offline or the file has moved.",

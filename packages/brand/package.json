@@ -1,6 +1,6 @@
 {
   "name": "@theama/brand",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "description": "Theama logo and icon masters plus the script that renders PNG/ICO assets.",

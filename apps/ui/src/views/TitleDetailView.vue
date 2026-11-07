@@ -22,6 +22,8 @@ import { useSceneHint } from '@/composables/useSceneHint'
 import { useLatestRequest, useRefresh } from '@/composables/useRefresh'
 import { useConnectionStore } from '@/stores/connection'
 import { useDownloadsStore } from '@/stores/downloads'
+import { useLibraryStore } from '@/stores/library'
+import { useTitleActionsStore } from '@/stores/titleActions'
 import { useMetadataStore } from '@/stores/metadata'
 import { usePlayersStore } from '@/stores/players'
 import { episodeCode, formatBytes, formatClock, formatDuration, resolutionLabel } from '@/utils/format'
@@ -33,6 +35,8 @@ const router = useRouter()
 const connection = useConnectionStore()
 const metadataStore = useMetadataStore()
 const downloadsStore = useDownloadsStore()
+const library = useLibraryStore()
+const notices = useTitleActionsStore()
 const players = usePlayersStore()
 const { t, locale } = useI18n()
 
@@ -68,6 +72,13 @@ async function load(): Promise<void> {
 async function onFileHidden(): Promise<void> {
   await load()
   if (missing.value) back()
+}
+
+/** Drops one of several paths for the same movie or episode; the file stays on disk and can be restored from Library exclusions. */
+async function removePath(id: number): Promise<void> {
+  const ok = await library.hideFile(id)
+  notices.notify(ok ? t('detail.pathRemoved') : (library.error ?? t('titles.actions.failed')), !ok)
+  if (ok) await onFileHidden()
 }
 
 watch([() => connection.phase, key], () => connection.phase === 'connected' && void load().then(() => nextTick(() => heading.value?.focus())), { immediate: true })
@@ -645,6 +656,7 @@ const metaChips = computed(() => {
                   :model-value="r.file.id"
                   :name="episodeName(r.file)"
                   @update:model-value="choose(r.choiceKey, $event)"
+                  @remove="removePath"
                 />
                 <v-btn
                   icon
@@ -699,6 +711,7 @@ const metaChips = computed(() => {
               :model-value="movieFile.id"
               :name="summary.title"
               @update:model-value="choose(movieChoiceKey(summary.key), $event)"
+              @remove="removePath"
             />
           </div>
           <FileFacts :file="movieFile" @hidden="onFileHidden" />

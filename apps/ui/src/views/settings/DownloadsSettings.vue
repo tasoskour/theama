@@ -5,14 +5,17 @@ import { mdiFolderOpen } from '@mdi/js'
 import { getBridge } from '@/api/bridge'
 import { useConnectionStore } from '@/stores/connection'
 import { useDownloadsStore } from '@/stores/downloads'
+import { isLocalDownloadAddress, useDownloadToolsStore } from '@/stores/downloadTools'
 import { useLibraryStore } from '@/stores/library'
 import { useSettingsStore } from '@/stores/settings'
 import DownloadToolsPanel from '@/components/downloads/DownloadToolsPanel.vue'
+import { toolLogos } from '@/components/downloads/toolLogos'
 import SetupHelpLink from '@/components/setup/SetupHelpLink.vue'
 
 const { t } = useI18n()
 const connection = useConnectionStore()
 const downloads = useDownloadsStore()
+const tools = useDownloadToolsStore()
 const library = useLibraryStore()
 const settings = useSettingsStore()
 
@@ -29,6 +32,13 @@ const qbProblem = ref<string | null>(null)
 const qb = computed(() => downloads.client)
 const qbConfigured = computed(() => qb.value !== null && qb.value.state !== 'not_configured')
 const showQbForm = computed(() => !qbConfigured.value || qbEditing.value)
+// A configured local qBittorrent that does not answer while its app is seen closed: offer to open it instead of showing the error.
+const qbClosed = computed(() =>
+  tools.available && !showQbForm.value && qb.value?.state === 'unreachable' && isLocalDownloadAddress(qb.value.url) && tools.qbRunning === false)
+
+async function openQb(): Promise<void> {
+  if (await tools.open('qbittorrent')) await downloads.load()
+}
 
 function startQbEdit(): void {
   qbUrl.value = qb.value?.url ?? qbUrl.value
@@ -191,7 +201,24 @@ defineExpose({ async saveForSetup(): Promise<boolean> {
         <v-btn variant="tonal" size="small" @click="startQbEdit">{{ $t('downloads.edit') }}</v-btn>
         <v-btn variant="text" size="small" color="error" :loading="qbSaving" @click="removeQb">{{ $t('downloads.remove') }}</v-btn>
       </div>
-      <v-alert v-if="qbConfigured && !showQbForm && qb && qb.state !== 'connected' && qb.message" type="warning" variant="tonal" density="compact">
+      <v-alert v-if="qbClosed" type="warning" variant="tonal" density="compact" data-test="qb-closed">
+        {{ $t('downloads.tools.prompt.title.qbittorrent') }}
+        <template #append>
+          <v-btn
+            variant="tonal"
+            size="small"
+            :loading="tools.opening.qbittorrent === true"
+            :disabled="tools.opening.qbittorrent === true"
+            :aria-label="$t('downloads.tools.openLabel.qbittorrent')"
+            data-test="qb-open"
+            @click="openQb"
+          >
+            <img :src="toolLogos.qbittorrent" alt="" width="18" height="18" class="mr-2">
+            {{ $t('downloads.tools.openLabel.qbittorrent') }}
+          </v-btn>
+        </template>
+      </v-alert>
+      <v-alert v-else-if="qbConfigured && !showQbForm && qb && qb.state !== 'connected' && qb.message" type="warning" variant="tonal" density="compact">
         {{ qb.message }}
         <template #append><v-btn variant="text" size="small" @click="downloads.load()">{{ $t('common.retry') }}</v-btn></template>
       </v-alert>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { mdiCheck, mdiSwapHorizontal } from '@mdi/js'
+import { mdiCheck, mdiClose, mdiSwapHorizontal } from '@mdi/js'
 import type { MediaFile } from '@theama/contracts'
 import { formatBytes, resolutionLabel } from '@/utils/format'
 
@@ -14,7 +14,11 @@ defineProps<{
   /** Icon and count only, for a crowded episode row. */
   compact?: boolean
 }>()
-const emit = defineEmits<{ 'update:modelValue': [id: number] }>()
+const emit = defineEmits<{
+  'update:modelValue': [id: number]
+  /** Drop one path from the library (hidden, never deleted from disk). */
+  remove: [id: number]
+}>()
 const { t, locale } = useI18n()
 
 function details(f: MediaFile): string {
@@ -49,7 +53,21 @@ function details(f: MediaFile): string {
         @click="emit('update:modelValue', f.id)"
       >
         <template #title><span class="th-mono path">{{ f.path }}</span></template>
-        <template #append><svg v-if="f.id === modelValue" class="th-icon" viewBox="0 0 24 24" role="img" :aria-label="$t('detail.pathInUse')"><path :d="mdiCheck" fill="currentColor" /></svg></template>
+        <template #append>
+          <svg v-if="f.id === modelValue" class="th-icon" viewBox="0 0 24 24" role="img" :aria-label="$t('detail.pathInUse')"><path :d="mdiCheck" fill="currentColor" /></svg>
+          <v-btn
+            icon
+            size="x-small"
+            variant="text"
+            class="path-remove"
+            :aria-label="$t('detail.removePathAria', { path: f.path })"
+            :title="$t('detail.removePath')"
+            data-test="path-remove"
+            @click.stop="emit('remove', f.id)"
+          >
+            <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiClose" fill="currentColor" /></svg>
+          </v-btn>
+        </template>
       </v-list-item>
     </v-list>
   </v-menu>
@@ -60,6 +78,9 @@ function details(f: MediaFile): string {
   margin-inline-start: 6px;
   opacity: 0.7;
   font-variant-numeric: tabular-nums;
+}
+.path-remove {
+  margin-inline-start: 4px;
 }
 .path {
   display: block;

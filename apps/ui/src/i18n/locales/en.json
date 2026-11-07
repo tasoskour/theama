@@ -911,7 +911,13 @@
       "noMatches": "TMDB found nothing for this search.",
       "noKey": "Add a TMDB key in Settings → Metadata to see suggestions.",
       "setup": "Set up Prowlarr to find releases, and qBittorrent to download them.",
-      "openSettings": "Open download settings"
+      "openSettings": "Open download settings",
+      "mode": {
+        "label": "Find by",
+        "suggestions": "Suggestions",
+        "releases": "Releases"
+      },
+      "releasesHint": "Search the torrent sites for any title — no suggestion needed."
     },
     "favorites": {
       "tab": "Favorites",
@@ -951,7 +957,7 @@
       "series": "Series"
     },
     "releases": {
-      "back": "Back",
+      "back": "Back to suggestions",
       "title": "Search the torrents for…",
       "search": "Search",
       "minSeeders": "Min. seeders",

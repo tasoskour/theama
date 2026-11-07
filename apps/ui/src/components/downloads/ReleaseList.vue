@@ -193,7 +193,7 @@ const heading = computed(() => {
 <template>
   <section class="rel" :aria-label="heading">
     <form class="rel__bar" role="search" @submit.prevent="apply">
-      <v-btn :icon="mdiArrowLeft" variant="text" size="small" :aria-label="$t('downloads.releases.back')" data-test="releases-back" @click="$emit('back')" />
+      <v-btn :prepend-icon="mdiArrowLeft" variant="text" size="small" class="rel__back" data-test="releases-back" @click="$emit('back')">{{ $t('downloads.releases.back') }}</v-btn>
       <v-text-field
         v-model="title"
         :placeholder="$t('downloads.releases.title')"
@@ -343,6 +343,9 @@ const heading = computed(() => {
 }
 .rel__bar:focus-within {
   border-color: rgba(var(--v-theme-primary), 0.5);
+}
+.rel__back {
+  flex: 0 0 auto;
 }
 .rel__text {
   flex: 1 1 10rem;

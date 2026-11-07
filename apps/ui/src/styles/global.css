@@ -124,6 +124,17 @@ body {
   flex: none;
 }
 
+/* The IMDb badge is the whole button: no text, no extra icon. */
+.th-imdb-btn {
+  padding-inline: 0.25rem;
+  min-width: 0;
+}
+.th-imdb-btn__logo {
+  display: block;
+  height: 1.75rem;
+  width: auto;
+}
+
 /* Under ~40rem an alert's trailing actions drop under the message instead of squeezing it. */
 @media (max-width: 640px) {
   .v-alert:has(.v-alert__append) {

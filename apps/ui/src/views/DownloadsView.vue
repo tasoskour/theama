@@ -29,7 +29,7 @@ const downloads = useDownloadsStore()
 const metadata = useMetadataStore()
 const favorites = useFavoritesStore()
 const view = useDownloadsViewStore()
-const { tab, favoriteKind, kind, genres, genreMode, text, selectedYears, ratingRange, season, episode, matches, query, person, yearCount, searchProblem: problem } = storeToRefs(view)
+const { tab, favoriteKind, kind, genres, genreMode, text, selectedYears, ratingRange, season, episode, matches, query, releasesMode, releaseYear, person, yearCount, searchProblem: problem } = storeToRefs(view)
 const shownFavorites = computed(() => favorites.items.filter((item) => favoriteKind.value === 'all' || item.kind === favoriteKind.value))
 const suggestionGenres = ref<string[]>([])
 const genreProblem = ref<string | null>(null)
@@ -56,7 +56,19 @@ let leaving = false
 let mounted = false
 onBeforeUnmount(() => { if (!leaving) savePlace(); leaving = true; searchGeneration += 1; searchController?.abort() })
 
-const pane = computed<DownloadsPane>(() => tab.value === 'find' && query.value ? 'releases' : tab.value)
+// Releases is its own mode: a chosen title is not needed to be in it, and the mode switch shows where the user is.
+const inReleases = computed(() => releasesMode.value || query.value !== null)
+const findMode = computed<'suggestions' | 'releases'>({
+  get: () => inReleases.value ? 'releases' : 'suggestions',
+  set: (mode) => {
+    if (mode === findMode.value) return
+    if (mode === 'suggestions') return backFromReleases()
+    releasesMode.value = true
+    if (!releaseYear.value && selectedYears.value.length === 1) releaseYear.value = String(selectedYears.value[0])
+    if (view.lastReleaseQuery) query.value = view.lastReleaseQuery
+  },
+})
+const pane = computed<DownloadsPane>(() => tab.value === 'find' && inReleases.value ? 'releases' : tab.value)
 let restoreGeneration = 0
 function savePlace(key = pane.value): void { view.scrolls[key] = window.scrollY }
 async function restorePlace(): Promise<void> {
@@ -109,7 +121,7 @@ const yearsSentinel = ref<HTMLElement | null>(null)
 watch(yearsSentinel, (el, _, onCleanup) => {
   if (!el) return
   const observer = new IntersectionObserver((entries) => {
-    if (leaving || tab.value !== 'find' || query.value || !entries.some((e) => e.isIntersecting)) return
+    if (leaving || tab.value !== 'find' || inReleases.value || !entries.some((e) => e.isIntersecting)) return
     yearCount.value += YEARS_PER_STEP
     observer.unobserve(el)
     void nextTick(() => observer.observe(el))
@@ -138,15 +150,24 @@ const num = (v: string): number | undefined => {
   return Number.isFinite(n) && n >= 0 ? n : undefined
 }
 
-function openReleases(title: string, y?: number, selectedKind = kind.value, externalId?: string): void {
+/** `y` of null means the year was left empty on purpose, so the Suggestions year filter is not applied behind its back. */
+function openReleases(title: string, y?: number | null, selectedKind = kind.value, externalId?: string): void {
   const t = title.trim()
   if (!t) return
   const kinds: ReleaseKind[] = selectedKind === 'all' ? ['movie', 'series'] : [selectedKind]
   const next: ReleaseQuery[] = kinds.map((k) =>
-    k === 'movie' ? { kind: 'movie', title: t, year: y ?? (selectedYears.value.length === 1 ? selectedYears.value[0] : undefined), ...(externalId ? { externalId } : {}) } : { kind: 'series', title: t, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) },
+    k === 'movie' ? { kind: 'movie', title: t, year: y === null ? undefined : y ?? (selectedYears.value.length === 1 ? selectedYears.value[0] : undefined), ...(externalId ? { externalId } : {}) } : { kind: 'series', title: t, season: num(season.value), episode: num(season.value) === undefined ? undefined : num(episode.value) },
   )
   if (!next.every((q) => view.releases[q.kind]?.sourceKey === JSON.stringify(q))) view.scrolls.releases = 0
+  releasesMode.value = true
+  view.lastReleaseQuery = next
   query.value = next
+}
+
+/** The Releases toolbar searches the torrent sites for the typed title; Suggestions asks TMDB. */
+function submit(): void {
+  if (releasesMode.value) openReleases(text.value, num(releaseYear.value) ?? null)
+  else void search()
 }
 
 async function search(): Promise<void> {
@@ -189,11 +210,13 @@ function changeKind(): void {
   view.searchPending = false
   matches.value = null
   query.value = null
+  releasesMode.value = false
   problem.value = null
 }
 
 function backFromReleases(): void {
   query.value = null
+  releasesMode.value = false
 }
 
 function leavePerson(): void {
@@ -213,7 +236,7 @@ watch([kind, selectedYears, ratingRange, genres, genreMode], () => {
   view.searchPending = false
   view.suggestionPages = {}
   view.scrolls.find = 0
-  if (rerun && !person.value && !query.value) void search()
+  if (rerun && !person.value && !inReleases.value) void search()
 }, { deep: true })
 
 // Deep links work both on arrival and when another search reuses this mounted view.
@@ -244,6 +267,8 @@ watch(() => route.query, (params) => {
   view.suggestionPages = {}
   view.personResults = {}
   view.releases = {}
+  view.lastReleaseQuery = null
+  releaseYear.value = ''
   view.scrolls.find = 0
   view.scrolls.releases = 0
   if (!target) return
@@ -252,8 +277,11 @@ watch(() => route.query, (params) => {
   selectedYears.value = target.year === undefined ? [] : [target.year]
   season.value = target.season === undefined ? '' : String(target.season)
   episode.value = target.episode === undefined ? '' : String(target.episode)
-  if (params.releases === '1') query.value = [target]
-  else void search()
+  if (params.releases === '1') {
+    releasesMode.value = true
+    view.lastReleaseQuery = [target]
+    query.value = [target]
+  } else void search()
 }, { immediate: true })
 </script>
 
@@ -285,8 +313,15 @@ watch(() => route.query, (params) => {
     </v-alert>
 
     <section v-if="tab === 'find'" class="find">
-      <!-- Releases bring their own title and filters; this bar would only drop the user out of them. -->
-      <form v-if="!query" class="find__row" role="search" @submit.prevent="search">
+      <!-- Always visible, so it is clear which of the two views is open and how to reach the other. -->
+      <v-btn-toggle v-model="findMode" mandatory divided variant="outlined" density="compact" color="primary" class="find__mode th-toggle-control" :aria-label="$t('downloads.find.mode.label')" data-test="find-mode">
+        <v-btn v-for="mode in (['suggestions', 'releases'] as const)" :key="mode" :value="mode" :aria-pressed="findMode === mode" :data-test="`find-mode-${mode}`">
+          {{ $t(`downloads.find.mode.${mode}`) }}
+        </v-btn>
+      </v-btn-toggle>
+
+      <!-- A chosen title brings its own title and filters in the releases list; this bar would only drop the user out of them. -->
+      <form v-if="!query" class="find__row" role="search" @submit.prevent="submit">
         <v-btn-toggle v-model="kind" mandatory divided variant="outlined" density="compact" color="primary" class="find__kind th-toggle-control" :aria-label="$t('downloads.suggestions.filter')" data-test="suggestion-filter">
           <v-btn v-for="filter in (['all', 'series', 'movie'] as const)" :key="filter" :value="filter" :aria-pressed="kind === filter" :data-test="`suggestion-filter-${filter}`">
             {{ $t(`downloads.suggestions.filters.${filter}`) }}
@@ -311,7 +346,7 @@ watch(() => route.query, (params) => {
         />
         <div class="find__filters">
           <GenreFilter
-            v-if="hasKey"
+            v-if="hasKey && !releasesMode"
             v-model="genres"
             v-model:mode="genreMode"
             :items="genreItems"
@@ -319,7 +354,22 @@ watch(() => route.query, (params) => {
             class="find__genre"
             data-test="find-genre"
           />
+          <v-text-field
+            v-if="releasesMode && kind !== 'series'"
+            v-model="releaseYear"
+            :placeholder="$t('downloads.find.year')"
+            :aria-label="$t('downloads.find.year')"
+            inputmode="numeric"
+            density="compact"
+            variant="solo-filled"
+            flat
+            bg-color="surface-bright"
+            hide-details
+            class="find__small th-search-control"
+            data-test="find-release-year"
+          />
           <v-autocomplete
+            v-else-if="!releasesMode"
             v-model="selectedYears"
             :items="years"
             :placeholder="$t('downloads.find.years')"
@@ -337,7 +387,7 @@ watch(() => route.query, (params) => {
             class="find__year th-search-control"
             data-test="find-year"
           />
-          <div v-if="hasKey" class="find__rating" data-test="find-rating">
+          <div v-if="hasKey && !releasesMode" class="find__rating" data-test="find-rating">
             <div class="find__rating-label">
               <span>{{ $t('downloads.find.rating') }}: {{ ratingRange[0].toFixed(1) }}–{{ ratingRange[1].toFixed(1) }}</span>
               <v-btn variant="text" size="x-small" :disabled="ratingRange[0] === 0 && ratingRange[1] === 10" data-test="find-rating-reset" @click="ratingRange = [0, 10]">{{ $t('downloads.find.resetRating') }}</v-btn>
@@ -349,11 +399,11 @@ watch(() => route.query, (params) => {
             <v-text-field v-model="episode" :placeholder="$t('downloads.find.episode')" :aria-label="$t('downloads.find.episode')" inputmode="numeric" density="compact" variant="solo-filled" flat bg-color="surface-bright" :disabled="num(season) === undefined" hide-details class="find__small th-search-control" data-test="find-episode" />
           </div>
         </div>
-        <v-btn type="submit" color="primary" :loading="searching" :disabled="!text.trim()" data-test="find-search">{{ $t('downloads.find.search') }}</v-btn>
+        <v-btn type="submit" color="primary" :loading="searching" :disabled="!text.trim()" data-test="find-search">{{ $t(releasesMode ? 'downloads.releases.search' : 'downloads.find.search') }}</v-btn>
       </form>
 
-      <v-alert v-if="problem && !query" type="warning" variant="tonal" density="compact" class="mt-3">{{ problem }}</v-alert>
-      <v-alert v-if="genreProblem && !query" type="warning" variant="tonal" density="compact" class="mt-3" data-test="genre-error">
+      <v-alert v-if="problem && !inReleases" type="warning" variant="tonal" density="compact" class="mt-3">{{ problem }}</v-alert>
+      <v-alert v-if="genreProblem && !inReleases"type="warning" variant="tonal" density="compact" class="mt-3" data-test="genre-error">
         {{ genreProblem }}
         <v-btn variant="text" size="small" :loading="genreLoading" @click="genreRetry += 1">{{ $t('common.retry') }}</v-btn>
       </v-alert>
@@ -365,6 +415,8 @@ watch(() => route.query, (params) => {
             <ReleaseList :query="q" @back="backFromReleases" />
           </div>
         </template>
+
+        <p v-else-if="releasesMode" class="th-muted" data-test="find-releases-hint">{{ $t('downloads.find.releasesHint') }}</p>
 
         <PersonSuggestions v-else-if="person" v-bind="person" :kind="kind" :genres="genres" :genre-mode="genreMode" :query="text" :years="selectedYears" :rating-range="ratingRange" @preview="openPreview" @back="leavePerson" />
 
@@ -438,6 +490,9 @@ watch(() => route.query, (params) => {
   flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
+}
+.find__mode.v-btn-toggle {
+  margin-bottom: 12px;
 }
 /* One bordered toolbar: borderless controls separated by short dividers, Search is the only filled element. */
 .find__row {

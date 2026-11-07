@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useId } from 'vue'
 import { mdiClose, mdiHeart, mdiHeartOutline, mdiMagnify, mdiOpenInNew, mdiPlayCircleOutline, mdiStar } from '@mdi/js'
+import imdbLogo from '@/assets/brand/imdb.png'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { useConnectionStore } from '@/stores/connection'
 import type { SuggestionItem } from './suggestion'
@@ -64,7 +65,9 @@ const favorites = useFavoritesStore()
           <v-btn v-if="canFindReleases !== false" color="primary" :prepend-icon="mdiMagnify" data-test="suggestion-releases" @click="$emit('pick', candidate)">{{ $t('downloads.suggestions.findReleases') }}</v-btn>
           <v-btn variant="outlined" :append-icon="mdiOpenInNew" data-test="suggestion-tmdb" @click="$emit('tmdb', candidate)">{{ $t('metadata.tmdb') }}</v-btn>
           <v-btn variant="outlined" :prepend-icon="mdiPlayCircleOutline" :loading="busy === 'trailer'" :disabled="busy !== null" data-test="suggestion-trailer" @click="$emit('trailer', candidate)">{{ $t('downloads.suggestions.trailer') }}</v-btn>
-          <v-btn variant="text" :append-icon="mdiOpenInNew" :loading="busy === 'imdb'" :disabled="busy !== null" data-test="suggestion-imdb" @click="$emit('imdb', candidate)">{{ $t('downloads.suggestions.imdb') }}</v-btn>
+          <v-btn variant="text" class="th-imdb-btn" :aria-label="$t('downloads.suggestions.imdb')" :title="$t('downloads.suggestions.imdb')" :loading="busy === 'imdb'" :disabled="busy !== null" data-test="suggestion-imdb" @click="$emit('imdb', candidate)">
+            <img :src="imdbLogo" alt="" class="th-imdb-btn__logo" />
+          </v-btn>
         </div>
       </footer>
     </v-card>

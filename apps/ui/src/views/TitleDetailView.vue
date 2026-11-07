@@ -17,6 +17,7 @@ import PlayButton from '@/components/titles/PlayButton.vue'
 import { episodeChoiceKey, groupEpisodeFiles, loadChoices, movieChoiceKey, resolveChoice, saveChoice } from '@/components/titles/variants'
 import TrailerDialog from '@/components/titles/TrailerDialog.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
+import imdbLogo from '@/assets/brand/imdb.png'
 import { imdbLinkFor, openExternal as openLink, trailerInApp } from '@/composables/useExternalLinks'
 import { useSceneHint } from '@/composables/useSceneHint'
 import { useLatestRequest, useRefresh } from '@/composables/useRefresh'
@@ -477,8 +478,8 @@ const metaChips = computed(() => {
                   </template>
                 </v-list>
               </v-menu>
-              <v-btn v-if="imdbLink" variant="outlined" class="th-btn-quiet" :append-icon="mdiOpenInNew" data-test="imdb-link" @click="openExternal(imdbLink)">
-                {{ $t('detail.imdb') }}
+              <v-btn v-if="imdbLink" variant="text" class="th-imdb-btn" :aria-label="$t('detail.imdb')" :title="$t('detail.imdb')" data-test="imdb-link" @click="openExternal(imdbLink)">
+                <img :src="imdbLogo" alt="" class="th-imdb-btn__logo" />
               </v-btn>
               <template v-if="trailerLink">
                 <!-- Both ways to watch it: inside Theama (desktop app) and on YouTube in the browser. -->

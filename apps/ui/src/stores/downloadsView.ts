@@ -40,6 +40,10 @@ export const useDownloadsViewStore = defineStore('downloadsView', {
     searchProblem: null as string | null,
     searchPending: false,
     query: null as ReleaseQuery[] | null,
+    /** The Releases mode is chosen on purpose, so it can be open before any title was picked. */
+    releasesMode: false,
+    releaseYear: '',
+    lastReleaseQuery: null as ReleaseQuery[] | null,
     person: null as { externalId: string; category: 'actor' | 'director'; name: string } | null,
     contextKey: '',
     contextPosition: null as number | null,

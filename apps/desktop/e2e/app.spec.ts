@@ -278,7 +278,7 @@ test('identifies titles with TMDB: key set-up, posters, details, and choosing be
   await expect(page.getByText('A team of explorers travel through a wormhole in space.')).toBeVisible()
   await expect(page.getByText('TMDB 8.4 · 35,000 votes')).toBeVisible()
   await expect(page.locator('[data-test="rating"]')).toHaveAttribute('role', 'link')
-  await expect(page.locator('[data-test="imdb-link"]')).toHaveText(/IMDb/)
+  await expect(page.locator('[data-test="imdb-link"]')).toHaveAttribute('aria-label', /IMDb/)
   await expect(page.locator('[data-test="trailer-play"]')).toHaveText(/Trailer/)
   await expect(page.locator('[data-test="trailer-link"]')).toHaveAttribute('aria-label', /YouTube/)
 

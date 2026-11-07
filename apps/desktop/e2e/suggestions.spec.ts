@@ -359,6 +359,43 @@ test('direct searches without metadata use a year only when exactly one year is 
   } finally { expect((await api('/metadata/credentials', { tmdbApiKey: GOOD_KEY })).ok).toBe(true) }
 })
 
+test('the Releases mode can be opened on its own and searched with any title, and Suggestions is one click away', async () => {
+  const mode = (name: 'suggestions' | 'releases') => page.locator(`[data-test="find-mode-${name}"]`)
+  await expect(mode('suggestions')).toHaveAttribute('aria-pressed', 'true')
+
+  // A title typed among the suggestions carries over, and no TMDB lookup is made.
+  await page.locator('[data-test="find-title"] input').fill('Shine')
+  await mode('releases').click()
+  await expect(mode('releases')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-test="find-releases-hint"]')).toBeVisible()
+  await expect(page.locator('[data-test="find-genre"]')).toHaveCount(0)
+  await expect(page.locator('[data-test="find-rating"]')).toHaveCount(0)
+  await expect(page.locator('[data-test="find-title"] input')).toHaveValue('Shine')
+  expect(releaseRequests).toHaveLength(0)
+  await page.locator('[data-test="find-release-year"] input').fill('1996')
+  await page.locator('[data-test="find-search"]').click()
+  await expect.poll(() => releaseRequests.length).toBe(2)
+  expect(searchRequests).toHaveLength(0)
+  expect(releaseRequests.map(url => url.searchParams.get('title'))).toEqual(['Shine', 'Shine'])
+  expect(releaseRequests.find(url => url.searchParams.get('kind') === 'movie')!.searchParams.get('year')).toBe('1996')
+  await expect(page.locator('[data-test="release-title"] input').first()).toHaveValue('Shine')
+  await expect(mode('releases')).toHaveAttribute('aria-pressed', 'true')
+
+  // Both the switch and the labeled back button return to the suggestions.
+  await mode('suggestions').click()
+  await expect(card('Interstellar')).toBeVisible()
+  await expect(page.locator('[data-test="release-search"]')).toHaveCount(0)
+
+  // Coming back restores the last search without asking Prowlarr again.
+  await mode('releases').click()
+  await expect(page.locator('[data-test="release-title"] input').first()).toHaveValue('Shine')
+  expect(releaseRequests).toHaveLength(2)
+  await expect(page.locator('[data-test="releases-back"]').first()).toContainText('suggestions')
+  await page.locator('[data-test="releases-back"]').first().click()
+  await expect(mode('suggestions')).toHaveAttribute('aria-pressed', 'true')
+  await expect(card('Interstellar')).toBeVisible()
+})
+
 test('person lists retain their context and loaded titles and apply years and ratings to both kinds', async () => {
   let requests = 0
   const handler = async (route: Route) => { requests++; await route.continue() }

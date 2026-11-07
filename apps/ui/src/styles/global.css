@@ -125,14 +125,17 @@ body {
 }
 
 /* The IMDb badge is the whole button: no text, no extra icon. */
-.th-imdb-btn {
+.th-brand-btn {
   padding-inline: 0.25rem;
   min-width: 0;
 }
-.th-imdb-btn__logo {
+.th-brand-btn__logo {
   display: block;
   height: 1.75rem;
   width: auto;
+}
+.th-brand-btn__logo--sm {
+  height: 1.375rem;
 }
 
 /* Under ~40rem an alert's trailing actions drop under the message instead of squeezing it. */

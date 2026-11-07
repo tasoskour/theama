@@ -101,6 +101,7 @@ v-for="row in [
       <h3 class="th-display diag__title">{{ $t('settings.about.updates') }}</h3>
       <p class="th-muted diag__hint" role="status">
         <template v-if="update.status === 'checking'">{{ t('settings.about.updateChecking') }}</template>
+        <template v-else-if="update.status === 'available'">{{ t('settings.about.updateAvailable', { version: update.version }) }}</template>
         <template v-else-if="update.status === 'downloading'">{{ t('settings.about.updateDownloading', { version: update.version, percent: update.percent ?? 0 }) }}</template>
         <template v-else-if="update.status === 'ready'">{{ t('settings.about.updateReady', { version: update.version }) }}</template>
         <template v-else-if="update.status === 'up-to-date'">{{ t('settings.about.updateUpToDate') }}</template>

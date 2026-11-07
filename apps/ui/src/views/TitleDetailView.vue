@@ -2,7 +2,7 @@
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { mdiCheckCircle, mdiCheckCircleOutline, mdiCloudOffOutline, mdiDotsVertical, mdiEye, mdiMagnify, mdiOpenInNew, mdiPlayCircleOutline, mdiStar, mdiYoutube } from '@mdi/js'
+import { mdiCheckCircle, mdiCheckCircleOutline, mdiCloudOffOutline, mdiDotsVertical, mdiEye, mdiOpenInNew, mdiStar, mdiYoutube } from '@mdi/js'
 import { z } from 'zod'
 import { DismissContinueResult, TitleDetail, type EpisodeInfo, type EpisodeStatus, type ExternalLinkRequest, type MediaFile } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
@@ -18,6 +18,8 @@ import { episodeChoiceKey, groupEpisodeFiles, loadChoices, movieChoiceKey, resol
 import TrailerDialog from '@/components/titles/TrailerDialog.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import imdbLogo from '@/assets/brand/imdb.png'
+import tmdbLogo from '@/assets/brand/tmdb.png'
+import GlyphIcon from '@/components/icons/GlyphIcon.vue'
 import { imdbLinkFor, openExternal as openLink, trailerInApp } from '@/composables/useExternalLinks'
 import { useSceneHint } from '@/composables/useSceneHint'
 import { useLatestRequest, useRefresh } from '@/composables/useRefresh'
@@ -453,7 +455,9 @@ const metaChips = computed(() => {
               >{{ ratingText }}</v-chip>
             </li>
             <li v-else-if="tmdbLink">
-              <v-chip size="small" label variant="tonal" color="primary" link role="link" :aria-label="$t('detail.openTmdb')" data-test="tmdb-link" @click="openExternal(tmdbLink)">TMDB</v-chip>
+              <v-btn variant="text" size="small" class="th-brand-btn" :aria-label="$t('detail.openTmdb')" :title="$t('detail.openTmdb')" data-test="tmdb-link" @click="openExternal(tmdbLink)">
+                <img :src="tmdbLogo" alt="" class="th-brand-btn__logo th-brand-btn__logo--sm" />
+              </v-btn>
             </li>
             <li v-for="g in meta?.genres ?? []" :key="g"><v-chip size="small" label variant="outlined">{{ g }}</v-chip></li>
           </ul>
@@ -478,13 +482,13 @@ const metaChips = computed(() => {
                   </template>
                 </v-list>
               </v-menu>
-              <v-btn v-if="imdbLink" variant="text" class="th-imdb-btn" :aria-label="$t('detail.imdb')" :title="$t('detail.imdb')" data-test="imdb-link" @click="openExternal(imdbLink)">
-                <img :src="imdbLogo" alt="" class="th-imdb-btn__logo" />
+              <v-btn v-if="imdbLink" variant="text" class="th-brand-btn" :aria-label="$t('detail.imdb')" :title="$t('detail.imdb')" data-test="imdb-link" @click="openExternal(imdbLink)">
+                <img :src="imdbLogo" alt="" class="th-brand-btn__logo" />
               </v-btn>
               <template v-if="trailerLink">
                 <!-- Both ways to watch it: inside Theama (desktop app) and on YouTube in the browser. -->
                 <v-btn-group v-if="trailerInApp" variant="outlined" divided density="comfortable" class="th-btn-quiet">
-                  <v-btn :prepend-icon="mdiPlayCircleOutline" data-test="trailer-play" @click="trailerOpen = true">{{ $t('detail.trailer') }}</v-btn>
+                  <v-btn data-test="trailer-play" @click="trailerOpen = true"><template #prepend><GlyphIcon name="play" /></template>{{ $t('detail.trailer') }}</v-btn>
                   <v-btn
                     :aria-label="$t('detail.trailerYoutubeHint')"
                     :title="$t('detail.trailerYoutubeHint')"
@@ -494,8 +498,8 @@ const metaChips = computed(() => {
                     <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiYoutube" fill="currentColor" /></svg>
                   </v-btn>
                 </v-btn-group>
-                <v-btn v-else variant="outlined" class="th-btn-quiet" :prepend-icon="mdiYoutube" :append-icon="mdiOpenInNew" data-test="trailer-link" @click="openExternal(trailerLink)">
-                  {{ $t('detail.trailer') }}
+                <v-btn v-else variant="outlined" class="th-btn-quiet" :append-icon="mdiOpenInNew" data-test="trailer-link" @click="openExternal(trailerLink)">
+                  <template #prepend><GlyphIcon name="play" /></template>{{ $t('detail.trailer') }}
                 </v-btn>
               </template>
               <AddToCollectionMenu :title-key="summary.key" :member-of="detail?.collections ?? []" @changed="load" />
@@ -506,7 +510,7 @@ const metaChips = computed(() => {
                 class="th-btn-quiet th-btn-quiet--text"
                 :to="{ name: 'downloads', query: { releases: '1', kind: summary.kind, title: meta?.title ?? summary.title, ...(summary.year ? { year: String(summary.year) } : {}), ...(summary.kind === 'movie' && summary.tmdbId ? { externalId: summary.tmdbId } : {}), ...(summary.kind === 'movie' && detail?.collections.find(c => c.kind === 'official') ? { collectionName: detail.collections.find(c => c.kind === 'official')?.name } : {}) } }"
                 data-test="find-download"
-              >{{ $t('detail.findDownload') }}</v-btn>
+              ><template #prepend><GlyphIcon name="calendar" /></template>{{ $t('detail.findDownload') }}</v-btn>
             </div>
             <p v-if="!players.canPlay" class="th-muted text-caption">{{ $t('play.needsAppHint') }}</p>
             <p v-else-if="playTarget.reason" class="th-muted text-caption">{{ playTarget.reason }}</p>
@@ -613,11 +617,10 @@ const metaChips = computed(() => {
             :to="releaseSearchRoute({ kind: 'series', title: meta?.title ?? summary.title, season: currentSeasonNumber })"
             size="small"
             variant="tonal"
-            :prepend-icon="mdiMagnify"
             class="gap-search"
             :aria-label="$t('series.findSeasonFor', { title: meta?.title ?? summary.title, season: shownGroup.label })"
             data-test="find-season-releases"
-          >{{ $t('series.findSeason') }}</v-btn>
+          ><template #prepend><GlyphIcon name="calendar" /></template>{{ $t('series.findSeason') }}</v-btn>
         </div>
         <ul class="eplist" role="list">
           <template v-for="r in shownGroup?.rows ?? []" :key="r.id">
@@ -636,11 +639,10 @@ const metaChips = computed(() => {
                   :to="releaseSearchRoute({ kind: 'series', title: meta?.title ?? summary.title, season: r.info.season, episode: r.info.episode })"
                   size="small"
                   variant="tonal"
-                  :prepend-icon="mdiMagnify"
                   class="gap-search"
                   :aria-label="$t('series.findEpisodeFor', { title: meta?.title ?? summary.title, episode: r.code })"
                   data-test="find-episode-releases"
-                >{{ $t('series.findEpisode') }}</v-btn>
+                ><template #prepend><GlyphIcon name="calendar" /></template>{{ $t('series.findEpisode') }}</v-btn>
               </div>
             </li>
             <li v-else class="ep" :class="{ 'ep--dim': r.file.state !== 'available', 'ep--watched': r.watched }">

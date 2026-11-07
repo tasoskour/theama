@@ -53,6 +53,8 @@ const bridge: TheamaBridge = {
     state: () => ipcRenderer.invoke(IPC.updateState),
     check: () => ipcRenderer.invoke(IPC.updateCheck),
     install: () => ipcRenderer.invoke(IPC.updateInstall),
+    download: (when) => ipcRenderer.invoke(IPC.updateDownload, { when }),
+    skip: () => ipcRenderer.invoke(IPC.updateSkip),
     onState: (listener) => {
       const handler = (_e: unknown, state: UpdateState): void => listener(state)
       ipcRenderer.on(IPC.evUpdateState, handler)

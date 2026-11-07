@@ -55,6 +55,8 @@ export const IPC = {
   updateState: 'update:state',
   updateCheck: 'update:check',
   updateInstall: 'update:install',
+  updateDownload: 'update:download',
+  updateSkip: 'update:skip',
   /** Main to renderer push: the app update state changed. */
   evUpdateState: 'ev:update-state',
 } as const
@@ -68,8 +70,14 @@ export const UpdateState = z.object({
   percent: z.number().min(0).max(100).nullable(),
   /** A short reason when `status` is `error`. */
   message: z.string().nullable(),
+  /** True when the person chose "update now": the app restarts into the new version as soon as it is downloaded. */
+  installWhenReady: z.boolean(),
 })
 export type UpdateState = z.infer<typeof UpdateState>
+
+/** What to do with a version that was found: install it straight away, or when Theama is next closed. */
+export const UpdateChoice = z.object({ when: z.enum(['now', 'quit']) })
+export type UpdateChoice = z.infer<typeof UpdateChoice>
 
 export const AppInfo = z.object({
   version: z.string(),
@@ -234,6 +242,10 @@ export interface TheamaBridge {
     check(): Promise<UpdateState>
     /** Quits and runs the downloaded installer, then starts the new version. Only meaningful when `status` is `ready`. */
     install(): Promise<void>
+    /** Downloads the version that was found (`status` is `available`). `now` restarts into it when done; `quit` installs when Theama closes. */
+    download(when: UpdateChoice['when']): Promise<void>
+    /** Dismisses the found version until the next launch or manual check. */
+    skip(): Promise<void>
     onState(listener: (state: UpdateState) => void): () => void
   }
   /** Players are started by the desktop shell, which asks the backend which file to open; the UI never supplies a path. */

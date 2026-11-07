@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   IPC,
   LocalLogsRequest,
+  UpdateChoice,
   DesktopSettingsPatch,
   ExternalLinkRequest,
   PathRequest,
@@ -57,7 +58,7 @@ export interface IpcDeps {
   desktopSettings(): DesktopSettings
   setDesktopSettings(patch: DesktopSettingsPatch): DesktopSettings
   setWindowTheme(theme: 'dark' | 'light'): void
-  updater: Pick<Updater, 'state' | 'check' | 'install'>
+  updater: Pick<Updater, 'state' | 'check' | 'install' | 'download' | 'skip'>
 }
 
 function isTrusted(event: IpcMainInvokeEvent, trusted: string[]): boolean {
@@ -155,6 +156,8 @@ export function registerIpc(deps: IpcDeps): void {
   handle(IPC.updateState, none, () => deps.updater.state())
   handle(IPC.updateCheck, none, () => deps.updater.check())
   handle(IPC.updateInstall, none, () => deps.updater.install())
+  handle(IPC.updateDownload, UpdateChoice, ({ when }) => deps.updater.download(when))
+  handle(IPC.updateSkip, none, () => deps.updater.skip())
 
   handle(IPC.logsReadLocal, LocalLogsRequest, ({ limit }) => readRecentLocal(deps.paths.logsDir, limit))
   handle(IPC.openLogsFolder, none, async () => {

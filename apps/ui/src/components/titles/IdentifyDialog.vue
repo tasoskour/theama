@@ -5,6 +5,7 @@ import { GroupTitlesResult, TitleDetail, type MatchCandidate, type MatchKind } f
 import { ApiRequestError } from '@/api/client'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
+import tmdbLogo from '@/assets/brand/tmdb.png'
 import PosterArt from './PosterArt.vue'
 import SearchField from '@/components/common/SearchField.vue'
 import { openExternal } from '@/composables/useExternalLinks'
@@ -180,7 +181,7 @@ function problem(code: string, fallback: string): string {
               <div v-if="c.originalTitle && c.originalTitle !== c.title" class="th-muted cand__orig">{{ c.originalTitle }}</div>
               <div class="cand__links">
                 <span v-if="c.rating != null" class="cand__rating" :aria-label="$t('detail.personRating', { value: c.rating.toFixed(1) })">★ TMDB {{ c.rating.toFixed(1) }}/10</span>
-                <v-btn size="small" variant="text" :aria-label="`${$t('metadata.tmdb')}: ${c.title}`" data-test="identify-tmdb" @click="openExternal({ service: 'tmdb', kind: c.kind, id: c.externalId })">{{ $t('metadata.tmdb') }} ↗</v-btn>
+                <v-btn size="small" variant="text" class="th-brand-btn" :aria-label="`${$t('metadata.tmdb')}: ${c.title}`" :title="$t('metadata.tmdb')" data-test="identify-tmdb" @click="openExternal({ service: 'tmdb', kind: c.kind, id: c.externalId })"><img :src="tmdbLogo" alt="" class="th-brand-btn__logo th-brand-btn__logo--sm" /></v-btn>
               </div>
               <p v-if="c.overview" class="cand__overview">{{ c.overview }}</p>
               <p v-else class="th-muted cand__overview">{{ $t('match.dialog.noOverview') }}</p>

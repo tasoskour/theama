@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { mdiArrowLeftBold, mdiArrowRightBold, mdiClose, mdiDeleteOutline, mdiMagnify, mdiPencilOutline } from '@mdi/js'
+import { mdiArrowLeftBold, mdiArrowRightBold, mdiClose, mdiDeleteOutline, mdiPencilOutline } from '@mdi/js'
+import GlyphIcon from '@/components/icons/GlyphIcon.vue'
 import { z } from 'zod'
 import { CollectionDetail, type CollectionMember, type CollectionOrder } from '@theama/contracts'
 import { ApiRequestError } from '@/api/client'
@@ -221,11 +222,10 @@ const heroStyle = computed(() => {
             :to="m.releaseRoute"
             size="small"
             variant="tonal"
-            :prepend-icon="mdiMagnify"
             class="member__search"
             :aria-label="$t('collections.findReleasesFor', { title: m.title })"
             data-test="collection-find-releases"
-          >{{ $t('downloads.suggestions.findReleases') }}</v-btn>
+          ><template #prepend><GlyphIcon name="calendar" /></template>{{ $t('downloads.suggestions.findReleases') }}</v-btn>
           <div v-if="arranging && m.titleKey" class="member__tools" role="group" :aria-label="$t('collections.arrange', { name: m.title })">
             <v-btn icon size="x-small" variant="text" :disabled="busy || m.position === 1" :aria-label="$t('collections.earlier', { name: m.title })" @click="move(m, -1)">
               <svg class="th-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="mdiArrowLeftBold" fill="currentColor" /></svg>

@@ -5,6 +5,7 @@ import type { MatchCandidate, Suggestion, TitleCredit } from '@theama/contracts'
 import { useConnectionStore } from '@/stores/connection'
 import { useMetadataStore } from '@/stores/metadata'
 import { useLatestRequest } from '@/composables/useRefresh'
+import GlyphIcon from '@/components/icons/GlyphIcon.vue'
 import AwardsList from './AwardsList.vue'
 import PosterArt from './PosterArt.vue'
 import TitlePreviewHost from './TitlePreviewHost.vue'
@@ -133,7 +134,7 @@ watch([open, () => props.credit.externalId, () => props.credit.category], ([show
                   <span class="th-muted"><span v-if="title.year">{{ title.year }} · </span><span v-if="title.rating !== null">{{ $t('detail.personRating', { value: title.rating.toFixed(1) }) }}</span></span>
                 </span>
               </button>
-              <v-btn v-if="downloads.canFindReleases" size="small" variant="tonal" color="primary" :to="releaseRoute(title)" :aria-label="$t('detail.findPersonReleases', { title: title.title })" data-test="credit-releases" @click="open = false">{{ $t('downloads.suggestions.findReleases') }}</v-btn>
+              <v-btn v-if="downloads.canFindReleases" size="small" variant="tonal" color="primary" :to="releaseRoute(title)" :aria-label="$t('detail.findPersonReleases', { title: title.title })" data-test="credit-releases" @click="open = false"><template #prepend><GlyphIcon name="calendar" /></template>{{ $t('downloads.suggestions.findReleases') }}</v-btn>
             </li>
           </ul>
         </template>

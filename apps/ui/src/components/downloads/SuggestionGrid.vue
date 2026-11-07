@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { mdiHeart, mdiHeartOutline, mdiStar } from '@mdi/js'
+import { mdiStar } from '@mdi/js'
+import GlyphIcon from '@/components/icons/GlyphIcon.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { useConnectionStore } from '@/stores/connection'
 import type { SuggestionItem } from './suggestion'
@@ -38,7 +39,7 @@ const favorites = useFavoritesStore()
       </button>
       <v-btn
         class="item__favorite"
-        :icon="favorites.isFavorite(c) ? mdiHeart : mdiHeartOutline"
+        icon
         :color="favorites.isFavorite(c) ? 'primary' : undefined"
         :aria-label="$t(favorites.isFavorite(c) ? 'downloads.favorites.remove' : 'downloads.favorites.add', { title: c.title })"
         :aria-pressed="favorites.isFavorite(c)"
@@ -47,7 +48,7 @@ const favorites = useFavoritesStore()
         size="x-small"
         data-test="suggestion-favorite"
         @click="favorites.toggle(c)"
-      />
+      ><GlyphIcon :name="favorites.isFavorite(c) ? 'heart-filled' : 'heart'" /></v-btn>
     </li>
   </ul>
 </template>

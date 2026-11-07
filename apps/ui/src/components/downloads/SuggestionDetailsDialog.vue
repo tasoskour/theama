@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useId } from 'vue'
-import { mdiClose, mdiHeart, mdiHeartOutline, mdiMagnify, mdiOpenInNew, mdiPlayCircleOutline, mdiStar } from '@mdi/js'
+import { mdiClose, mdiStar } from '@mdi/js'
 import imdbLogo from '@/assets/brand/imdb.png'
+import tmdbLogo from '@/assets/brand/tmdb.png'
+import GlyphIcon from '@/components/icons/GlyphIcon.vue'
 import PosterArt from '@/components/titles/PosterArt.vue'
 import { useConnectionStore } from '@/stores/connection'
 import type { SuggestionItem } from './suggestion'
@@ -54,19 +56,25 @@ const favorites = useFavoritesStore()
         <div class="details__actions">
           <v-btn
             variant="tonal"
-            :prepend-icon="favorites.isFavorite(candidate) ? mdiHeart : mdiHeartOutline"
             :aria-label="`${$t(favorites.isFavorite(candidate) ? 'downloads.favorites.saved' : 'downloads.favorites.save')}: ${candidate.title}`"
+            :title="$t(favorites.isFavorite(candidate) ? 'downloads.favorites.saved' : 'downloads.favorites.save')"
             :aria-pressed="favorites.isFavorite(candidate)"
             :loading="favorites.isPending(candidate)"
             :disabled="!favorites.loaded || favorites.isPending(candidate)"
             data-test="suggestion-detail-favorite"
             @click="favorites.toggle(candidate)"
-          >{{ $t(favorites.isFavorite(candidate) ? 'downloads.favorites.saved' : 'downloads.favorites.save') }}</v-btn>
-          <v-btn v-if="canFindReleases !== false" color="primary" :prepend-icon="mdiMagnify" data-test="suggestion-releases" @click="$emit('pick', candidate)">{{ $t('downloads.suggestions.findReleases') }}</v-btn>
-          <v-btn variant="outlined" :append-icon="mdiOpenInNew" data-test="suggestion-tmdb" @click="$emit('tmdb', candidate)">{{ $t('metadata.tmdb') }}</v-btn>
-          <v-btn variant="outlined" :prepend-icon="mdiPlayCircleOutline" :loading="busy === 'trailer'" :disabled="busy !== null" data-test="suggestion-trailer" @click="$emit('trailer', candidate)">{{ $t('downloads.suggestions.trailer') }}</v-btn>
-          <v-btn variant="text" class="th-imdb-btn" :aria-label="$t('downloads.suggestions.imdb')" :title="$t('downloads.suggestions.imdb')" :loading="busy === 'imdb'" :disabled="busy !== null" data-test="suggestion-imdb" @click="$emit('imdb', candidate)">
-            <img :src="imdbLogo" alt="" class="th-imdb-btn__logo" />
+          ><GlyphIcon :name="favorites.isFavorite(candidate) ? 'heart-filled' : 'heart'" /></v-btn>
+          <v-btn v-if="canFindReleases !== false" color="primary" data-test="suggestion-releases" @click="$emit('pick', candidate)">
+            <template #prepend><GlyphIcon name="calendar" /></template>{{ $t('downloads.suggestions.findReleases') }}
+          </v-btn>
+          <v-btn variant="text" class="th-brand-btn" :aria-label="$t('metadata.tmdb')" :title="$t('metadata.tmdb')" data-test="suggestion-tmdb" @click="$emit('tmdb', candidate)">
+            <img :src="tmdbLogo" alt="" class="th-brand-btn__logo" />
+          </v-btn>
+          <v-btn variant="outlined" :loading="busy === 'trailer'" :disabled="busy !== null" data-test="suggestion-trailer" @click="$emit('trailer', candidate)">
+            <template #prepend><GlyphIcon name="play" /></template>{{ $t('downloads.suggestions.trailer') }}
+          </v-btn>
+          <v-btn variant="text" class="th-brand-btn" :aria-label="$t('downloads.suggestions.imdb')" :title="$t('downloads.suggestions.imdb')" :loading="busy === 'imdb'" :disabled="busy !== null" data-test="suggestion-imdb" @click="$emit('imdb', candidate)">
+            <img :src="imdbLogo" alt="" class="th-brand-btn__logo" />
           </v-btn>
         </div>
       </footer>

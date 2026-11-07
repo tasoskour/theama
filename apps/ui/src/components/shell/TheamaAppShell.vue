@@ -7,11 +7,13 @@ import ConnectionChip from './ConnectionChip.vue'
 import NavigationBackButton from './NavigationBackButton.vue'
 import TheamaBottomNavigation from './TheamaBottomNavigation.vue'
 import TheamaTopNavigation from './TheamaTopNavigation.vue'
+import UpdateDialog from './UpdateDialog.vue'
 import RecoveryScreen from '@/components/service/RecoveryScreen.vue'
 import NextEpisodeDialog from '@/components/titles/NextEpisodeDialog.vue'
 import { useGlobalShortcuts } from '@/composables/useGlobalShortcuts'
 import { useImmersive } from '@/composables/useImmersive'
 import { useConnectionStore } from '@/stores/connection'
+import { useAppUpdateStore } from '@/stores/appUpdate'
 import { useNextUpStore } from '@/stores/nextUp'
 import { useTitleActionsStore } from '@/stores/titleActions'
 import { useSetupStore } from '@/stores/setup'
@@ -28,6 +30,7 @@ const setup = useSetupStore()
 const titleActions = useTitleActionsStore()
 useGlobalShortcuts()
 useNextUpStore() // listens for "an episode ended" from the desktop app
+useAppUpdateStore() // listens for "a new version was found" from the desktop app
 
 // Brief reconnects (a service restart, a missed heartbeat) should not flash the
 // recovery screen; only an outage that lasts a moment does.
@@ -79,6 +82,7 @@ const splash = computed(() => connection.phase === 'connecting' && !connection.e
 
   <TheamaBottomNavigation v-if="mobile" />
   <NextEpisodeDialog />
+  <UpdateDialog />
   <v-snackbar :model-value="titleActions.message !== null" :timeout="4500" :color="titleActions.color" @update:model-value="titleActions.clear()">
     {{ titleActions.message }}
   </v-snackbar>

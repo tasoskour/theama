@@ -13,16 +13,16 @@ import { useCollections } from '@/composables/useCollections'
 
 /** Newest first, a short page each: Home is a shop window, the section pages are the full shelves. */
 const RAIL = 24
-const recent = useTitles({ kind: () => undefined, sort: 'added', limit: RAIL })
+const recent = useTitles({ kind: () => undefined, excludeKind: 'video', sort: 'added', limit: RAIL })
 const movies = useTitles({ kind: () => 'movie', sort: 'added', limit: RAIL })
 const series = useTitles({ kind: () => 'series', sort: 'added', limit: RAIL })
-const videos = useTitles({ kind: () => 'video', sort: 'added', limit: RAIL })
 
 const { genres } = useGenres(() => undefined)
 
 const resume = useContinueWatching()
 const collections = useCollections()
-const { titles: resumeTitles, captions: resumeCaptions } = resume
+const { captions: resumeCaptions } = resume
+const resumeTitles = computed(() => resume.titles.value.filter((t) => t.kind !== 'video'))
 
 const hasContent = computed(() => recent.total.value > 0)
 const loading = computed(() => !recent.loaded.value && recent.error.value === null)
@@ -48,13 +48,6 @@ const loading = computed(() => !recent.loaded.value && recent.error.value === nu
       :total="series.total.value"
     />
     <CollectionRail v-if="collections.items.value.length > 0" :heading="$t('home.collections')" :collections="collections.items.value" :see-all="{ name: 'collections' }" />
-    <PosterRail
-      v-if="videos.total.value > 0"
-      :heading="$t('nav.videos')"
-      :titles="videos.items.value"
-      :see-all="{ name: 'videos' }"
-      :total="videos.total.value"
-    />
     <GenreRail v-for="g in genres" :key="g" :genre="g" />
   </SectionPage>
 </template>

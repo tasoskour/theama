@@ -29,6 +29,8 @@ const snapshots = new Map<string, Snapshot>()
 export interface UseTitlesOptions {
   /** Which kind of title to list, or undefined for all kinds. `null` = this page lists nothing (no requests). */
   kind: () => TitleKind | undefined | null
+  /** With no kind asked for, leave this kind out. */
+  excludeKind?: TitleKind
   sort?: TitleSort
   /** Page size; rails use a small fixed page and never page further. */
   limit?: number
@@ -83,6 +85,7 @@ export function useTitles(options: UseTitlesOptions) {
     if (!connection.client || kind === null) return null
     return connection.client.get('/library/titles', TitlePage, {
       kind,
+      excludeKind: kind === undefined ? options.excludeKind : undefined,
       q: q.value.trim() || undefined,
       sort: sort.value,
       genres: genres.value.join(GENRE_SEPARATOR) || undefined,

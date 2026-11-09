@@ -42,11 +42,15 @@ export const TitleSummary = z.object({
   tmdbId: z.string().nullable().optional(),
   /** True when the person chose a category instead of using the library folder setting. */
   categoryOverride: z.boolean(),
+  /** The folder a personal video sits in (full path); null for movies and series. */
+  folder: z.string().nullable().default(null),
 })
 export type TitleSummary = z.infer<typeof TitleSummary>
 
 export const TitleQuery = z.object({
   kind: TitleKind.optional(),
+  /** Leave this kind out when no single kind is asked for (Home lists films and series, never personal videos). */
+  excludeKind: TitleKind.optional(),
   /** Full-text search over titles, episode titles and path words (accent- and case-insensitive). */
   q: z.string().max(200).optional(),
   /** Genres to keep, separated by "|". Needs provider data. */

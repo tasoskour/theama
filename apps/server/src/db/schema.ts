@@ -241,6 +241,7 @@ export const collection = sqliteTable('collection', {
   backdropPath: text('backdrop_path'),
   backdropFile: text('backdrop_file'),
   fetchedAt: text('fetched_at'),
+  ratingEnriched: integer('rating_enriched').notNull().default(0),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })
@@ -260,6 +261,7 @@ export const collectionMember = sqliteTable(
     overview: text('overview'),
     posterPath: text('poster_path'),
     posterFile: text('poster_file'),
+    rating: real('rating'),
     customOrder: integer('custom_order'),
   },
   (t) => [index('idx_collection_member_ext').on(t.externalId)],

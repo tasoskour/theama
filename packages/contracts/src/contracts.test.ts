@@ -3,7 +3,7 @@ import { AppSettings, AppSettingsPatch, DEFAULT_SETTINGS, LogQuery, ReleaseQuery
 
 describe('settings contract', () => {
   it('fills defaults', () => {
-    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'dark', textSize: 'default', visualMode: 'immersive', graphicsQuality: 'medium', backdropScene: 'classic', backdropByGenre: true, backdropByKind: true, logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], autoPlayNext: true, nextEpisodeCountdownSeconds: 5, renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}', downloadMovieSourceId: null, downloadSeriesSourceId: null, downloadsShowAll: false })
+    expect(DEFAULT_SETTINGS).toEqual({ language: 'en', theme: 'dark', textSize: 'default', visualMode: 'immersive', graphicsQuality: 'medium', backdropScene: 'classic', backdropByGenre: true, backdropByKind: true, logRetentionDays: 14, logDetail: 'info', metadataLanguage: 'en', subtitleLanguages: ['el', 'en'], autoPlayNext: true, nextEpisodeCountdownSeconds: 5, renameMovieTemplate: '{title} ({year})', renameEpisodeTemplate: '{title} - {episodeCode} - {episodeTitle}', downloadMovieSourceId: null, downloadSeriesSourceId: null, downloadsShowAll: false, downloadAskFolder: false })
   })
   it('rejects unknown language', () => {
     expect(AppSettings.safeParse({ language: 'fr' }).success).toBe(false)

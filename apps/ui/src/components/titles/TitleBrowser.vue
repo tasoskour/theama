@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mdiCheckboxMarkedOutline, mdiClose, mdiEyeOffOutline, mdiMovieOpenOutline, mdiRestore, mdiTelevisionClassic, mdiVideoOutline, mdiVectorCombine } from '@mdi/js'
+import { mdiCheckboxMarkedOutline, mdiClose, mdiEyeOffOutline, mdiFolderOutline, mdiMovieOpenOutline, mdiRestore, mdiTelevisionClassic, mdiVideoOutline, mdiVectorCombine } from '@mdi/js'
 import type { GroupTitlesResult, TitleKind, TitleSort } from '@theama/contracts'
 import { useGenres } from '@/composables/useGenres'
 import type { TitlesList } from '@/composables/useTitles'
@@ -39,6 +39,21 @@ function browseAll(genre?: string): void {
   genres.value = genre ? [genre] : []
   sort.value = 'added'
 }
+
+/** My Videos: one shelf per folder, folders A–Z, each keeping the chosen sort inside. */
+const folderGroups = computed(() => {
+  if (props.kind !== 'video') return null
+  const byFolder = new Map<string, typeof items.value>()
+  for (const item of items.value) {
+    const folder = item.folder ?? ''
+    const group = byFolder.get(folder)
+    if (group) group.push(item)
+    else byFolder.set(folder, [item])
+  }
+  return [...byFolder.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }))
+    .map(([path, titles]) => ({ path, name: path.split(/[\\/]/).filter(Boolean).pop() ?? path, titles }))
+})
 
 const SORTS: TitleSort[] = ['title', 'added', 'year']
 const sortItems = computed(() => SORTS.map((s) => ({ value: s, title: t(`titles.sort.${s}`) })))
@@ -192,6 +207,26 @@ async function moveSelected(): Promise<void> {
     <transition v-else name="results" mode="out-in">
       <div :key="resultsVersion">
         <p v-if="loaded && items.length === 0" class="th-muted none">{{ $t('titles.noMatches') }}</p>
+        <template v-else-if="folderGroups">
+          <section v-for="(group, i) in folderGroups" :key="group.path" class="folder" data-test="folder-group">
+            <h2 class="folder__title th-display">
+              <v-icon :icon="mdiFolderOutline" size="20" class="folder__icon" />{{ group.name }}
+              <span class="folder__count">{{ group.titles.length }}</span>
+            </h2>
+            <p v-if="group.path" class="folder__path th-muted">{{ group.path }}</p>
+            <PosterGrid
+              :titles="group.titles"
+              :label="`${label} – ${group.name}`"
+              :has-more="i === folderGroups.length - 1 && nextCursor !== null"
+              :loading="loading"
+              :selecting="selecting"
+              :selected="selected"
+              @load-more="loadMore()"
+              @toggle="toggle"
+              @paint="paint"
+            />
+          </section>
+        </template>
         <PosterGrid v-else :titles="items" :label="label" :has-more="nextCursor !== null" :loading="loading" :selecting="selecting" :selected="selected" @load-more="loadMore()" @toggle="toggle" @paint="paint" />
       </div>
     </transition>
@@ -297,6 +332,29 @@ async function moveSelected(): Promise<void> {
 .results-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+.folder {
+  margin-bottom: 28px;
+}
+.folder__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.2rem;
+}
+.folder__icon {
+  opacity: 0.8;
+}
+.folder__count {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+.folder__path {
+  margin: 2px 0 8px;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
 }
 .none {
   padding: 48px 0;

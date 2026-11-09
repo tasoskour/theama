@@ -37,6 +37,7 @@ interface GroupRow {
   watched_episodes: number
   category_override: number
   tmdb_id: string | null
+  path?: string | null
 }
 
 function toSummary(r: GroupRow): TitleSummary | null {
@@ -60,6 +61,7 @@ function toSummary(r: GroupRow): TitleSummary | null {
     watchState: watchState(r),
     categoryOverride: r.category_override === 1,
     tmdbId: r.tmdb_id,
+    folder: kind === 'video' && r.path ? r.path.replace(/[\\/][^\\/]*$/, '') : null,
   }
 }
 
@@ -106,6 +108,7 @@ const GROUP_SELECT = `
          SUM(coalesce(pb.watched, 0)) AS watched_files,
          COUNT(DISTINCT CASE WHEN pb.watched = 1 AND f.episode IS NOT NULL THEN coalesce(f.season, -1) * 100000 + f.episode END) AS watched_episodes
          ,MAX(CASE WHEN f.kind_override IS NOT NULL THEN 1 ELSE 0 END) AS category_override
+         ,MIN(f.path) AS path
   FROM media_file f JOIN library_source s ON s.id = f.source_id
        LEFT JOIN title_metadata d ON d.title_key = f.title_key
        LEFT JOIN title_match m ON m.title_key = f.title_key
@@ -328,6 +331,10 @@ export class TitleRepo {
       params.push(KIND_TO_DB[query.kind])
     } else {
       where.push("f.kind <> 'extra'")
+      if (query.excludeKind) {
+        where.push('f.kind <> ?')
+        params.push(KIND_TO_DB[query.excludeKind])
+      }
     }
     const fts = query.q ? ftsQuery(query.q) : null
     if (query.q?.trim() && fts === null) return { items: [], nextCursor: null, total: 0 }

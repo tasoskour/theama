@@ -46,7 +46,7 @@ import {
   type IndexerStatus,
   type RecommendedIndexersResult,
   type DownloadClientStatus,
-  TitleKeyRequest,
+  TitleKeyRequest, TitleKeysRequest,
   LogQuery,
   MediaFileQuery,
   TitleQuery,
@@ -363,6 +363,14 @@ export async function buildApp(deps: AppDeps) {
     const { key } = TitleKeyRequest.parse(req.body ?? {})
     const hidden = exclusions.hideTitle(key)
     if (hidden === 0) throw new ApiProblem('not_found', 'No such title', 404)
+    events.broadcast({ type: 'library.changed' })
+    return { hidden }
+  })
+
+  app.post(`${API_PREFIX}/library/titles/hide-many`, async (req): Promise<{ hidden: number }> => {
+    const { keys } = TitleKeysRequest.parse(req.body ?? {})
+    const hidden = exclusions.hideTitles(keys)
+    if (hidden === 0) throw new ApiProblem('not_found', 'No such titles', 404)
     events.broadcast({ type: 'library.changed' })
     return { hidden }
   })

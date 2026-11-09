@@ -129,6 +129,17 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
+  /** Hides many cards in one request; returns how many files were hidden, or null on failure. */
+  async function hideTitles(keys: string[]): Promise<number | null> {
+    if (!connection.client) return null
+    try {
+      return (await connection.client.post('/library/titles/hide-many', { keys }, HiddenResult)).hidden
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err)
+      return null
+    }
+  }
+
   /** Changes a card's category only in Theama's index; the files stay where they are on disk. */
   async function reclassifyTitle(key: string, kind: TitleKind | null): Promise<number | null> {
     if (!connection.client) return null
@@ -175,5 +186,5 @@ export const useLibraryStore = defineStore('library', () => {
     if (e.type === 'library.changed') void load()
   })
 
-  return { sources, exclusions, loaded, loading, error, count, offlineCount, load, add, update, relocate, remove, loadExclusions, addExclusion, removeExclusion, hideTitle, reclassifyTitle, hideFile }
+  return { sources, exclusions, loaded, loading, error, count, offlineCount, load, add, update, relocate, remove, loadExclusions, addExclusion, removeExclusion, hideTitle, hideTitles, reclassifyTitle, hideFile }
 })

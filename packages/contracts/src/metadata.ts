@@ -223,3 +223,6 @@ export type IdentifyRequest = z.infer<typeof IdentifyRequest>
 
 export const TitleKeyRequest = z.object({ key: z.string().min(1).max(1000) })
 export type TitleKeyRequest = z.infer<typeof TitleKeyRequest>
+
+export const TitleKeysRequest = z.object({ keys: z.array(z.string().min(1).max(1000)).min(1).max(5000) })
+export type TitleKeysRequest = z.infer<typeof TitleKeysRequest>

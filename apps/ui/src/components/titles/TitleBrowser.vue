@@ -97,6 +97,17 @@ function paint(key: string, on: boolean): void {
   else next.delete(key)
   selected.value = next
 }
+const groupSelected = (titles: { key: string }[]): boolean => titles.length > 0 && titles.every((t) => selected.value.has(t.key))
+/** Selects every card of one folder, or clears them when all are already selected. */
+function toggleGroup(titles: { key: string }[]): void {
+  const next = new Set(selected.value)
+  const clear = groupSelected(titles)
+  for (const t of titles) {
+    if (clear) next.delete(t.key)
+    else next.add(t.key)
+  }
+  selected.value = next
+}
 function toggleAll(): void {
   selected.value = allSelected.value ? new Set() : new Set(items.value.map((i) => i.key))
 }
@@ -115,9 +126,9 @@ watch(items, (next) => {
 async function hideSelected(): Promise<void> {
   if (busy.value || selected.value.size === 0) return
   busy.value = true
-  let done = 0
-  for (const key of selected.value) if (await library.hideTitle(key)) done++
-  const failed = selected.value.size - done
+  const count = selected.value.size
+  const done = (await library.hideTitles([...selected.value])) === null ? 0 : count
+  const failed = count - done
   notices.notify(failed === 0 ? t('titles.select.hidden', done) : (library.error ?? t('titles.actions.failed')), failed > 0)
   busy.value = false
   stopSelecting()
@@ -212,6 +223,14 @@ async function moveSelected(): Promise<void> {
             <h2 class="folder__title th-display">
               <v-icon :icon="mdiFolderOutline" size="20" class="folder__icon" />{{ group.name }}
               <span class="folder__count">{{ group.titles.length }}</span>
+              <v-btn
+                v-if="selecting"
+                variant="text"
+                size="x-small"
+                class="folder__select"
+                data-test="folder-select"
+                @click="toggleGroup(group.titles)"
+              >{{ groupSelected(group.titles) ? $t('titles.select.none') : $t('titles.select.all') }}</v-btn>
             </h2>
             <p v-if="group.path" class="folder__path th-muted">{{ group.path }}</p>
             <PosterGrid

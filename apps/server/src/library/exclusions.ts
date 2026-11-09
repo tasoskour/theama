@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import type { ExclusionKind, LibraryExclusion } from '@theama/contracts'
 import type { Db } from '../db/client'
 import { libraryExclusion, mediaFile } from '../db/schema'
@@ -70,6 +70,28 @@ export class LibraryExclusionRepo {
     return rows.length
   }
 
+  /** Hides several cards at once: one pass over each affected folder instead of one per card. */
+  hideTitles(titleKeys: string[]): number {
+    const keys = [...new Set(titleKeys)]
+    const rows: { sourceId: number; path: string }[] = []
+    for (let i = 0; i < keys.length; i += 400) {
+      rows.push(...this.db.select({ sourceId: mediaFile.sourceId, path: mediaFile.path }).from(mediaFile).where(inArray(mediaFile.titleKey, keys.slice(i, i + 400))).all())
+    }
+    if (rows.length === 0) return 0
+    this.db.transaction(() => {
+      for (const sourceId of new Set(rows.map((r) => r.sourceId))) {
+        const known = new Set(this.list(sourceId).map((e) => pathKey(e.path)))
+        for (const row of rows) {
+          if (row.sourceId !== sourceId || known.has(pathKey(row.path))) continue
+          this.db.insert(libraryExclusion).values({ sourceId, path: row.path, kind: 'file', createdAt: new Date().toISOString() }).run()
+          known.add(pathKey(row.path))
+        }
+        this.recompute(sourceId)
+      }
+    })
+    return rows.length
+  }
+
   hideFile(id: number): number {
     const row = this.db.select({ sourceId: mediaFile.sourceId, path: mediaFile.path }).from(mediaFile).where(eq(mediaFile.id, id)).get()
     if (!row) throw new ApiProblem('not_found', 'No such media file', 404)
@@ -87,12 +109,16 @@ export class LibraryExclusionRepo {
 
   /** Re-evaluates rows after adding/removing a rule; no media or playback history is deleted. */
   private recompute(sourceId: number): void {
-    const exclusions = this.list(sourceId)
+    const all = this.list(sourceId)
+    const files = new Set(all.filter((e) => e.kind === 'file').map((e) => pathKey(e.path)))
+    const folders = all.filter((e) => e.kind === 'folder')
     const rows = this.db.select({ id: mediaFile.id, path: mediaFile.path, excluded: mediaFile.excluded }).from(mediaFile)
       .where(eq(mediaFile.sourceId, sourceId)).all()
-    for (const row of rows) {
-      const excluded = exclusions.some((e) => matches(row.path, e))
-      if (excluded !== row.excluded) this.db.update(mediaFile).set({ excluded }).where(eq(mediaFile.id, row.id)).run()
-    }
+    this.db.transaction(() => {
+      for (const row of rows) {
+        const excluded = files.has(pathKey(row.path)) || folders.some((e) => matches(row.path, e))
+        if (excluded !== row.excluded) this.db.update(mediaFile).set({ excluded }).where(eq(mediaFile.id, row.id)).run()
+      }
+    })
   }
 }
